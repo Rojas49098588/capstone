@@ -16,15 +16,19 @@ export default function Habitat({ projectId, justHatched, onOpenShop }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [showStill, setShowStill] = useState(false);
 
-  // The extension (Plan 3) finds this box, puts the project's pet in it and sets data-pet-attached.
+  // The extension finds this box, puts the project's pet in it and sets data-pet-attached.
+  // It removes the attribute when it lets go (pets hidden, extension gone), and the still picture comes back.
   useEffect(() => {
     const box = boxRef.current;
     if (!box) return;
+    let waited = false;
+    const update = () => setShowStill(waited && !box.hasAttribute("data-pet-attached"));
     setShowStill(false);
-    const timer = setTimeout(() => setShowStill(!box.hasAttribute("data-pet-attached")), HABITAT_FALLBACK_MS);
-    const observer = new MutationObserver(() => {
-      if (box.hasAttribute("data-pet-attached")) setShowStill(false);
-    });
+    const timer = setTimeout(() => {
+      waited = true;
+      update();
+    }, HABITAT_FALLBACK_MS);
+    const observer = new MutationObserver(update);
     observer.observe(box, { attributes: true, attributeFilter: ["data-pet-attached"] });
     return () => {
       clearTimeout(timer);

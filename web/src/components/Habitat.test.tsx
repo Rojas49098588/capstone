@@ -66,4 +66,19 @@ describe("Habitat", () => {
     renderWithStudium(<Habitat projectId="petExt" justHatched onOpenShop={vi.fn()} />);
     screen.getByText("It hatched: a turtle!");
   });
+
+  it("brings the still picture back when the extension lets go of the box", async () => {
+    vi.useFakeTimers();
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />);
+    const box = document.querySelector('[data-pet-habitat="webDev"]') as HTMLElement;
+    box.setAttribute("data-pet-attached", "");
+    act(() => {
+      vi.advanceTimersByTime(HABITAT_FALLBACK_MS);
+    });
+    expect(screen.queryByRole("img")).toBeNull();
+    await act(async () => {
+      box.removeAttribute("data-pet-attached");
+    });
+    screen.getByRole("img", { name: "webDev's pigeon" });
+  });
 });
