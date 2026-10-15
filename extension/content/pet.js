@@ -1,0 +1,506 @@
+// Content script: draws one pet per project on every page and remembers where
+// each one was, so they appear in the same spots when you switch pages or tabs.
+//
+// Every pet can be dragged, thrown (it flies with momentum and bounces) and
+// clicked (it hops and makes its sound). Each kind of animal also has its own
+// habits; see KINDS below. Art lives in extension/assets/pets/.
+
+(() => {
+  if (window.top !== window) return;
+  // Pets left over from before the extension was reloaded can't save anymore,
+  // so replace them. Their loop stops once their element is gone (see loop()).
+  document.getElementById('capstone-pet-host')?.remove();
+
+  // One pet per project. Placeholder: mirrors INITIAL_PROJECTS in web/src/App.tsx
+  // until the extension can read projects from Studium.
+  const PROJECTS = [
+    { id: 'webDev', name: 'Web Development Portfolio', color: '#2d3a8c', kind: 'pigeon' },
+    { id: 'appDev', name: 'Mobile App — Habit Tracker', color: '#c9501a', kind: 'dog' },
+    { id: 'Animation', name: '3D Animation Reel', color: '#3a7c4f', kind: 'frog' },
+    { id: 'seniorCap', name: 'Senior Capstone Project', color: '#7b4fa6', kind: 'cat' },
+    { id: 'petExt', name: 'Virtual Pet Extension', color: '#1a6e7e', kind: 'turtle' },
+  ];
+
+  // Shared physics. Each kind below can override the ones marked "per kind".
+  const GRAVITY = 1400;         // px/s², per kind
+  const HOP_SPEED = 380;        // px/s upward when clicked, per kind
+  const BOUNCE = 0.5;           // speed kept after hitting a wall, floor or ceiling, per kind
+  const AIR_DRAG = 0.4;         // sideways slowdown in the air, per kind
+  const THROW_SAMPLE_MS = 80;   // how much recent mouse movement sets the throw speed
+  const MAX_THROW_SPEED = 2500; // px/s
+  const GROUND_FRICTION = 5;    // how quickly a slide along the floor stops
+  const MIN_BOUNCE_SPEED = 200; // slower floor hits than this stop bouncing
+  const MAX_TILT_DEG = 25;      // lean while flying sideways
+  const SAVE_EVERY_MS = 2000;
+
+  // How each kind of animal looks and behaves. Ranges are [min, max].
+  //   height/aspect: display size in px (aspect = width / height of the art)
+  //   walkSpeed px/s, idleMs pause between walks, strollPx typical walk length
+  //   sound: what it says when clicked and every soundMs or so
+  const KINDS = {
+    cat: {
+      height: 56, aspect: 0.82,
+      walkSpeed: 28, idleMs: [3000, 8000], strollPx: 160,
+      sound: 'Meow!', soundMs: [20000, 45000],
+      napChance: 0.4, napMs: [10000, 20000], // sometimes naps instead of walking
+    },
+    dog: {
+      height: 60, aspect: 0.82,
+      walkSpeed: 60, idleMs: [400, 1800], strollPx: 450, longWalkChance: 0.4,
+      sound: 'Bark!', soundMs: [8000, 20000],
+    },
+    turtle: {
+      height: 44, aspect: 1.48,
+      walkSpeed: 10, idleMs: [3000, 8000], strollPx: 120,
+      throwable: false, // drops straight down when let go
+      bounce: 0.08, hopSpeed: 120,
+    },
+    frog: {
+      height: 50, aspect: 1.04,
+      hops: true, jumpSpeed: [600, 850], jumpSideways: [120, 260], // moves by jumping
+      idleMs: [1500, 5000], bounce: 0.15, hopSpeed: 850,
+      sound: 'Ribbit!', soundMs: [12000, 30000],
+      tongueMs: [4000, 10000], mouth: { x: 0.8, y: 0.37 }, // tongue flick, from the mouth corner
+    },
+    pigeon: {
+      height: 50, aspect: 0.81,
+      walkSpeed: 40, idleMs: [1500, 5000], strollPx: 200,
+      sound: 'Coo!', soundMs: [10000, 25000],
+      flyChance: 0.35, flyHeight: [150, 400], riseSpeed: 150, // floats up the page...
+      gravity: 200, maxFallSpeed: 90, airDrag: 1.2,           // ...and drifts down slowly
+    },
+  };
+
+  const between = ([lo, hi]) => lo + Math.random() * (hi - lo);
+
+  const STYLE = `
+    .pet {
+      position: absolute; left: 0; bottom: 0;
+      pointer-events: auto; cursor: grab; user-select: none; touch-action: none;
+      will-change: transform;
+    }
+    .pet.dragging { cursor: grabbing; z-index: 1; }
+    .body, .anim { width: 100%; height: 100%; transform-origin: 50% 100%; }
+    .sprite {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      -webkit-user-drag: none; pointer-events: none;
+      /* Thin outline in the project's color, so you can tell which project a pet belongs to. */
+      filter: drop-shadow(1.5px 0 0 var(--c)) drop-shadow(-1.5px 0 0 var(--c))
+              drop-shadow(0 1.5px 0 var(--c)) drop-shadow(0 -1.5px 0 var(--c));
+    }
+    .ring {
+      position: absolute; left: 10%; bottom: -4px; width: 80%; height: 8px;
+      border-radius: 50%; background: var(--c); opacity: .35; pointer-events: none;
+    }
+    .pet.walking .anim { animation: bob .4s ease-in-out infinite; }
+    .pet.sleeping .anim { animation: breathe 2.4s ease-in-out infinite; }
+    .pet.flying .anim { animation: flap .18s ease-in-out infinite; }
+    .pet.gliding .anim { animation: flap .6s ease-in-out infinite; }
+
+    .tongue {
+      position: absolute; height: 4px; width: 26px; border-radius: 2px;
+      background: #e8577a; transform-origin: 0 50%; transform: scaleX(0);
+    }
+    .tongue::after {
+      content: ''; position: absolute; right: -3px; top: -2px;
+      width: 8px; height: 8px; border-radius: 50%; background: #e8577a;
+    }
+    .pet.licking .tongue { animation: lick .45s ease-out; }
+
+    .bubble, .name {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      font: 600 12px/1.2 system-ui, sans-serif; white-space: nowrap;
+      pointer-events: none; opacity: 0; transition: opacity .2s;
+    }
+    .bubble {
+      padding: 4px 8px; border-radius: 10px;
+      background: #fff; color: #1a1816; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+    }
+    .bubble.show { opacity: 1; }
+    .pet.sleeping .bubble { font-style: italic; color: #6b6f7a; }
+    .name { padding: 1px 6px; border-radius: 6px; background: var(--c); color: #fff; }
+    .pet:hover .name { opacity: 1; }
+
+    @keyframes bob { 50% { transform: translateY(-3px) scaleY(.96); } }
+    @keyframes breathe { 50% { transform: scaleY(.93) scaleX(1.03); } }
+    @keyframes flap { 50% { transform: translateY(-3px) scaleY(1.04); } }
+    @keyframes lick { 40%, 55% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
+  `;
+
+  // ---- DOM ----
+  const host = document.createElement('div');
+  host.id = 'capstone-pet-host';
+  host.style.cssText =
+    'all: initial; position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;';
+  const root = host.attachShadow({ mode: 'open' });
+  root.innerHTML = `<style>${STYLE}</style>`;
+  document.documentElement.appendChild(host);
+
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+
+  // Speed of the pointer over the last few moments of a drag, in px/s.
+  // Holding still before letting go gives zero, so you can still set a pet down gently.
+  function throwVelocity(samples) {
+    const now = performance.now();
+    const recent = samples.filter((s) => now - s.t <= THROW_SAMPLE_MS);
+    if (recent.length < 2) return { vx: 0, vy: 0 };
+    const first = recent[0];
+    const lastS = recent[recent.length - 1];
+    const secs = Math.max((lastS.t - first.t) / 1000, 0.008);
+    let vx = (lastS.x - first.x) / secs;
+    let vy = -(lastS.y - first.y) / secs; // screen y points down; ours points up
+    const speed = Math.hypot(vx, vy);
+    if (speed > MAX_THROW_SPEED) {
+      vx *= MAX_THROW_SPEED / speed;
+      vy *= MAX_THROW_SPEED / speed;
+    }
+    return { vx, vy };
+  }
+
+  // ---- One pet ----
+  function createPet(project, index) {
+    const kind = KINDS[project.kind];
+    const gravity = kind.gravity ?? GRAVITY;
+    const bounce = kind.bounce ?? BOUNCE;
+    const airDrag = kind.airDrag ?? AIR_DRAG;
+    const h = kind.height;
+    const w = Math.round(h * kind.aspect);
+    const maxX = () => Math.max(0, window.innerWidth - w);
+    const maxY = () => Math.max(0, window.innerHeight - h);
+
+    const petEl = document.createElement('div');
+    petEl.className = 'pet';
+    petEl.style.cssText = `width:${w}px;height:${h}px;--c:${project.color}`;
+    petEl.innerHTML = `
+      <div class="ring"></div>
+      <div class="bubble" style="bottom:${h + 4}px"></div>
+      <div class="body"><div class="anim">
+        <img class="sprite" alt="" src="${chrome.runtime.getURL(`assets/pets/${project.kind}.png`)}">
+        ${kind.mouth ? `<div class="tongue" style="left:${kind.mouth.x * 100}%;top:${kind.mouth.y * 100}%"></div>` : ''}
+      </div></div>
+      <div class="name" style="top:${h + 6}px"></div>`;
+    petEl.querySelector('.name').textContent = `${project.id} · ${project.kind}`;
+    petEl.title = project.name;
+    const bodyEl = petEl.querySelector('.body');
+    const ringEl = petEl.querySelector('.ring');
+    const bubbleEl = petEl.querySelector('.bubble');
+    root.appendChild(petEl);
+
+    const state = {
+      x: 0,               // left edge, px
+      y: 0,               // height above the floor, px
+      vx: 0,              // sideways speed, px/s (positive is right)
+      vy: 0,              // vertical speed, px/s (positive is up)
+      facing: 1,          // 1 = right, -1 = left (the art faces right or forward)
+      mode: 'idle',       // idle | walk | fall | drag | sleep | fly
+      targetX: 0,
+      idleUntil: 0,
+      sleepUntil: 0,
+      flyTo: 0,           // height the pigeon rises to before gliding down
+      nextSoundAt: 0,
+      nextLickAt: 0,
+    };
+    // Spread the pets out across the window until they have saved positions.
+    const defaultXRatio = (index + 0.5) / PROJECTS.length;
+
+    function say(text, ms = 1500) {
+      bubbleEl.textContent = text;
+      bubbleEl.classList.add('show');
+      clearTimeout(say.timer);
+      say.timer = setTimeout(() => bubbleEl.classList.remove('show'), ms);
+    }
+
+    function lick() {
+      if (!kind.mouth) return;
+      petEl.classList.remove('licking');
+      void petEl.offsetWidth; // restart the animation if it's already running
+      petEl.classList.add('licking');
+      setTimeout(() => petEl.classList.remove('licking'), 450);
+    }
+
+    function goIdle(now) {
+      state.mode = 'idle';
+      state.idleUntil = now + between(kind.idleMs);
+    }
+
+    function wake() {
+      if (state.mode !== 'sleep') return;
+      bubbleEl.classList.remove('show');
+      petEl.classList.remove('sleeping');
+    }
+
+    // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind.
+    function act(now) {
+      if (kind.napChance && Math.random() < kind.napChance) {
+        state.mode = 'sleep';
+        const napMs = between(kind.napMs);
+        state.sleepUntil = now + napMs;
+        say('Zzzzz', napMs);
+        return;
+      }
+      if (kind.flyChance && Math.random() < kind.flyChance) {
+        state.mode = 'fly';
+        state.flyTo = Math.min(maxY(), between(kind.flyHeight));
+        state.vx = (Math.random() < 0.5 ? -1 : 1) * between([40, 100]);
+        state.facing = Math.sign(state.vx);
+        return;
+      }
+      if (kind.hops) {
+        // Jump mostly toward the middle of the window so frogs don't pile up at the edges.
+        const towardMiddle = state.x < maxX() / 2 ? 1 : -1;
+        const dir = Math.random() < 0.7 ? towardMiddle : -towardMiddle;
+        state.vx = dir * between(kind.jumpSideways);
+        state.vy = between(kind.jumpSpeed);
+        state.facing = dir;
+        state.mode = 'fall';
+        return;
+      }
+      // Walk: mostly short strolls, sometimes a long walk across the screen.
+      const range = Math.random() < (kind.longWalkChance ?? 0.2) ? maxX() : kind.strollPx;
+      state.targetX = clamp(state.x + (Math.random() * 2 - 1) * range, 0, maxX());
+      state.facing = state.targetX >= state.x ? 1 : -1;
+      state.mode = 'walk';
+    }
+
+    function step(now, dt) {
+      // Sounds and tongue flicks happen on their own timers while awake and on the ground.
+      const busy = state.mode === 'drag' || state.mode === 'sleep';
+      if (kind.sound && !busy && now > state.nextSoundAt) {
+        if (state.nextSoundAt) say(kind.sound);
+        state.nextSoundAt = now + between(kind.soundMs);
+      }
+      if (kind.mouth && !busy && state.y === 0 && now > state.nextLickAt) {
+        if (state.nextLickAt) lick();
+        state.nextLickAt = now + between(kind.tongueMs);
+      }
+
+      switch (state.mode) {
+        case 'idle':
+          if (now > state.idleUntil) act(now);
+          break;
+        case 'sleep':
+          if (now > state.sleepUntil) {
+            wake();
+            goIdle(now);
+          }
+          break;
+        case 'walk': {
+          const dist = state.targetX - state.x;
+          const move = kind.walkSpeed * dt;
+          if (Math.abs(dist) <= move) {
+            state.x = state.targetX;
+            goIdle(now);
+          } else {
+            state.x += Math.sign(dist) * move;
+          }
+          dirty = true;
+          break;
+        }
+        case 'fly': {
+          // Rise steadily while drifting sideways, then glide back down (in 'fall').
+          state.y += kind.riseSpeed * dt;
+          state.x += state.vx * dt;
+          if (state.x < 0 || state.x > maxX()) {
+            state.x = clamp(state.x, 0, maxX());
+            state.vx = -state.vx;
+            state.facing = Math.sign(state.vx);
+          }
+          if (state.y >= state.flyTo) {
+            state.y = state.flyTo;
+            state.vy = 0;
+            state.mode = 'fall';
+          }
+          dirty = true;
+          break;
+        }
+        case 'fall': {
+          state.vy -= gravity * dt;
+          if (kind.maxFallSpeed) state.vy = Math.max(state.vy, -kind.maxFallSpeed);
+          state.x += state.vx * dt;
+          state.y += state.vy * dt;
+
+          // Bounce off the sides and top of the window.
+          if (state.x < 0 || state.x > maxX()) {
+            state.x = clamp(state.x, 0, maxX());
+            state.vx = -state.vx * bounce;
+          }
+          if (state.y > maxY()) {
+            state.y = maxY();
+            state.vy = -state.vy * bounce;
+          }
+
+          const onFloor = state.y <= 0;
+          if (onFloor) {
+            state.y = 0;
+            state.vy = -state.vy > MIN_BOUNCE_SPEED ? -state.vy * bounce : 0;
+          }
+          // Slide to a stop on the floor; drift a little in the air.
+          state.vx *= Math.exp(-(onFloor && state.vy === 0 ? GROUND_FRICTION : airDrag) * dt);
+
+          if (Math.abs(state.vx) > 20) state.facing = Math.sign(state.vx);
+          if (onFloor && state.vy === 0 && Math.abs(state.vx) < 10) {
+            state.vx = 0;
+            goIdle(now);
+          }
+          dirty = true;
+          break;
+        }
+        // 'drag' is driven by pointer events below.
+      }
+    }
+
+    function render() {
+      petEl.style.transform = `translate(${state.x}px, ${-state.y}px)`;
+      const airborne = state.mode === 'fall' && state.y > 0;
+      const tilt = airborne && !kind.maxFallSpeed ? clamp(state.vx * 0.02, -MAX_TILT_DEG, MAX_TILT_DEG) : 0;
+      bodyEl.style.transform = `rotate(${tilt}deg) scaleX(${state.facing})`;
+      // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
+      ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
+      petEl.classList.toggle('walking', state.mode === 'walk');
+      petEl.classList.toggle('dragging', state.mode === 'drag');
+      petEl.classList.toggle('sleeping', state.mode === 'sleep');
+      petEl.classList.toggle('flying', state.mode === 'fly');
+      petEl.classList.toggle('gliding', airborne && Boolean(kind.maxFallSpeed));
+    }
+
+    // ---- Pointer: click to pet, drag to carry or throw ----
+    let press = null;
+
+    petEl.addEventListener('pointerdown', (e) => {
+      const rect = petEl.getBoundingClientRect();
+      press = {
+        startX: e.clientX, startY: e.clientY,
+        offX: e.clientX - rect.left, offY: e.clientY - rect.top,
+        moved: false,
+        samples: [], // recent { t, x, y } pointer positions, for throw speed
+      };
+      petEl.setPointerCapture(e.pointerId);
+      e.preventDefault();
+    });
+
+    petEl.addEventListener('pointermove', (e) => {
+      if (!press) return;
+      if (!press.moved && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) < 4) return;
+      press.moved = true;
+      wake();
+      state.mode = 'drag';
+      state.x = clamp(e.clientX - press.offX, 0, maxX());
+      state.y = clamp(window.innerHeight - h - (e.clientY - press.offY), 0, maxY());
+      dirty = true;
+
+      const t = performance.now();
+      press.samples.push({ t, x: e.clientX, y: e.clientY });
+      while (press.samples.length > 2 && t - press.samples[0].t > THROW_SAMPLE_MS) press.samples.shift();
+    });
+
+    petEl.addEventListener('pointerup', () => {
+      if (!press) return;
+      if (press.moved) {
+        const v = kind.throwable === false ? { vx: 0, vy: 0 } : throwVelocity(press.samples);
+        state.vx = v.vx;
+        state.vy = v.vy;
+        state.mode = 'fall';
+      } else if (state.mode === 'sleep') {
+        // Clicking a napping pet wakes it up.
+        wake();
+        goIdle(performance.now());
+        say(kind.sound ? kind.sound.replace('!', '?') : '♥');
+      } else {
+        // Clicked: hop and make its sound.
+        if (state.y === 0) {
+          state.vx = 0;
+          state.vy = kind.hopSpeed ?? HOP_SPEED;
+          state.mode = 'fall';
+        }
+        say(kind.sound ?? '♥');
+        lick();
+      }
+      press = null;
+    });
+
+    return {
+      id: project.id,
+      step,
+      render,
+      start(now) {
+        goIdle(now);
+        render();
+      },
+      // xRatio: position as a fraction of the window width, so it survives resizes.
+      restore(xRatio = defaultXRatio) {
+        state.x = clamp(xRatio * maxX(), 0, maxX());
+      },
+      xRatio: () => (maxX() ? state.x / maxX() : 0),
+      clampToWindow() {
+        state.x = clamp(state.x, 0, maxX());
+        state.y = clamp(state.y, 0, maxY());
+        state.targetX = clamp(state.targetX, 0, maxX());
+      },
+    };
+  }
+
+  const pets = PROJECTS.map(createPet);
+  let hidden = false;
+  let dirty = false;
+
+  // ---- Storage ----
+  // After the extension is reloaded, old content scripts lose access to chrome.*.
+  const alive = () => Boolean(chrome.runtime?.id);
+
+  async function load() {
+    if (!alive()) return;
+    const { pets: saved = {}, petHidden = false } =
+      await chrome.storage.local.get(['pets', 'petHidden']);
+    for (const pet of pets) pet.restore(saved[pet.id]?.xRatio);
+    setHidden(petHidden);
+  }
+
+  function save() {
+    // Only the tab you're looking at writes, so background tabs don't fight over positions.
+    if (!dirty || !alive() || !host.isConnected || document.visibilityState !== 'visible') return;
+    dirty = false;
+    const saved = Object.fromEntries(pets.map((pet) => [pet.id, { xRatio: pet.xRatio() }]));
+    chrome.storage.local.set({ pets: saved }).catch(() => {});
+  }
+
+  function setHidden(value) {
+    hidden = value;
+    host.style.display = value ? 'none' : '';
+  }
+
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === 'local' && changes.petHidden) setHidden(changes.petHidden.newValue);
+  });
+
+  // When you come back to this tab, pick up wherever the pets were in the other tab.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') load();
+    else save();
+  });
+  window.addEventListener('pagehide', save);
+  setInterval(save, SAVE_EVERY_MS);
+
+  window.addEventListener('resize', () => pets.forEach((pet) => pet.clampToWindow()));
+
+  // ---- Loop ----
+  let last = performance.now();
+  function loop(now) {
+    if (!host.isConnected) return; // replaced by a newer copy of this script
+    const dt = Math.min(0.05, (now - last) / 1000); // cap so a background tab doesn't teleport
+    last = now;
+    if (!hidden) {
+      for (const pet of pets) {
+        pet.step(now, dt);
+        pet.render();
+      }
+    }
+    requestAnimationFrame(loop);
+  }
+
+  // ---- Start ----
+  load().then(() => {
+    const now = performance.now();
+    pets.forEach((pet) => pet.start(now));
+    requestAnimationFrame(loop);
+  });
+})();

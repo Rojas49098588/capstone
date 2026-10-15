@@ -1,0 +1,14 @@
+# Dependencies and build output
+node_modules/
+dist/
+.vite/
+*.tsbuildinfo
+
+# Logs and local env
+*.log
+.env*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Capstone Pet",
+  "version": "0.1.0",
+  "description": "A virtual pet that follows you around the web. Click the icon to open your homepage.",
+  "permissions": ["storage", "tabs", "contextMenus", "scripting"],
+  "host_permissions": ["<all_urls>"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Open homepage"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["assets/pets/*.png"],
+      "matches": ["<all_urls>"]
+    }
+  ],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content/pet.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
