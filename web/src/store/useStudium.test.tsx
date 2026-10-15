@@ -64,3 +64,32 @@ describe("useStudium", () => {
     expect(result.current.now).toEqual(time);
   });
 });
+
+describe("useStudium with two tabs", () => {
+  it("picks up changes another tab saved instead of overwriting them", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    // The other tab completes a task and saves.
+    const other = { ...savedData(storage) };
+    other.tasks = other.tasks.map((t) => (t.id === "webDev-t5" ? { ...t, done: true } : t));
+    storage.setItem(STORAGE_KEY, JSON.stringify(other));
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: JSON.stringify(other) }));
+    });
+    expect(result.current.data.tasks.find((t) => t.id === "webDev-t5")?.done).toBe(true);
+    // This tab's next change builds on the other tab's data.
+    act(() => {
+      result.current.togglePriority("webDev-t6");
+    });
+    expect(savedData(storage).tasks.find((t) => t.id === "webDev-t5")?.done).toBe(true);
+  });
+
+  it("ignores damaged data from another tab", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: "{broken" }));
+    });
+    expect(result.current.data.projects).toHaveLength(5);
+  });
+});

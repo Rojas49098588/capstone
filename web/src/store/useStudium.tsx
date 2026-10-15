@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { StudiumData } from "../planner/types";
 import * as A from "./actions";
-import { browserStorage, loadData, saveData, type LoadNotice } from "./storage";
+import { STORAGE_KEY, browserStorage, isValidData, loadData, saveData, type LoadNotice } from "./storage";
 
 export const NOW_REFRESH_MS = 60_000;
 
@@ -27,6 +27,26 @@ export function useStudium(options: StudiumOptions = {}) {
     const id = setInterval(() => setNow(env.clock()), NOW_REFRESH_MS);
     return () => clearInterval(id);
   }, [env]);
+
+  // Another Studium tab saved: take its data, so this tab's next save doesn't overwrite it.
+  useEffect(() => {
+    if (!persistent) return;
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== STORAGE_KEY || e.newValue === null) return;
+      let next: unknown;
+      try {
+        next = JSON.parse(e.newValue);
+      } catch {
+        return;
+      }
+      if (!isValidData(next)) return;
+      dataRef.current = next;
+      setData(next);
+      setNow(env.clock());
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [env, persistent]);
 
   const apply = useCallback(
     function apply<R>(fn: (d: StudiumData, at: Date) => { data: StudiumData; result: R }): R {
