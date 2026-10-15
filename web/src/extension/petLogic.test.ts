@@ -150,3 +150,17 @@ describe("habitat geometry", () => {
     expect(L.habitatClip(gone, 1000, 800)).toBe("inset(0px 500px 976px 100px)");
   });
 });
+
+describe("parseStatuses colors", () => {
+  it("only accepts hex colors, so a bad value can't restyle the pet layer", () => {
+    const s = L.parseStatuses({
+      pets: [
+        pet({ projectId: "a", color: "#000;width:100vw;height:100vh" }),
+        pet({ projectId: "b", color: "url(https://example.com/t.png)" }),
+        pet({ projectId: "c", color: "#C9501A" }),
+        pet({ projectId: "d", color: "#abc" }),
+      ],
+    });
+    expect(s.pets.map((p: { color: string }) => p.color)).toEqual(["#2d3a8c", "#2d3a8c", "#C9501A", "#abc"]);
+  });
+});

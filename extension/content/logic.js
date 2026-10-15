@@ -33,6 +33,8 @@
   }
 
   const text = (v) => typeof v === 'string' && v.length > 0;
+  // The color goes into the pet's inline style, so only plain hex colors are allowed.
+  const isHexColor = (v) => typeof v === 'string' && /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v);
 
   function cleanStatus(p) {
     if (!p || typeof p !== 'object') return null;
@@ -42,7 +44,7 @@
       projectId: p.projectId,
       shortName: text(p.shortName) ? p.shortName : p.projectId,
       name: text(p.name) ? p.name : p.projectId,
-      color: text(p.color) ? p.color : '#2d3a8c',
+      color: isHexColor(p.color) ? p.color : '#2d3a8c',
       petKind: p.petKind,
       mood: p.mood,
       recovering: p.recovering === true,
