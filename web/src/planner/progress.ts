@@ -39,6 +39,7 @@ export function plannedProgress(req: Requirement, project: Project, now: Date): 
   const s = requirementStart(req).getTime();
   const d = requirementDue(req, project).getTime();
   const t = now.getTime();
+  if (!Number.isFinite(s) || !Number.isFinite(d)) return 0;
   if (t < s) return 0;
   if (d <= s) return 1;
   return Math.min(1, (t - s) / (d - s));

@@ -67,12 +67,13 @@ export function makeTask(o: Partial<Task> = {}): Task {
 export function completed(
   taskId: string,
   at: string,
-  o: { actualMin?: number | null; tokens?: number; breakdown?: TokenBreakdown } = {},
+  o: { actualMin?: number | null; tokens?: number; breakdown?: TokenBreakdown; requirementId?: string | null } = {},
 ): StudiumEvent {
   return {
     type: "task_completed",
     at,
     taskId,
+    requirementId: o.requirementId ?? null,
     actualMin: o.actualMin ?? null,
     tokens: o.tokens ?? 0,
     breakdown: o.breakdown ?? { ...ZERO_BREAKDOWN },

@@ -71,11 +71,27 @@ describe("computeCompletionPayout", () => {
     const data = makeData({
       requirements: [makeRequirement({ weight: 6 })],
       tasks: [makeTask({ id: "a", done: true }), makeTask({ id: "c" })],
-      events: [completed("a", daysAgo(1), { tokens: 117, breakdown: { ...ZERO_BREAKDOWN, finish: 180 } })],
+      events: [completed("a", daysAgo(1), { tokens: 117, requirementId: "r1", breakdown: { ...ZERO_BREAKDOWN, finish: 180 } })],
     });
     const payout = computeCompletionPayout(data, "c", 60, NOW);
     expect(payout.breakdown.finish).toBe(0);
     expect(payout.tokens).toBe(63);
+  });
+
+  it("still pays the finish bonus when the last task done is a re-completion", () => {
+    // A was paid, then reopened; B was finished while A was open; now A is checked again.
+    const data = makeData({
+      requirements: [makeRequirement({ weight: 6 })],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "b", done: true })],
+      events: [
+        completed("a", daysAgo(2), { tokens: 50, requirementId: "r1" }),
+        completed("b", daysAgo(1), { tokens: 50, requirementId: "r1" }),
+      ],
+    });
+    const payout = computeCompletionPayout(data, "a", 60, NOW);
+    expect(payout.breakdown.base).toBe(0);
+    expect(payout.breakdown.finish).toBeCloseTo(180, 6);
+    expect(payout.tokens).toBe(54);
   });
 
   it("pays nothing for a task that was completed before", () => {

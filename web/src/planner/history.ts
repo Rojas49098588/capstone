@@ -10,14 +10,20 @@ export function hasBeenCompleted(events: StudiumEvent[], taskId: string): boolea
   return events.some((e) => isCompleted(e) && e.taskId === taskId);
 }
 
+/**
+ * When the given tasks last really moved: the latest of each task's FIRST completion
+ * (up to asOf). Re-checking an already-finished task doesn't count, so it can't
+ * reset neglect, cure sickness or end recovery.
+ */
 export function lastCompletionAt(events: StudiumEvent[], taskIds: Iterable<string>, asOf: Date): Date | null {
   const ids = new Set(taskIds);
-  let latest = -Infinity;
+  const firstDone = new Map<string, number>();
   for (const e of events) {
     if (!isCompleted(e) || !ids.has(e.taskId)) continue;
-    const t = Date.parse(e.at);
-    if (t <= asOf.getTime() && t > latest) latest = t;
+    firstDone.set(e.taskId, Math.min(firstDone.get(e.taskId) ?? Infinity, Date.parse(e.at)));
   }
+  let latest = -Infinity;
+  for (const t of firstDone.values()) if (t <= asOf.getTime() && t > latest) latest = t;
   return latest === -Infinity ? null : new Date(latest);
 }
 
@@ -57,7 +63,13 @@ export function lastMedicineGiven(events: StudiumEvent[], projectId: string, asO
   return latest === -Infinity ? null : new Date(latest);
 }
 
-export function finishBonusPaid(events: StudiumEvent[], taskIds: Iterable<string>): boolean {
-  const ids = new Set(taskIds);
-  return events.some((e) => isCompleted(e) && ids.has(e.taskId) && e.breakdown.finish > 0);
+export function finishBonusPaid(events: StudiumEvent[], requirementId: string): boolean {
+  return events.some((e) => isCompleted(e) && e.requirementId === requirementId && e.breakdown.finish > 0);
+}
+
+/** Base value already paid for a requirement's tasks (deleted tasks included). */
+export function basePaidForRequirement(events: StudiumEvent[], requirementId: string): number {
+  let sum = 0;
+  for (const e of events) if (isCompleted(e) && e.requirementId === requirementId) sum += e.breakdown.base;
+  return sum;
 }

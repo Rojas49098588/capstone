@@ -3,7 +3,7 @@
 import { isBlocked, wouldCreateCycle } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { projectHealth } from "../planner/mood";
-import { localDateKey } from "../planner/time";
+import { isDateKey, localDateKey } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import type { Project, Requirement, StudiumData, StudiumEvent, Task } from "../planner/types";
 import { computeCompletionPayout, type Payout } from "../planner/value";
@@ -19,6 +19,16 @@ export function cleanMinutes(value: number, fallback: number): number {
 
 export function clampWeight(value: number): number {
   return Number.isFinite(value) ? Math.min(10, Math.max(1, Math.round(value))) : 1;
+}
+
+/** "" or a malformed date (e.g. a cleared date input) becomes null. */
+export function cleanDate(value: string | null | undefined): string | null {
+  return isDateKey(value) ? value : null;
+}
+
+/** Drops keys whose value is undefined, so they can't erase saved fields. */
+function definedOnly<T extends object>(changes: T): Partial<T> {
+  return Object.fromEntries(Object.entries(changes).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
 function currentToday(data: StudiumData, now: Date): StudiumData["today"] {
@@ -58,6 +68,7 @@ function cleanRequirementId(data: StudiumData, projectId: string, requirementId:
 export type ProjectInput = Pick<Project, "name" | "shortName" | "color" | "deadline" | "description" | "petKind">;
 
 export function createProject(data: StudiumData, input: ProjectInput, now: Date): { data: StudiumData; project: Project } {
+  if (!isDateKey(input.deadline)) throw new Error(`Invalid deadline ${input.deadline}`);
   const createdAt = stamp(now);
   const project: Project = { ...input, name: input.name.trim(), id: newId(), createdAt, hatchedAt: createdAt };
   return { data: { ...data, projects: [...data.projects, project] }, project };
@@ -68,7 +79,10 @@ export function updateProject(
   id: string,
   changes: Partial<Pick<Project, "name" | "shortName" | "color" | "deadline" | "description">>,
 ): StudiumData {
-  return { ...data, projects: data.projects.map((p) => (p.id === id ? { ...p, ...changes } : p)) };
+  const clean = definedOnly(changes);
+  if (clean.deadline !== undefined && !isDateKey(clean.deadline)) delete clean.deadline;
+  if (clean.name !== undefined) clean.name = clean.name.trim();
+  return { ...data, projects: data.projects.map((p) => (p.id === id ? { ...p, ...clean } : p)) };
 }
 
 export function deleteProject(data: StudiumData, id: string): StudiumData {
@@ -102,8 +116,8 @@ export function createRequirement(
     projectId: input.projectId,
     title: input.title.trim(),
     weight: clampWeight(input.weight),
-    startDate: input.startDate ?? null,
-    dueDate: input.dueDate ?? null,
+    startDate: cleanDate(input.startDate),
+    dueDate: cleanDate(input.dueDate),
     createdAt: stamp(now),
   };
   return {
@@ -123,9 +137,11 @@ export function updateRequirement(
   now: Date,
 ): StudiumData {
   if (!data.requirements.some((r) => r.id === id)) return data;
-  const clean: Partial<Requirement> = { ...changes };
-  if (changes.title !== undefined) clean.title = changes.title.trim();
-  if (changes.weight !== undefined) clean.weight = clampWeight(changes.weight);
+  const clean: Partial<Requirement> = definedOnly(changes);
+  if (clean.title !== undefined) clean.title = clean.title.trim();
+  if (clean.weight !== undefined) clean.weight = clampWeight(clean.weight);
+  if ("startDate" in clean) clean.startDate = cleanDate(clean.startDate);
+  if ("dueDate" in clean) clean.dueDate = cleanDate(clean.dueDate);
   return {
     ...data,
     requirements: data.requirements.map((r) => (r.id === id ? { ...r, ...clean } : r)),
@@ -157,6 +173,7 @@ export type TaskInput = {
 };
 
 export function createTask(data: StudiumData, input: TaskInput, now: Date): { data: StudiumData; task: Task } {
+  if (!data.projects.some((p) => p.id === input.projectId)) throw new Error(`Unknown project ${input.projectId}`);
   const id = newId();
   const task: Task = {
     id,
@@ -222,6 +239,7 @@ export function completeTask(
         type: "task_completed",
         at: stamp(now),
         taskId: id,
+        requirementId: task.requirementId,
         actualMin: actual,
         tokens: payout.tokens,
         breakdown: payout.breakdown,

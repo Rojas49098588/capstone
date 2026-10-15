@@ -25,3 +25,9 @@ describe("time helpers", () => {
     expect(localDateKey(addDays(new Date(2026, 9, 30, 12), 3))).toBe("2026-11-02");
   });
 });
+
+describe("time helpers with bad input", () => {
+  it("treats an invalid date as 0 days, not NaN", () => {
+    expect(wholeDaysBetween(new Date(Number.NaN), new Date(2026, 9, 8))).toBe(0);
+  });
+});

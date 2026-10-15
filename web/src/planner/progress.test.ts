@@ -93,3 +93,10 @@ describe("project progress and schedule gap", () => {
     expect(projectProgress("p1", makeData(), ONE)).toBe(0);
   });
 });
+
+describe("plan with bad dates", () => {
+  it("is a number, not NaN, when a date is empty", () => {
+    const req = makeRequirement({ startDate: dayKey(-10), dueDate: null });
+    expect(plannedProgress(req, makeProject({ deadline: "" }), NOW)).toBe(0);
+  });
+});

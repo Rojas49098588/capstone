@@ -69,3 +69,10 @@ describe("loadData / saveData", () => {
     expect(saveData(memoryStorage(true), valid())).toBe(false);
   });
 });
+
+describe("isValidData dates", () => {
+  it("rejects malformed date keys", () => {
+    expect(isValidData({ ...valid(), projects: [{ ...valid().projects[0], deadline: "soon" }] })).toBe(false);
+    expect(isValidData({ ...valid(), requirements: [makeRequirement({ dueDate: "" })] })).toBe(false);
+  });
+});

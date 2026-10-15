@@ -13,8 +13,11 @@ import {
   giveMedicine,
   purchase,
   reopenTask,
+  updateProject,
+  updateRequirement,
   updateTask,
 } from "./actions";
+import { isValidData } from "./storage";
 
 const base = () =>
   makeData({
@@ -103,6 +106,45 @@ describe("today", () => {
     expect(data.today.taskIds).toEqual(["A"]);
     const done = completeTask(base(), "A", 60, NOW).data;
     expect(addToToday(done, "A", NOW).today.taskIds).toEqual([]);
+  });
+});
+
+describe("keeping saved data loadable", () => {
+  const roundTrip = (d: unknown) => JSON.parse(JSON.stringify(d));
+
+  it("treats cleared or malformed dates as empty and ignores undefined changes", () => {
+    const { data, requirement } = createRequirement(
+      makeData(),
+      { projectId: "p1", title: "R", weight: 3, startDate: "", dueDate: "soon" },
+      NOW,
+    );
+    expect(requirement).toMatchObject({ startDate: null, dueDate: null });
+    const edited = updateRequirement(data, requirement.id, { startDate: undefined, dueDate: "" }, NOW);
+    expect(isValidData(roundTrip(edited))).toBe(true);
+    const project = updateProject(edited, "p1", { deadline: "", name: undefined });
+    expect(project.projects[0].deadline).toBe(edited.projects[0].deadline);
+    expect(isValidData(roundTrip(project))).toBe(true);
+  });
+
+  it("refuses a task for an unknown project", () => {
+    expect(() =>
+      createTask(makeData(), { projectId: "nope", requirementId: null, title: "x", estimateMin: 30 }, NOW),
+    ).toThrow();
+  });
+});
+
+describe("farming", () => {
+  it("can't farm tokens by creating, completing and deleting tasks", () => {
+    let data = makeData({ requirements: [makeRequirement({ weight: 10 })] });
+    let total = 0;
+    for (let i = 0; i < 3; i++) {
+      const created = createTask(data, { projectId: "p1", requirementId: "r1", title: "x", estimateMin: 15 }, NOW);
+      const done = completeTask(created.data, created.task.id, 15, NOW);
+      total += done.payout?.tokens ?? 0;
+      data = deleteTask(done.data, created.task.id);
+    }
+    // First round: (700 × 1.25 neglect + 300 finish) × 0.3 = 352.5 → 353. Later rounds pay nothing.
+    expect(total).toBe(353);
   });
 });
 

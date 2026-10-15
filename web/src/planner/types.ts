@@ -60,6 +60,7 @@ export type StudiumEvent =
       type: "task_completed";
       at: string;
       taskId: string;
+      requirementId?: string | null; // the task's requirement when completed (missing in old data)
       actualMin: number | null;
       tokens: number;
       breakdown: TokenBreakdown;

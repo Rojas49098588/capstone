@@ -63,8 +63,9 @@ describe("history", () => {
   });
 
   it("knows whether a requirement's finish bonus was already paid", () => {
-    const paid = completed("t1", daysAgo(1), { tokens: 50, breakdown: { ...ZERO_BREAKDOWN, finish: 150 } });
-    expect(finishBonusPaid([paid], ["t1", "t2"])).toBe(true);
-    expect(finishBonusPaid([completed("t1", daysAgo(1))], ["t1"])).toBe(false);
+    const paid = completed("t1", daysAgo(1), { tokens: 50, requirementId: "r1", breakdown: { ...ZERO_BREAKDOWN, finish: 150 } });
+    expect(finishBonusPaid([paid], "r1")).toBe(true);
+    expect(finishBonusPaid([paid], "r2")).toBe(false);
+    expect(finishBonusPaid([completed("t1", daysAgo(1), { requirementId: "r1" })], "r1")).toBe(false);
   });
 });

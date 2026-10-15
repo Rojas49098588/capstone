@@ -20,7 +20,13 @@ export function endOfLocalDay(key: string): Date {
 
 /** Whole days from `from` to `to`, rounded down, never negative. */
 export function wholeDaysBetween(from: Date, to: Date): number {
-  return Math.max(0, Math.floor((to.getTime() - from.getTime()) / DAY_MS));
+  const days = Math.floor((to.getTime() - from.getTime()) / DAY_MS);
+  return Number.isFinite(days) ? Math.max(0, days) : 0;
+}
+
+/** True for a real calendar day written as "YYYY-MM-DD". */
+export function isDateKey(value: unknown): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && localDateKey(startOfLocalDay(value)) === value;
 }
 
 export function addDays(d: Date, n: number): Date {

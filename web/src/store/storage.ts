@@ -1,4 +1,5 @@
 // Loading and saving Studium's data in localStorage, with validation and backups.
+import { isDateKey } from "../planner/time";
 import { PET_KINDS, type StudiumData } from "../planner/types";
 import { buildSeed } from "./seed";
 
@@ -13,7 +14,6 @@ const isObj = (v: unknown): v is Obj => typeof v === "object" && v !== null && !
 const isStr = (v: unknown): v is string => typeof v === "string";
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
-const isNullableStr = (v: unknown) => v === null || isStr(v);
 const allStr = (o: Obj, keys: string[]) => keys.every((k) => isStr(o[k]));
 
 export function isValidData(value: unknown): value is StudiumData {
@@ -25,14 +25,15 @@ export function isValidData(value: unknown): value is StudiumData {
   const projectIds = new Set<string>();
   for (const p of projects as unknown[]) {
     if (!isObj(p) || !allStr(p, ["id", "name", "shortName", "color", "deadline", "description", "hatchedAt", "createdAt"])) return false;
-    if (!PET_KINDS.includes(p.petKind as never)) return false;
+    if (!PET_KINDS.includes(p.petKind as never) || !isDateKey(p.deadline)) return false;
     projectIds.add(p.id as string);
   }
 
   const requirementIds = new Set<string>();
   for (const r of requirements as unknown[]) {
     if (!isObj(r) || !allStr(r, ["id", "projectId", "title", "createdAt"]) || !isNum(r.weight)) return false;
-    if (!isNullableStr(r.startDate) || !isNullableStr(r.dueDate) || !projectIds.has(r.projectId as string)) return false;
+    if (!(r.startDate === null || isDateKey(r.startDate)) || !(r.dueDate === null || isDateKey(r.dueDate))) return false;
+    if (!projectIds.has(r.projectId as string)) return false;
     requirementIds.add(r.id as string);
   }
 

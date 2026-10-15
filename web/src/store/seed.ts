@@ -308,6 +308,7 @@ export function buildSeed(now: Date): StudiumData {
             type: "task_completed",
             at: at(st.done.daysAgo),
             taskId: id,
+            requirementId,
             actualMin: st.done.actual,
             tokens: 0,
             breakdown: { ...ZERO_BREAKDOWN },

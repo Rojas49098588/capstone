@@ -101,14 +101,21 @@ describe("sick, medicine and recovery", () => {
   });
 
   it("ends recovery early once the neglected requirement moves", () => {
-    const data = moodData({
-      ...base,
-      done: 6,
-      lastDoneDaysAgo: 15,
-      extraEvents: [medicine(1), completed("t6", daysAgo(0.5))],
-    });
+    // t7 is finished for the first time after the medicine (a real step forward).
+    const start = moodData({ ...base, done: 6, lastDoneDaysAgo: 15, extraEvents: [medicine(1), completed("t7", daysAgo(0.5))] });
+    const data = { ...start, tasks: start.tasks.map((t) => (t.id === "t7" ? { ...t, done: true } : t)) };
     expect(projectHealth("p1", data, NOW).recovering).toBe(false);
     expect(projectMood("p1", data, NOW).mood).toBe("Delighted");
+  });
+
+  it("does not let re-checking an old task cure a sick pet", () => {
+    const data = moodData({ ...base, done: 4, lastDoneDaysAgo: 15, extraEvents: [completed("t1", daysAgo(0.5))] });
+    expect(projectMood("p1", data, NOW).mood).toBe("Sick");
+  });
+
+  it("does not let re-checking an old task end recovery", () => {
+    const data = moodData({ ...base, done: 6, lastDoneDaysAgo: 15, extraEvents: [medicine(1), completed("t1", daysAgo(0.5))] });
+    expect(projectHealth("p1", data, NOW).recovering).toBe(true);
   });
 
   it("gets sick again when recovery runs out without progress", () => {

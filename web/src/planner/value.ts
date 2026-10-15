@@ -1,6 +1,6 @@
 // What a task is worth, and the tokens paid when it is completed. See spec section 2.
 import { downstreamOpenCount } from "./blocking";
-import { finishBonusPaid, hasBeenCompleted, paidCompletionsOnDay } from "./history";
+import { basePaidForRequirement, finishBonusPaid, hasBeenCompleted, paidCompletionsOnDay } from "./history";
 import { estimateMultipliers, multiplierFor, type Multipliers } from "./learning";
 import { projectHealth, requirementIdleDays } from "./mood";
 import { isRequirementDone, taskEffort, tasksOfRequirement } from "./progress";
@@ -53,9 +53,14 @@ export function dailyCurve(k: number): number {
 
 export type Payout = { tokens: number; breakdown: TokenBreakdown };
 
-const NOTHING: Payout = { tokens: 0, breakdown: ZERO_BREAKDOWN };
+const nothing = (): Payout => ({ tokens: 0, breakdown: { ...ZERO_BREAKDOWN } });
 
-/** Tokens for completing `taskId` now. Call before marking the task done in `data`. */
+/**
+ * Tokens for completing `taskId` now. Call before marking the task done in `data`.
+ * A task's own value is paid only on its first completion, and a requirement's tasks
+ * can never be paid more than its 70% share in total. The finish bonus is paid once
+ * per requirement, even when the completion that finishes it is a re-check.
+ */
 export function computeCompletionPayout(
   data: StudiumData,
   taskId: string,
@@ -63,30 +68,37 @@ export function computeCompletionPayout(
   now: Date,
 ): Payout {
   const task = data.tasks.find((t) => t.id === taskId);
-  if (!task || hasBeenCompleted(data.events, taskId)) return NOTHING;
+  if (!task) return nothing();
   const requirement = data.requirements.find((r) => r.id === task.requirementId);
-  if (!requirement) return NOTHING;
+  if (!requirement) return nothing();
+  const paidBefore = hasBeenCompleted(data.events, taskId);
 
   const multiplier = multiplierFor(estimateMultipliers(data), task.projectId);
   const after = data.tasks.map((t) => (t.id === taskId ? { ...t, done: true, actualMin } : t));
   const completedTask = after.find((t) => t.id === taskId) as Task;
 
-  const base = taskBaseValue(completedTask, after, requirement, multiplier);
-  const unblock = unblockBonus(taskId, data.tasks);
-  const health = projectHealth(task.projectId, data, now);
-  const neglect = neglectBonus(
-    requirementIdleDays(requirement, data, now),
-    health.recoveringFor.includes(requirement.id),
+  const remainingShare = Math.max(
+    0,
+    requirementPool(requirement.weight) * TASK_SHARE - basePaidForRequirement(data.events, requirement.id),
   );
-  const reqTaskIds = tasksOfRequirement(requirement.id, after).map((t) => t.id);
+  const base = paidBefore ? 0 : Math.min(taskBaseValue(completedTask, after, requirement, multiplier), remainingShare);
   const finish =
-    isRequirementDone(requirement.id, after) && !finishBonusPaid(data.events, reqTaskIds)
+    isRequirementDone(requirement.id, after) && !finishBonusPaid(data.events, requirement.id)
       ? requirementPool(requirement.weight) * FINISH_SHARE
+      : 0;
+  if (base === 0 && finish === 0) return nothing();
+
+  const unblock = base > 0 ? unblockBonus(taskId, data.tasks) : 0;
+  const health = projectHealth(task.projectId, data, now);
+  const neglect =
+    base > 0
+      ? neglectBonus(requirementIdleDays(requirement, data, now), health.recoveringFor.includes(requirement.id))
       : 0;
   const curve = dailyCurve(paidCompletionsOnDay(data.events, localDateKey(now)) + 1);
   const sickMultiplier = health.sick ? SICK_TOKEN_MULTIPLIER : 1;
 
-  const tokens = Math.round((base * (1 + unblock + neglect) + finish) * curve * sickMultiplier * TOKENS_PER_VALUE);
+  const raw = Math.round((base * (1 + unblock + neglect) + finish) * curve * sickMultiplier * TOKENS_PER_VALUE);
+  const tokens = Number.isFinite(raw) ? raw : 0;
   return {
     tokens,
     breakdown: { base, unblockBonus: unblock, neglectBonus: neglect, finish, dailyCurve: curve, sickMultiplier },
