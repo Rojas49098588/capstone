@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import type { StudiumData } from "../planner/types";
 import * as A from "./actions";
 import { STORAGE_KEY, browserStorage, isValidData, loadData, saveData, type LoadNotice } from "./storage";
+import { PET_STATUS_REFRESH_MS, publishPetStatuses } from "./petStatus";
 
 export const NOW_REFRESH_MS = 60_000;
 
@@ -46,6 +47,18 @@ export function useStudium(options: StudiumOptions = {}) {
     };
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
+  }, [env, persistent]);
+
+  // Tell the browser extension how each pet is doing: on load and after every change...
+  useEffect(() => {
+    if (persistent) publishPetStatuses(env.storage, data, env.clock());
+  }, [env, persistent, data]);
+
+  // ...and every hour, because moods change with time even without edits.
+  useEffect(() => {
+    if (!persistent) return;
+    const id = setInterval(() => publishPetStatuses(env.storage, dataRef.current, env.clock()), PET_STATUS_REFRESH_MS);
+    return () => clearInterval(id);
   }, [env, persistent]);
 
   const apply = useCallback(

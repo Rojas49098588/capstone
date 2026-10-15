@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, dayKey } from "../planner/testData";
 import { memoryStorage, savedData } from "../test/render";
+import { PET_STATUS_EVENT, PET_STATUS_KEY, PET_STATUS_REFRESH_MS } from "./petStatus";
 import { STORAGE_KEY } from "./storage";
 import { NOW_REFRESH_MS, useStudium } from "./useStudium";
 
@@ -91,5 +92,48 @@ describe("useStudium with two tabs", () => {
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: "{broken" }));
     });
     expect(result.current.data.projects).toHaveLength(5);
+  });
+});
+
+describe("useStudium and the browser extension", () => {
+  const published = (storage: Storage) => JSON.parse(storage.getItem(PET_STATUS_KEY) ?? "null");
+
+  it("publishes pet statuses when it loads", () => {
+    const storage = memoryStorage();
+    renderHook(() => useStudium({ storage, clock: () => NOW }));
+    expect(published(storage).pets).toHaveLength(5);
+  });
+
+  it("publishes again after every change", () => {
+    const storage = memoryStorage();
+    const onUpdate = vi.fn();
+    window.addEventListener(PET_STATUS_EVENT, onUpdate);
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const before = onUpdate.mock.calls.length;
+    act(() => {
+      result.current.createProject({
+        name: "Thesis",
+        shortName: "thesis",
+        color: "#2d3a8c",
+        deadline: dayKey(30),
+        description: "",
+        petKind: "cat",
+      });
+    });
+    window.removeEventListener(PET_STATUS_EVENT, onUpdate);
+    expect(published(storage).pets).toHaveLength(6);
+    expect(onUpdate.mock.calls.length).toBeGreaterThan(before);
+  });
+
+  it("republishes every hour because moods change with time", () => {
+    vi.useFakeTimers();
+    let time = NOW;
+    const storage = memoryStorage();
+    renderHook(() => useStudium({ storage, clock: () => time }));
+    time = new Date(NOW.getTime() + PET_STATUS_REFRESH_MS);
+    act(() => {
+      vi.advanceTimersByTime(PET_STATUS_REFRESH_MS);
+    });
+    expect(published(storage).updatedAt).toBe(time.toISOString());
   });
 });
