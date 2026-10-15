@@ -42,6 +42,18 @@ After editing extension files, click the reload icon on the extension's card, th
 | Studium projects, shop items, all UI | `web/src/App.tsx` (see HANDOFF.md) |
 | Studium colors, fonts, dark mode | `web/src/index.css` |
 
+## Planner core (Studium logic)
+
+The rules from the planner spec (`docs/superpowers/specs/2026-10-14-studium-planner-design.md`) live in `web/src/planner/` as plain, tested functions. The screens don't use them yet; that's the next plan.
+
+| What | Where |
+| --- | --- |
+| Every tunable number (bonuses, thresholds, curve, token rate) | `web/src/planner/tuning.ts` |
+| Example projects, requirements and tasks | `web/src/store/seed.ts` |
+| Shop items, including Medicine | `web/src/store/products.ts` |
+
+Run the tests with `npm test` in `web/`.
+
 ## Ideas for next steps
 
 - Sprite sheets with real animation frames (walking, sleeping, the frog's tongue) to replace the single images.

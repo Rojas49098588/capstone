@@ -56,6 +56,7 @@ type Requirement = {
   projectId: string;
   title: string;
   weight: number;          // whole number 1–10
+  startDate: string | null; // "YYYY-MM-DD"; null means the day it was created
   dueDate: string | null;  // "YYYY-MM-DD"; null means the project deadline
   createdAt: string;
 };
@@ -154,9 +155,11 @@ The breakdown (base, unblock %, neglect %, finish, daily curve, sick) is stored 
 
 ### Plan
 
-For a requirement with start `s` = the requirement's `createdAt` and due `d = dueDate ?? project.deadline` (end of that local day):
+For a requirement with start `s` = start of the local day `startDate` (or `createdAt` when `startDate` is null) and due `d` = end of the local day `dueDate ?? project.deadline`:
 
-`planned(t) = clamp((t − s) / (d − s), 0, 1)`. If `d ≤ s`, planned is 1.
+`planned(t) = clamp((t − s) / (d − s), 0, 1)`. Before `s` it is 0. If `d ≤ s`, planned is 1 once `t ≥ s`.
+
+The start date lets you plan requirements in sequence: one that hasn't started yet isn't expected to have any progress, and can't be neglected (below).
 
 `gap = Σ weight × (actual − planned) / Σ weight` over the project's requirements, in percentage points.
 
@@ -177,7 +180,7 @@ Then, in order:
 
 ### Neglect
 
-- **Idle days** for a requirement: whole days since the latest of: its `createdAt`, or the last `task_completed` event for one of its tasks.
+- **Idle days** for a requirement: whole days since the latest of: its start (`s` above), or the last `task_completed` event for one of its tasks. Before the start it is 0.
 - A requirement is **neglected** when idle ≥ 7 days (`NEGLECT_DAYS`), it isn't fully done, and its planned progress is above 0.
 - A project is **Sick** when any requirement has been idle ≥ 14 days (`SICK_DAYS`) under the same conditions, and the project isn't Recovering.
 
@@ -205,7 +208,7 @@ Then, in order:
 
 - **Requirements** section (replaces Project Tasks and Today's Goals). One card per requirement: title, weight, due date, progress bar with a planned-progress tick, idle days (highlighted when neglected). Its tasks are listed inside: checkbox, title, estimate, lock with "waiting on: …" when blocked, priority flag, "add to today".
 - **Unlinked** group at the bottom, each task with a "link to a requirement" control.
-- **Add requirement**: title, weight (1–10), optional due date.
+- **Add requirement**: title, weight (1–10), optional start date, optional due date.
 - **Add task**: title, requirement (defaults to the card it's added from), estimate (quick buttons 15m, 30m, 1h, 2h, 4h, 8h, or a number), blocked by (multi-select).
 - **Edit / delete** for requirements and tasks. Deleting a requirement asks whether to delete its tasks or move them to Unlinked.
 - **Completing a task** opens a small "About how long did it take?" prompt with the same quick buttons, the estimate pre-selected, and a skip option. Then a message shows the tokens earned and the breakdown.
