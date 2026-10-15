@@ -39,12 +39,14 @@ After editing extension files, click the reload icon on the extension's card, th
 | Shared physics (gravity, throwing, bounce) | constants at the top of `extension/content/pet.js` |
 | Pet art | `extension/assets/pets/` (cleaned-up copies of the originals in `assets/`) |
 | Homepage URL the icon opens | `HOMEPAGE_URL` in `extension/background.js` |
-| Studium projects, shop items, all UI | `web/src/App.tsx` (see HANDOFF.md) |
+| Studium screens | `web/src/components/` (one file per piece; `App.tsx` is just the shell) |
+| Wording shown in Studium (labels, token messages) | `web/src/ui/format.ts` |
+| Egg looks and descriptions | `web/src/pets/eggs.ts` |
 | Studium colors, fonts, dark mode | `web/src/index.css` |
 
 ## Planner core (Studium logic)
 
-The rules from the planner spec (`docs/superpowers/specs/2026-10-14-studium-planner-design.md`) live in `web/src/planner/` as plain, tested functions. The screens don't use them yet; that's the next plan.
+The rules from the planner spec (`docs/superpowers/specs/2026-10-14-studium-planner-design.md`) live in `web/src/planner/` as plain, tested functions. The Studium screens use them through `web/src/store/useStudium.tsx`, which saves every change in this browser.
 
 | What | Where |
 | --- | --- |

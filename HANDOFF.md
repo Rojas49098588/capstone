@@ -2,28 +2,21 @@
 
 Briefing for the next Claude session working in this repo. Read this first, then the files it points to.
 
-## Start here: implement Plan 2
+## Start here: write and implement Plan 3
 
 1. **Read, in order:**
-   - `docs/superpowers/specs/2026-10-14-studium-planner-design.md` (the approved spec; binding when anything conflicts),
-   - `docs/superpowers/plans/2026-10-15-studium-screens.md` (Plan 2, the work to do),
-   - skim `docs/superpowers/plans/2026-10-15-planner-core.md` (Plan 1, already built; its code is what Plan 2 consumes).
-2. **Branch:** Plan 2 builds on Plan 1, which is **not merged into `main`**.
-   ```bash
-   git fetch origin
-   git checkout feature/planner-core && git pull
-   git checkout -b feature/studium-screens
-   ```
-   (Plan 2's Task 1 Step 1 also says this; do it once.) Don't work on `main`.
-3. **Execution method:** the user hasn't chosen one for Plan 2 yet. The previous session recommended **inline execution** (`superpowers:executing-plans`: implement every task yourself, test-first, then one fresh whole-branch review on the most capable model). Plan 1 was built that way at the user's request. Confirm with the user before starting.
-4. **Finish** with the final review, a fix pass for Critical/Important findings (each with a failing test first), then `superpowers:finishing-a-development-branch`. For Plan 1 the user chose "push and create a PR".
+   - `docs/superpowers/specs/2026-10-14-studium-planner-design.md` (the approved spec; binding when anything conflicts). Plan 3 is **section 5** (extension link).
+   - skim `docs/superpowers/plans/2026-10-15-studium-screens.md` (Plan 2, built) for how the screens and the habitat box work.
+2. **Write Plan 3** with `superpowers:writing-plans` from spec section 5, and get the user's approval before any code.
+3. **Branch:** Plan 1 is merged into `main` (PR #1). Plan 2 was built on `feature/studium-screens` (branched from `feature/planner-core`). Check whether Plan 2 has been pushed or merged (`git log origin/main`, `git branch -r`), and branch Plan 3 from wherever Plan 2 lives. Don't work on `main`.
+4. **Execution:** Plans 1 and 2 were both built with **inline execution** (`superpowers:executing-plans`) at the user's request ("a native approach"), test-first, with one whole-branch review at the end. Confirm with the user for Plan 3.
 
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):
 
 - **`extension/`**: Chrome extension (Manifest V3, plain JS, no build step). One pet per project walks on every web page (cat, dog, frog, pigeon, turtle; art in `extension/assets/pets/`). Pets can be dragged and thrown, and each kind has its own behavior (naps, hops, flying). Clicking the toolbar icon opens Studium at `http://localhost:5173/`. Its project list is still a **hard-coded copy** (`PROJECTS` in `extension/content/pet.js`); Plan 3 replaces it with data from Studium.
-- **`web/`**: **Studium**, a study/project planner (Vite 8 + React 19 + TypeScript 5.9 + Tailwind v4), originally a Figma Make export. The planner rules are in `web/src/planner/` and `web/src/store/` (Plan 1). The screens in `web/src/App.tsx` are still the **old in-memory Figma UI**; Plan 2 replaces them.
+- **`web/`**: **Studium**, a study/project planner (Vite 8 + React 19 + TypeScript 5.9 + Tailwind v4), originally a Figma Make export. The planner rules are in `web/src/planner/` and `web/src/store/` (Plan 1). The screens (Plan 2) are in `web/src/components/` and read and change data only through `useStudiumContext()` (`web/src/store/useStudium.tsx`), which saves every change to localStorage. `web/src/App.tsx` is just the shell (navigation, theme, modals, toast, notices).
 
 The user is a student building this as their capstone. They make the product decisions and approve designs and plans before code is written. Explain choices in plain language. They chose test-first development, small commits, and a final independent review.
 
@@ -32,8 +25,8 @@ The user is a student building this as their capstone. They make the product dec
 | Piece | State | Where |
 |---|---|---|
 | Spec (planner rules, screens, extension link) | Approved, includes requirement start dates | `docs/superpowers/specs/2026-10-14-studium-planner-design.md` |
-| Plan 1: planner core (rules, saving, actions, example data) | **Done**, reviewed, 101/101 tests | branch `feature/planner-core` (pushed); PR link was given to the user: https://github.com/Rojas49098588/capstone/pull/new/feature/planner-core (check whether it's open) |
-| Plan 2: Studium screens | **Written, not started** | `docs/superpowers/plans/2026-10-15-studium-screens.md` (committed on `feature/planner-core`) |
+| Plan 1: planner core (rules, saving, actions, example data) | **Done**, reviewed, 101 tests | merged into `main` (PR #1) |
+| Plan 2: Studium screens | **Done**, reviewed, 173 tests, checked in a real browser (light, dark, 390 px) | branch `feature/studium-screens`; plan `docs/superpowers/plans/2026-10-15-studium-screens.md` |
 | Plan 3: extension link (pet statuses, habitat mode, mood behavior) | Not written | Spec section 5 |
 
 ## Code map
@@ -49,12 +42,22 @@ web/
                            learning, progress, mood, value, suggest (+ *.test.ts, testData.ts fixtures)
   src/store/               actions.ts (pure user actions), storage.ts (validate/load/save/backups),
                            seed.ts (example data), products.ts (shop incl. Medicine)
-  src/App.tsx              OLD Figma UI, replaced in Plan 2 Task 13
+  src/store/useStudium.tsx StudiumProvider + useStudiumContext: data, `now` (refreshed every minute), notices,
+                           every action with the time filled in; saves after each change
+  src/ui/                  format.ts (ALL wording), derive.ts (per-project summaries), styles.ts (shared classes)
+  src/pets/eggs.ts         egg looks + vague descriptions, shuffle
+  src/components/          one file per screen piece (Overview, ProjectDetail, RequirementCard, TaskRow,
+                           CompletionPrompt, Habitat, Shop, ProjectModal, EggPicker, ...) + tests next to each
+  src/test/render.tsx      renderWithStudium, memoryStorage, savedData; importing it registers RTL cleanup
+  src/App.tsx              shell only: StudiumApp (needs a provider) and default App (provider + browser storage)
   src/index.css            Tailwind v4 setup, fonts, light/dark theme tokens
+  public/pets/*.png        copies of the extension art, shown in the habitat when the extension isn't attached
 docs/superpowers/          spec and plans
 ```
 
-Key facts about Plan 1's code that Plan 2 relies on:
+**Habitat box (what Plan 3 hooks into):** `Habitat.tsx` renders `<div data-pet-habitat="<projectId>">`. If `data-pet-attached` isn't set on it within 1000 ms (`HABITAT_FALLBACK_MS`), it shows `public/pets/<petKind>.png`; a MutationObserver hides the still image again once the attribute appears.
+
+Key facts about Plan 1's code that the screens rely on:
 - Saved under localStorage key `studium-data-v1`; damaged data is backed up as `studium-data-backup-<ISO time>` and replaced with the example data.
 - Every planner/store function that depends on time takes `now: Date`. Never call `Date.now()`/`new Date()` inside `planner/` or `store/`.
 - Example data (`buildSeed(now)`) is built relative to `now`. It starts with webDev Happy, appDev behind, Animation's "Rigging" neglected (9 days idle), seniorCap **Sick**, petExt Happy. Project ids (`webDev`, `appDev`, `Animation`, `seniorCap`, `petExt`) match the extension's saved pet positions; keep them.
@@ -86,6 +89,9 @@ Known small issues, deferred on purpose:
 - **GitHub:** the GitHub CLI (`gh`) is **not installed**. After `git push`, give the user the "Create a pull request" link GitHub prints, plus a title and description. The push prints `'credential-manager-core' is not a git command`; it's harmless (the user was told how to fix it).
 - **Line-ending warnings** (`LF will be replaced by CRLF`) on `git add` are harmless.
 - **Browser checks:** there's a pattern of using Playwright from a scratch folder (not added to the repo) with `npx vite preview`. The extension can be loaded into Chromium with `--load-extension` for testing.
+- **Browser-check text is uppercased by CSS.** Labels like "Priority Focus" use `uppercase`, so Playwright's `innerText` returns "PRIORITY FOCUS". Match case-insensitively. The toast and the egg hint are both `aria-live` regions; scope locators to the dialog.
+- **Estimates that aren't quick choices** (e.g. the seed's 180 min) show in the "… in minutes" box, not as a selected radio. Plan 2's completion-prompt test was corrected for this.
+- **Running the suite from the repo root:** use `npm --prefix web test`. Wrapping commands in `bash -c "cd web && …"` gets blocked by Claude Code's safety check.
 - **Parent-folder CLAUDE.md** (`../CLAUDE.md`) says: at session start, read `../App Dev/bugs.md` and remind the user about open bugs there (a different app, Mustang Closet). That still applies.
 
 ## Design system (keep it)
@@ -106,9 +112,9 @@ npm run dev       # http://localhost:5173 (port fixed; the extension opens it)
 
 Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Commit or push only as the plan's steps say, or when the user asks.
 
-## After Plan 2
+## Plan 3 scope
 
-Plan 3 (to be written with `superpowers:writing-plans` from spec section 5):
+To be written with `superpowers:writing-plans` from spec section 5:
 - Studium publishes each pet's status (`studium-pets-v1`).
 - The content script copies it to `chrome.storage` and rebuilds pets from it, replacing the hard-coded `PROJECTS`.
 - **Habitat mode:** on a Studium project page, every pet except that project's one hides, and that pet lives inside `[data-pet-habitat]` and sets `data-pet-attached`.
