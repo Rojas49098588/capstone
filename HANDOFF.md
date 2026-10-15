@@ -102,6 +102,7 @@ Known small issues, deferred on purpose:
 - A task checked off while unlinked never pays its own share, even after it's linked.
 - Hand-edited saved data with weight ≤ 0 or negative estimates passes validation.
 - Plan 2 review minors: a first completion that earns 0 tokens (pool used up) still says "already paid"; "It hatched" repeats on each return until another project is opened; blocked tasks have no lock icon; TaskForm uses fixed element ids; `estimateMultipliers` is recomputed per card and render.
+- Plan 3 review minors: the Studium tab writes chrome.storage on every publish even if nothing but the time stamp changed; any status change rebuilds every pet (the habitat pet jumps to the middle of its box); the habitat pet draws over the sticky header when scrolled and over the Edit project modal; walking pets aren’t clamped if the box narrows without a window resize; habitat switching relies on `ProjectDetail’s `key` remounting the box; the replaced copy’s resize listener has no `stale()` guard.
 
 ## Gotchas learned the hard way
 
