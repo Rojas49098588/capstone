@@ -3530,27 +3530,12 @@ git commit -m "feat(ui): rebuild the Studium shell on the saved planner data" -m
 
 and change the "Planner core" paragraph's second sentence to: `The Studium screens use them through web/src/store/useStudium.tsx, which saves every change in this browser.`
 
-- [ ] **Step 2: Update `HANDOFF.md`**
+- [ ] **Step 2: Update `HANDOFF.md`** (the briefing for the next Claude session)
 
-Replace the "Architecture" section's three bullets about `main.tsx`, `App.tsx` and `index.css`, and the "Key components" list, with:
-
-```markdown
-- `src/main.tsx` mounts the app and imports global styles.
-- `src/App.tsx` is the shell: navigation, theme, modals and toasts.
-- `src/components/` holds one component per screen piece (Overview, ProjectDetail, RequirementCard, TaskRow, CompletionPrompt, Habitat, Shop, ProjectModal, EggPicker…).
-- `src/planner/` holds the rules (value, tokens, mood, neglect, learning) as pure functions; `src/store/` holds saving, example data and user actions; `src/store/useStudium.tsx` connects them to React.
-- `src/index.css` contains the Tailwind setup, fonts and theme tokens.
-```
-
-Replace the "Data and persistence" bullets with:
-
-```markdown
-- All data is saved in this browser's localStorage under `studium-data-v1` after every change (projects, requirements, tasks, an event history, Today's plan).
-- Tokens, inventory, progress, moods and neglect are calculated from that history; see the planner spec.
-- Damaged saved data is backed up and replaced with the example data, with a notice.
-```
-
-Remove the edge-case bullets that no longer hold ("no project edit or delete flow", "Study Tokens are spent but are not currently earned", "reset on page reload").
+- "Start here": replace the Plan 2 instructions with the next step (write and implement Plan 3 from spec section 5), and note which branch Plan 2 ended on and whether it was pushed or merged.
+- "Status" table: mark Plan 2 done with its branch and final test count.
+- "The project" and "Code map": `web/src/App.tsx` is now the shell; add `src/components/`, `src/ui/` (format, derive, styles), `src/pets/eggs.ts`, `src/store/useStudium.tsx`, `src/test/render.tsx`, `public/pets/`.
+- "Decisions made after the spec" and "Gotchas": add any rulings from this plan's ledger and anything that surprised you.
 
 - [ ] **Step 3: Run the full suite and the build**
 

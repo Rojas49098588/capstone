@@ -3,7 +3,7 @@
 Two parts:
 
 - **`extension/`**: a Chrome extension (Manifest V3, plain JavaScript, no build step). It puts a virtual pet on every page you visit and remembers where it was. Clicking the toolbar icon opens the homepage.
-- **`web/`**: the homepage, **Studium**, a study and project manager built with Vite, React, TypeScript and Tailwind CSS v4. It came from the Figma Make export described in [HANDOFF.md](HANDOFF.md), which documents its features, data model and design system.
+- **`web/`**: the homepage, **Studium**, a study and project manager built with Vite, React, TypeScript and Tailwind CSS v4. It started as a Figma Make export. [HANDOFF.md](HANDOFF.md) is the current status and briefing for whoever works on it next.
 
 ## Run the homepage
 
