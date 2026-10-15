@@ -1,15 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Capstone Pet",
-  "version": "0.1.0",
-  "description": "A virtual pet that follows you around the web. Click the icon to open your homepage.",
+  "version": "0.2.0",
+  "description": "Your Studium project pets follow you around the web. Click the icon to open Studium.",
   "permissions": ["storage", "tabs", "contextMenus", "scripting"],
   "host_permissions": ["<all_urls>"],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "Open homepage"
+    "default_title": "Open Studium once to meet your pets"
   },
   "web_accessible_resources": [
     {
@@ -20,7 +20,7 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content/pet.js"],
+      "js": ["content/logic.js", "content/pet.js"],
       "run_at": "document_idle"
     }
   ]
