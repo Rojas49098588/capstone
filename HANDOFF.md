@@ -26,7 +26,7 @@ The user is a student building this as their capstone. They make the product dec
 |---|---|---|
 | Spec (planner rules, screens, extension link) | Approved, includes requirement start dates | `docs/superpowers/specs/2026-10-14-studium-planner-design.md` |
 | Plan 1: planner core (rules, saving, actions, example data) | **Done**, reviewed, 101 tests | merged into `main` (PR #1) |
-| Plan 2: Studium screens | **Done**, reviewed, 173 tests, checked in a real browser (light, dark, 390 px) | branch `feature/studium-screens`; plan `docs/superpowers/plans/2026-10-15-studium-screens.md` |
+| Plan 2: Studium screens | **Done**, reviewed (4 fixes after review), 183 tests, checked in a real browser (light, dark, 390 px) | branch `feature/studium-screens`; plan `docs/superpowers/plans/2026-10-15-studium-screens.md` |
 | Plan 3: extension link (pet statuses, habitat mode, mood behavior) | Not written | Spec section 5 |
 
 ## Code map
@@ -72,9 +72,16 @@ From Plan 1's final review (all have regression tests):
 - **Actions clean their input:** empty or malformed dates become `null`, `undefined` fields in edits are ignored, and unknown project ids throw (`createTask`, `createRequirement`). `createProject` throws on an invalid deadline, so UI must validate first (Plan 2's ProjectModal does).
 - Requirements have an optional **start date**: the plan and neglect only begin then.
 
+From Plan 2's final review (all have regression tests):
+- **The minutes box keeps its own text**, so typing 300 isn't cut to 30 when a prefix matches a quick choice.
+- **Dialogs move focus in and give it back** to whatever opened them (`components/useReturnFocus.ts`). There's no Tab trap yet.
+- **Tabs stay in sync:** the provider listens for `storage` events on `studium-data-v1` and takes another tab's valid data, so tabs don't overwrite each other.
+- **`ProjectDetail` is keyed by project id**, so switching projects gives a fresh page and a fresh `[data-pet-habitat]` box. Plan 3: watch for the box being replaced, not just added. Also give the extension its own child element inside the box rather than writing into React's node.
+
 Known small issues, deferred on purpose:
 - A task checked off while unlinked never pays its own share, even after it's linked.
 - Hand-edited saved data with weight ≤ 0 or negative estimates passes validation.
+- Plan 2 review minors: a first completion that earns 0 tokens (pool used up) still says "already paid"; the habitat never brings the still image back if the extension removes `data-pet-attached`; "It hatched" repeats on each return until another project is opened; blocked tasks have no lock icon; TaskForm uses fixed element ids; `estimateMultipliers` is recomputed per card and render.
 
 ## Gotchas learned the hard way
 
