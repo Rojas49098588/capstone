@@ -19,7 +19,9 @@ chrome.action.onClicked.addListener(async () => {
 // Pets come from Studium, so before it has been opened there are none. Say how to get them.
 async function updateTitle() {
   const { petStatuses } = await chrome.storage.local.get('petStatuses');
-  await chrome.action.setTitle({ title: petStatuses ? 'Open Studium' : 'Open Studium once to meet your pets' });
+  // Damaged data doesn't count as having opened Studium.
+  const usable = globalThis.PetLogic.parseStatuses(petStatuses ?? null);
+  await chrome.action.setTitle({ title: usable ? 'Open Studium' : 'Open Studium once to meet your pets' });
 }
 
 chrome.runtime.onStartup.addListener(updateTitle);

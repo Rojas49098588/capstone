@@ -34,7 +34,7 @@ The user is a student building this as their capstone. They make the product dec
 | Spec (planner rules, screens, extension link) | Approved, includes requirement start dates | `docs/superpowers/specs/2026-10-14-studium-planner-design.md` |
 | Plan 1: planner core (rules, saving, actions, example data) | **Done**, reviewed, 101 tests | merged into `main` (PR #1) |
 | Plan 2: Studium screens | **Done**, reviewed (4 fixes after review), 183 tests, checked in a real browser (light, dark, 390 px) | merged into `main` (locally); plan `docs/superpowers/plans/2026-10-15-studium-screens.md` |
-| Plan 3: extension link (pet statuses, habitat mode, mood behavior) | **Done**, 206 tests + a 23-step Playwright check with the real extension | branch `feature/extension-link`; plan `docs/superpowers/plans/2026-10-15-extension-link.md` |
+| Plan 3: extension link (pet statuses, habitat mode, mood behavior) | **Done**, reviewed (2 fixes after review), 208 tests + a 27-step Playwright check with the real extension | branch `feature/extension-link`; plan `docs/superpowers/plans/2026-10-15-extension-link.md` |
 
 ## Code map
 
@@ -118,7 +118,7 @@ Known small issues, deferred on purpose:
 - **Browser checks:** use Playwright from a scratch folder (not added to the repo).
   - It loads the extension headless with `chromium.launchPersistentContext("", { channel: "chromium", args: ["--disable-extensions-except=<ext>", "--load-extension=<ext>"] })`.
   - Get the service worker with `ctx.serviceWorkers()` / `ctx.waitForEvent("serviceworker")`, and call `chrome.*` through `sw.evaluate`.
-  - Plan 3's check script is in its plan (Task 5 Step 1 and Task 6 Step 1).
+  - Plan 3's check script is in its plan (Task 5 Step 1, Task 6 Step 1, and "Added after the final review").
   - Studium must be on port 5173 for the extension to recognize it. The user often has `npm run dev` running there already, so reuse it rather than stopping it.
 - **Nothing in `extension/` may start with `_`, and there is no `node_modules` there.** Chrome refuses to load such folders. Extension tests live in `web/src/extension/`.
 - **The pet overlay's inline style reads `initial`** for unset properties, because its `cssText` starts with `all: initial`. Check `getComputedStyle(...)` instead.

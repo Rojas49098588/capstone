@@ -2066,3 +2066,41 @@ git commit -m "docs: describe the pets' link to Studium" -m "Co-Authored-By: Cla
 | "Haven't seen <title> in N days", at most every 2 minutes | 4, 5 |
 | Browser check: only that project's pet in the habitat, stays inside after a throw, leaving restores all pets, mood change reaches another tab | 5, 6 |
 | Still picture when the extension isn't attached (Studium side, both ways) | 3 |
+
+---
+
+## Added after the final review
+
+The review found that damaged `petStatuses` or `pets` in chrome.storage could throw and stop a tab's animation loop. Both read sites in `pet.js` and the tooltip now go through `PetLogic.parseStatuses` / `PetLogic.parsePositions`, and pet colors must be hex. `ext-check.mjs` gained this section (insert it just above the final `check("no page errors", ...)`; it also runs with mode `all`):
+
+```js
+if (mode === "damaged" || mode === "all") {
+  // Damaged data in chrome.storage (old versions, manual edits) must not break a tab.
+  await sw.evaluate(() => chrome.storage.local.set({ petStatuses: { pets: {} }, pets: null }));
+  await wait(500);
+  check(
+    "damaged statuses don't count as having opened Studium",
+    (await sw.evaluate(() => chrome.action.getTitle({}))) === "Open Studium once to meet your pets",
+  );
+  const fresh = await ctx.newPage();
+  await fresh.goto(OTHER);
+  await fresh.bringToFront();
+  await wait(1500);
+  check("a tab opened with damaged data shows no pets", (await petsOn(fresh)).length === 0);
+  const dog = {
+    projectId: "appDev", shortName: "appDev", name: "Mobile App", color: "#c9501a",
+    petKind: "dog", mood: "Delighted", recovering: false, idleRequirement: null,
+  };
+  await sw.evaluate((d) => chrome.storage.local.set({ petStatuses: { updatedAt: "x", pets: [d] } }), dog);
+  check("good data afterwards brings the pet back", await until(async () => (await shown(fresh)).length === 1));
+  check(
+    "and it moves (the tab's animation loop is running)",
+    await until(async () => {
+      const a = (await petsOn(fresh))[0]?.rect.left;
+      await wait(300);
+      const b = (await petsOn(fresh))[0]?.rect.left;
+      return a !== undefined && a !== b;
+    }, 10000),
+  );
+}
+```

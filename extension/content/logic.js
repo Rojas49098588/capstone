@@ -76,6 +76,18 @@
     return { updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '', pets };
   }
 
+  /** Saved pet positions ({ [projectId]: { xRatio } }), keeping only usable entries. */
+  function parsePositions(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    for (const [id, pos] of Object.entries(raw)) {
+      if (pos && typeof pos === 'object' && Number.isFinite(pos.xRatio)) {
+        out[id] = { xRatio: Math.min(1, Math.max(0, pos.xRatio)) };
+      }
+    }
+    return out;
+  }
+
   /** Same pets with the same looks and moods; the time stamp doesn't matter. */
   function statusesEqual(a, b) {
     return JSON.stringify(a?.pets ?? null) === JSON.stringify(b?.pets ?? null);
@@ -150,6 +162,7 @@
     MOOD_EFFECTS,
     isStudiumUrl,
     parseStatuses,
+    parsePositions,
     statusesEqual,
     applyMood,
     idleMessage,

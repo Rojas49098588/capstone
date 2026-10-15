@@ -524,12 +524,13 @@
 
   async function load() {
     if (stale()) return;
-    const { pets: saved = {}, petHidden = false, petStatuses = null } =
-      await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses']);
-    positions = saved;
-    if (!L.statusesEqual(statuses, petStatuses)) rebuild(petStatuses, false);
-    else for (const pet of pets) if (!pet.boxEl()) pet.restore(saved[pet.id]?.xRatio);
-    setHidden(petHidden);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses']);
+    // Saved data may come from an older version or be damaged: use only what's valid.
+    positions = L.parsePositions(stored.pets);
+    const next = L.parseStatuses(stored.petStatuses ?? null);
+    if (!L.statusesEqual(statuses, next)) rebuild(next, false);
+    else for (const pet of pets) if (!pet.boxEl()) pet.restore(positions[pet.id]?.xRatio);
+    setHidden(stored.petHidden);
   }
 
   function save() {
@@ -549,8 +550,9 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || stale()) return;
     if (changes.petHidden) setHidden(changes.petHidden.newValue);
-    if (changes.petStatuses && !L.statusesEqual(statuses, changes.petStatuses.newValue ?? null)) {
-      rebuild(changes.petStatuses.newValue ?? null, true);
+    if (changes.petStatuses) {
+      const next = L.parseStatuses(changes.petStatuses.newValue ?? null);
+      if (!L.statusesEqual(statuses, next)) rebuild(next, true);
     }
   });
 

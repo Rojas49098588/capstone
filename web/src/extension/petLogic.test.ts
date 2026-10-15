@@ -164,3 +164,13 @@ describe("parseStatuses colors", () => {
     expect(s.pets.map((p: { color: string }) => p.color)).toEqual(["#2d3a8c", "#2d3a8c", "#C9501A", "#abc"]);
   });
 });
+
+describe("parsePositions", () => {
+  it("keeps only usable saved positions", () => {
+    expect(
+      L.parsePositions({ webDev: { xRatio: 0.25 }, appDev: { xRatio: "x" }, petExt: null, Animation: { xRatio: 7 } }),
+    ).toEqual({ webDev: { xRatio: 0.25 }, Animation: { xRatio: 1 } });
+    expect(L.parsePositions(null)).toEqual({});
+    expect(L.parsePositions([1, 2])).toEqual({});
+  });
+});
