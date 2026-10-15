@@ -139,6 +139,7 @@ export function StudiumApp() {
               ‹ All Projects
             </button>
             <ProjectDetail
+              key={selected.id}
               projectId={selected.id}
               justHatched={selected.id === justHatchedId}
               onRequestComplete={setCompletingId}

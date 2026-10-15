@@ -83,3 +83,20 @@ describe("StudiumApp keyboard focus", () => {
     expect(document.activeElement).toBe(box);
   });
 });
+
+describe("StudiumApp switching projects", () => {
+  it("doesn't carry a half-filled form or the habitat box to another project", async () => {
+    renderWithStudium(<StudiumApp />);
+    await userEvent.click(screen.getAllByRole("button", { name: /webDev/ })[0]);
+    const box = document.querySelector("[data-pet-habitat]");
+    box?.setAttribute("data-pet-attached", "");
+    await userEvent.click(screen.getByRole("button", { name: "+ Add requirement" }));
+    await userEvent.type(screen.getByLabelText("Requirement title"), "Typed for webDev");
+    await userEvent.click(screen.getAllByRole("button", { name: /appDev/ })[0]);
+    screen.getByRole("heading", { name: "Mobile App — Habit Tracker" });
+    expect(screen.queryByLabelText("Requirement title")).toBeNull();
+    const appBox = document.querySelector("[data-pet-habitat]");
+    expect(appBox?.getAttribute("data-pet-habitat")).toBe("appDev");
+    expect(appBox?.hasAttribute("data-pet-attached")).toBe(false);
+  });
+});
