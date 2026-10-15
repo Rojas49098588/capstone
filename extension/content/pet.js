@@ -167,10 +167,15 @@
     const w = Math.round(h * kind.aspect);
     const idleText = L.idleMessage(status.idleRequirement);
 
-    // The pet's world: the whole window. Positions are measured from its left wall and floor.
+    // The pet's world: the whole window, or the Studium habitat box it lives in (habitat mode).
+    // Positions are measured from the world's left wall and floor; the box is re-read every frame.
+    let box = null;
+    let shown = true;
     let world = L.windowWorld(window.innerWidth, window.innerHeight);
     function refreshWorld() {
-      world = L.windowWorld(window.innerWidth, window.innerHeight);
+      world = box
+        ? L.worldFromRect(box.getBoundingClientRect(), window.innerHeight)
+        : L.windowWorld(window.innerWidth, window.innerHeight);
     }
     const maxX = () => Math.max(0, world.width - w);
     const maxY = () => Math.max(0, world.height - h);
@@ -464,6 +469,28 @@
       remove() {
         petEl.remove();
       },
+      setShown(value) {
+        shown = value;
+        petEl.style.display = value ? '' : 'none';
+      },
+      isShown: () => shown,
+      boxEl: () => box,
+      // Habitat mode: move into the box and start in the middle of its floor.
+      enterBox(el) {
+        box = el;
+        refreshWorld();
+        wake();
+        Object.assign(state, { x: maxX() / 2, y: 0, vx: 0, vy: 0 });
+        goIdle(performance.now());
+      },
+      // Back to the whole window, at its saved floor position.
+      leaveBox(xRatio = defaultXRatio) {
+        box = null;
+        refreshWorld();
+        wake();
+        Object.assign(state, { x: clamp(xRatio * maxX(), 0, maxX()), y: 0, vx: 0, vy: 0 });
+        goIdle(performance.now());
+      },
     };
   }
 
@@ -482,7 +509,7 @@
   // One pet per status. keepPlaces: the current pets stay where they are (a mood or project
   // changed); otherwise every pet goes to its saved position.
   function rebuild(next, keepPlaces) {
-    if (keepPlaces) for (const pet of pets) positions[pet.id] = { xRatio: pet.xRatio() };
+    if (keepPlaces) for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
     pets.forEach((pet) => pet.remove());
     statuses = next;
     const list = (next?.pets ?? []).filter((s) => KINDS[s.petKind]);
@@ -492,6 +519,7 @@
       pet.restore(positions[pet.id]?.xRatio);
       pet.start(now);
     }
+    applyHabitat();
   }
 
   async function load() {
@@ -500,7 +528,7 @@
       await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses']);
     positions = saved;
     if (!L.statusesEqual(statuses, petStatuses)) rebuild(petStatuses, false);
-    else for (const pet of pets) pet.restore(saved[pet.id]?.xRatio);
+    else for (const pet of pets) if (!pet.boxEl()) pet.restore(saved[pet.id]?.xRatio);
     setHidden(petHidden);
   }
 
@@ -508,13 +536,14 @@
     // Only the tab you're looking at writes, so background tabs don't fight over positions.
     if (!dirty || stale() || document.visibilityState !== 'visible') return;
     dirty = false;
-    for (const pet of pets) positions[pet.id] = { xRatio: pet.xRatio() };
+    for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
     chrome.storage.local.set({ pets: positions }).catch(() => {});
   }
 
   function setHidden(value) {
     hidden = Boolean(value);
     host.style.display = hidden ? 'none' : '';
+    markAttached();
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
@@ -555,6 +584,42 @@
 
   window.addEventListener('resize', () => pets.forEach((pet) => pet.clampToWorld()));
 
+  // ---- Habitat mode (Studium project pages) ----
+  // A Studium project page has <div data-pet-habitat="<projectId>">. While it's there, only that
+  // project's pet shows, living inside the box, and the box gets data-pet-attached so Studium hides
+  // its still picture. React can replace the box at any time (switching projects).
+  let habitatEl = null;
+  const habitatPet = () => (habitatEl ? pets.find((pet) => pet.id === habitatEl.dataset.petHabitat) : undefined);
+
+  function markAttached() {
+    if (habitatEl) habitatEl.toggleAttribute('data-pet-attached', !hidden && Boolean(habitatPet()));
+  }
+
+  function applyHabitat() {
+    const inside = habitatPet();
+    for (const pet of pets) {
+      pet.setShown(!habitatEl || pet === inside);
+      if (pet === inside && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
+      if (pet !== inside && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
+    }
+    markAttached();
+  }
+
+  function checkHabitat() {
+    if (stale()) {
+      habitatObserver?.disconnect();
+      return;
+    }
+    const el = document.querySelector('[data-pet-habitat]');
+    if (el === habitatEl) return;
+    if (habitatEl?.isConnected) habitatEl.removeAttribute('data-pet-attached');
+    habitatEl = el;
+    applyHabitat();
+  }
+
+  const habitatObserver = onStudium ? new MutationObserver(checkHabitat) : null;
+  habitatObserver?.observe(document.documentElement, { childList: true, subtree: true });
+
   // ---- Loop ----
   let last = performance.now();
   function loop(now) {
@@ -563,13 +628,21 @@
     last = now;
     if (!hidden) {
       for (const pet of pets) {
+        if (!pet.isShown()) continue;
         pet.step(now, dt);
         pet.render();
       }
     }
+    // In habitat mode, draw only inside the box, so the pet can't cover the page when it scrolls away.
+    host.style.clipPath = habitatPet()
+      ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight)
+      : '';
     requestAnimationFrame(loop);
   }
 
   // ---- Start ----
-  load().then(() => requestAnimationFrame(loop));
+  load().then(() => {
+    if (onStudium) checkHabitat();
+    requestAnimationFrame(loop);
+  });
 })();

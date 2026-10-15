@@ -1728,7 +1728,7 @@ if (mode === "habitat" || mode === "all") {
   check("leaving the project page brings every pet back", await until(async () => (await shown(studium)).length === total));
   check(
     "pets are no longer clipped",
-    (await studium.evaluate(() => document.getElementById("capstone-pet-host").style.clipPath)) === "",
+    (await studium.evaluate(() => getComputedStyle(document.getElementById("capstone-pet-host")).clipPath)) === "none",
   );
 
   // Injecting the scripts again (as after an extension update) leaves one working set of pets.
