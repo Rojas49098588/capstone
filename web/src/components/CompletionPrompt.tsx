@@ -3,12 +3,14 @@ import { useStudiumContext } from "../store/useStudium";
 import { formatMinutes, payoutMessage } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, SERIF } from "../ui/styles";
 import EstimatePicker from "./EstimatePicker";
+import { useReturnFocus } from "./useReturnFocus";
 
 type Props = { taskId: string; onClose: () => void; onDone: (message: string) => void };
 
 /** Asks roughly how long a task took, then completes it and reports the tokens. */
 export default function CompletionPrompt({ taskId, onClose, onDone }: Props) {
   const s = useStudiumContext();
+  useReturnFocus();
   const task = s.data.tasks.find((t) => t.id === taskId);
   const [minutes, setMinutes] = useState(task?.estimateMin ?? 60);
 

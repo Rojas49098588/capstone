@@ -4,6 +4,7 @@ import type { PetKind, Project } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, PROJECT_COLORS, SERIF } from "../ui/styles";
 import EggPicker from "./EggPicker";
+import { useReturnFocus } from "./useReturnFocus";
 
 type Props = {
   project?: Project; // set = edit mode
@@ -14,6 +15,7 @@ type Props = {
 
 export default function ProjectModal({ project, onClose, onCreated, onDeleted }: Props) {
   const s = useStudiumContext();
+  useReturnFocus();
   const [name, setName] = useState(project?.name ?? "");
   const [shortName, setShortName] = useState(project?.shortName ?? "");
   const [deadline, setDeadline] = useState(project?.deadline ?? "");
@@ -71,7 +73,7 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
         <form onSubmit={submit} className="space-y-4">
           <label className={LABEL}>
             Project Name *
-            <input aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Senior Capstone Project" className={`${INPUT} mt-1 normal-case tracking-normal font-sans`} />
+            <input aria-label="Project name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Senior Capstone Project" className={`${INPUT} mt-1 normal-case tracking-normal font-sans`} />
           </label>
           <label className={LABEL}>
             Short Label

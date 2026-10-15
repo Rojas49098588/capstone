@@ -63,3 +63,23 @@ describe("StudiumApp", () => {
     screen.getByText("650 tokens");
   });
 });
+
+describe("StudiumApp keyboard focus", () => {
+  it("moves focus into the project modal and back to its opener", async () => {
+    renderWithStudium(<StudiumApp />);
+    const opener = screen.getByRole("button", { name: "+ New Project" });
+    await userEvent.click(opener);
+    expect(document.activeElement).toBe(screen.getByLabelText("Project name"));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByLabelText("Project name")).toBeNull();
+    expect(document.activeElement).toBe(opener);
+  });
+
+  it("returns focus to the task after the completion prompt closes", async () => {
+    renderWithStudium(<StudiumApp />);
+    const box = screen.getByRole("checkbox", { name: "Complete Write case study #3" });
+    await userEvent.click(box);
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(document.activeElement).toBe(box);
+  });
+});
