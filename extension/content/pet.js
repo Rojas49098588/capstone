@@ -16,6 +16,11 @@
   // so replace them. Their loop stops once their element is gone (see loop()).
   document.getElementById('capstone-pet-host')?.remove();
 
+  // When the extension reloads, background.js injects this script into tabs that are already open.
+  // Some Chrome versions (seen in 155) run that copy without the extension's APIs. It can't load or
+  // save anything, so stop here; the tab gets its pets back when it's refreshed.
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.runtime?.id) return;
+
   const L = globalThis.PetLogic; // content/logic.js, loaded just before this file
 
   // Shared physics. Each kind below can override the ones marked "per kind".
