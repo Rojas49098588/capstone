@@ -29,12 +29,21 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (area === 'local' && changes.petStatuses) updateTitle();
 });
 
-chrome.runtime.onInstalled.addListener(async () => {
-  chrome.contextMenus.create({
-    id: 'toggle-pet',
-    title: 'Show / hide pet',
-    contexts: ['action'],
+// The right-click menu on the toolbar icon. Resolves once it exists; rejects with Chrome's error.
+// Chrome keeps menu items across extension updates and reloads, so remove the old one first.
+async function setUpMenu() {
+  await chrome.contextMenus.removeAll();
+  return new Promise((resolve, reject) => {
+    chrome.contextMenus.create({ id: 'toggle-pet', title: 'Show / hide pet', contexts: ['action'] }, () => {
+      const error = chrome.runtime.lastError;
+      if (error) reject(new Error(error.message));
+      else resolve();
+    });
   });
+}
+
+chrome.runtime.onInstalled.addListener(async () => {
+  setUpMenu().catch((e) => console.error(e));
   updateTitle();
 
   // Chrome only runs content scripts on pages loaded after install/reload,
