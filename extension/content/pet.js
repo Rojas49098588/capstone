@@ -1,9 +1,14 @@
-// Content script: draws one pet per project on every page and remembers where
+// Content script: draws one pet per Studium project on every page and remembers where
 // each one was, so they appear in the same spots when you switch pages or tabs.
 //
-// Every pet can be dragged, thrown (it flies with momentum and bounces) and
-// clicked (it hops and makes its sound). Each kind of animal also has its own
-// habits; see KINDS below. Art lives in extension/assets/pets/.
+// Pets come from Studium. On the Studium page this script copies Studium's pet statuses
+// (localStorage "studium-pets-v1") into chrome.storage as `petStatuses`, and every tab rebuilds
+// its pets from there. Before Studium has been opened there are no pets.
+//
+// Every pet can be dragged, thrown (it flies with momentum and bounces) and clicked (it hops
+// and makes its sound). Each kind of animal has its own habits (KINDS below), and its mood
+// changes how fast it moves and how often it talks (PetLogic.applyMood in logic.js).
+// Art lives in extension/assets/pets/.
 
 (() => {
   if (window.top !== window) return;
@@ -11,15 +16,7 @@
   // so replace them. Their loop stops once their element is gone (see loop()).
   document.getElementById('capstone-pet-host')?.remove();
 
-  // One pet per project. Placeholder: mirrors INITIAL_PROJECTS in web/src/App.tsx
-  // until the extension can read projects from Studium.
-  const PROJECTS = [
-    { id: 'webDev', name: 'Web Development Portfolio', color: '#2d3a8c', kind: 'pigeon' },
-    { id: 'appDev', name: 'Mobile App — Habit Tracker', color: '#c9501a', kind: 'dog' },
-    { id: 'Animation', name: '3D Animation Reel', color: '#3a7c4f', kind: 'frog' },
-    { id: 'seniorCap', name: 'Senior Capstone Project', color: '#7b4fa6', kind: 'cat' },
-    { id: 'petExt', name: 'Virtual Pet Extension', color: '#1a6e7e', kind: 'turtle' },
-  ];
+  const L = globalThis.PetLogic; // content/logic.js, loaded just before this file
 
   // Shared physics. Each kind below can override the ones marked "per kind".
   const GRAVITY = 1400;         // px/s², per kind
@@ -33,7 +30,7 @@
   const MAX_TILT_DEG = 25;      // lean while flying sideways
   const SAVE_EVERY_MS = 2000;
 
-  // How each kind of animal looks and behaves. Ranges are [min, max].
+  // How each kind of animal looks and behaves (before its mood is applied). Ranges are [min, max].
   //   height/aspect: display size in px (aspect = width / height of the art)
   //   walkSpeed px/s, idleMs pause between walks, strollPx typical walk length
   //   sound: what it says when clicked and every soundMs or so
@@ -88,6 +85,8 @@
       filter: drop-shadow(1.5px 0 0 var(--c)) drop-shadow(-1.5px 0 0 var(--c))
               drop-shadow(0 1.5px 0 var(--c)) drop-shadow(0 -1.5px 0 var(--c));
     }
+    /* A Sick pet looks a little green. */
+    .pet.sick .anim { filter: sepia(.35) hue-rotate(45deg) saturate(1.4); }
     .ring {
       position: absolute; left: 10%; bottom: -4px; width: 80%; height: 8px;
       border-radius: 50%; background: var(--c); opacity: .35; pointer-events: none;
@@ -158,37 +157,50 @@
   }
 
   // ---- One pet ----
-  function createPet(project, index) {
-    const kind = KINDS[project.kind];
+  // status: one of Studium's pet statuses (projectId, shortName, name, color, petKind, mood, idleRequirement).
+  function createPet(status, index, count) {
+    const kind = L.applyMood(KINDS[status.petKind], status.mood);
     const gravity = kind.gravity ?? GRAVITY;
     const bounce = kind.bounce ?? BOUNCE;
     const airDrag = kind.airDrag ?? AIR_DRAG;
     const h = kind.height;
     const w = Math.round(h * kind.aspect);
-    const maxX = () => Math.max(0, window.innerWidth - w);
-    const maxY = () => Math.max(0, window.innerHeight - h);
+    const idleText = L.idleMessage(status.idleRequirement);
+
+    // The pet's world: the whole window, or the Studium habitat box it lives in (habitat mode).
+    // Positions are measured from the world's left wall and floor; the box is re-read every frame.
+    let box = null;
+    let shown = true;
+    let world = L.windowWorld(window.innerWidth, window.innerHeight);
+    function refreshWorld() {
+      world = box
+        ? L.worldFromRect(box.getBoundingClientRect(), window.innerHeight)
+        : L.windowWorld(window.innerWidth, window.innerHeight);
+    }
+    const maxX = () => Math.max(0, world.width - w);
+    const maxY = () => Math.max(0, world.height - h);
 
     const petEl = document.createElement('div');
-    petEl.className = 'pet';
-    petEl.style.cssText = `width:${w}px;height:${h}px;--c:${project.color}`;
+    petEl.className = kind.tint ? 'pet sick' : 'pet';
+    petEl.style.cssText = `width:${w}px;height:${h}px;--c:${status.color}`;
     petEl.innerHTML = `
       <div class="ring"></div>
       <div class="bubble" style="bottom:${h + 4}px"></div>
       <div class="body"><div class="anim">
-        <img class="sprite" alt="" src="${chrome.runtime.getURL(`assets/pets/${project.kind}.png`)}">
+        <img class="sprite" alt="" src="${chrome.runtime.getURL(`assets/pets/${status.petKind}.png`)}">
         ${kind.mouth ? `<div class="tongue" style="left:${kind.mouth.x * 100}%;top:${kind.mouth.y * 100}%"></div>` : ''}
       </div></div>
       <div class="name" style="top:${h + 6}px"></div>`;
-    petEl.querySelector('.name').textContent = `${project.id} · ${project.kind}`;
-    petEl.title = project.name;
+    petEl.querySelector('.name').textContent = `${status.shortName} · ${status.mood}`;
+    petEl.title = status.name;
     const bodyEl = petEl.querySelector('.body');
     const ringEl = petEl.querySelector('.ring');
     const bubbleEl = petEl.querySelector('.bubble');
     root.appendChild(petEl);
 
     const state = {
-      x: 0,               // left edge, px
-      y: 0,               // height above the floor, px
+      x: 0,               // from the world's left wall, px
+      y: 0,               // height above the world's floor, px
       vx: 0,              // sideways speed, px/s (positive is right)
       vy: 0,              // vertical speed, px/s (positive is up)
       facing: 1,          // 1 = right, -1 = left (the art faces right or forward)
@@ -199,9 +211,10 @@
       flyTo: 0,           // height the pigeon rises to before gliding down
       nextSoundAt: 0,
       nextLickAt: 0,
+      nextIdleMessageAt: 0,
     };
     // Spread the pets out across the window until they have saved positions.
-    const defaultXRatio = (index + 0.5) / PROJECTS.length;
+    const defaultXRatio = (index + 0.5) / count;
 
     function say(text, ms = 1500) {
       bubbleEl.textContent = text;
@@ -229,13 +242,20 @@
       petEl.classList.remove('sleeping');
     }
 
-    // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind.
+    // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind and mood.
     function act(now) {
       if (kind.napChance && Math.random() < kind.napChance) {
         state.mode = 'sleep';
         const napMs = between(kind.napMs);
         state.sleepUntil = now + napMs;
         say('Zzzzz', napMs);
+        return;
+      }
+      if (kind.extraHopChance && Math.random() < kind.extraHopChance) {
+        // A happy little hop in place.
+        state.vx = 0;
+        state.vy = (kind.hopSpeed ?? HOP_SPEED) * 0.6;
+        state.mode = 'fall';
         return;
       }
       if (kind.flyChance && Math.random() < kind.flyChance) {
@@ -246,7 +266,7 @@
         return;
       }
       if (kind.hops) {
-        // Jump mostly toward the middle of the window so frogs don't pile up at the edges.
+        // Jump mostly toward the middle of the world so frogs don't pile up at the edges.
         const towardMiddle = state.x < maxX() / 2 ? 1 : -1;
         const dir = Math.random() < 0.7 ? towardMiddle : -towardMiddle;
         state.vx = dir * between(kind.jumpSideways);
@@ -255,7 +275,7 @@
         state.mode = 'fall';
         return;
       }
-      // Walk: mostly short strolls, sometimes a long walk across the screen.
+      // Walk: mostly short strolls, sometimes a long walk across the world.
       const range = Math.random() < (kind.longWalkChance ?? 0.2) ? maxX() : kind.strollPx;
       state.targetX = clamp(state.x + (Math.random() * 2 - 1) * range, 0, maxX());
       state.facing = state.targetX >= state.x ? 1 : -1;
@@ -263,7 +283,8 @@
     }
 
     function step(now, dt) {
-      // Sounds and tongue flicks happen on their own timers while awake and on the ground.
+      refreshWorld();
+      // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
       if (kind.sound && !busy && now > state.nextSoundAt) {
         if (state.nextSoundAt) say(kind.sound);
@@ -272,6 +293,10 @@
       if (kind.mouth && !busy && state.y === 0 && now > state.nextLickAt) {
         if (state.nextLickAt) lick();
         state.nextLickAt = now + between(kind.tongueMs);
+      }
+      if (idleText && !busy && now > state.nextIdleMessageAt) {
+        if (state.nextIdleMessageAt) say(idleText, 4000);
+        state.nextIdleMessageAt = L.nextIdleMessageAt(now);
       }
 
       switch (state.mode) {
@@ -319,7 +344,7 @@
           state.x += state.vx * dt;
           state.y += state.vy * dt;
 
-          // Bounce off the sides and top of the window.
+          // Bounce off the walls and ceiling of the world.
           if (state.x < 0 || state.x > maxX()) {
             state.x = clamp(state.x, 0, maxX());
             state.vx = -state.vx * bounce;
@@ -350,7 +375,7 @@
     }
 
     function render() {
-      petEl.style.transform = `translate(${state.x}px, ${-state.y}px)`;
+      petEl.style.transform = `translate(${world.left + state.x}px, ${-(world.bottom + state.y)}px)`;
       const airborne = state.mode === 'fall' && state.y > 0;
       const tilt = airborne && !kind.maxFallSpeed ? clamp(state.vx * 0.02, -MAX_TILT_DEG, MAX_TILT_DEG) : 0;
       bodyEl.style.transform = `rotate(${tilt}deg) scaleX(${state.facing})`;
@@ -384,8 +409,12 @@
       press.moved = true;
       wake();
       state.mode = 'drag';
-      state.x = clamp(e.clientX - press.offX, 0, maxX());
-      state.y = clamp(window.innerHeight - h - (e.clientY - press.offY), 0, maxY());
+      refreshWorld();
+      const p = L.dragPosition(
+        { x: e.clientX, y: e.clientY }, { x: press.offX, y: press.offY }, world, h, window.innerHeight,
+      );
+      state.x = clamp(p.x, 0, maxX());
+      state.y = clamp(p.y, 0, maxY());
       dirty = true;
 
       const t = performance.now();
@@ -419,58 +448,133 @@
     });
 
     return {
-      id: project.id,
+      id: status.projectId,
       step,
       render,
       start(now) {
         goIdle(now);
         render();
       },
-      // xRatio: position as a fraction of the window width, so it survives resizes.
+      // xRatio: position as a fraction of the world's width, so it survives resizes.
       restore(xRatio = defaultXRatio) {
         state.x = clamp(xRatio * maxX(), 0, maxX());
       },
       xRatio: () => (maxX() ? state.x / maxX() : 0),
-      clampToWindow() {
+      clampToWorld() {
+        refreshWorld();
         state.x = clamp(state.x, 0, maxX());
         state.y = clamp(state.y, 0, maxY());
         state.targetX = clamp(state.targetX, 0, maxX());
       },
+      remove() {
+        petEl.remove();
+      },
+      setShown(value) {
+        shown = value;
+        petEl.style.display = value ? '' : 'none';
+      },
+      isShown: () => shown,
+      boxEl: () => box,
+      // Habitat mode: move into the box and start in the middle of its floor.
+      enterBox(el) {
+        box = el;
+        refreshWorld();
+        wake();
+        Object.assign(state, { x: maxX() / 2, y: 0, vx: 0, vy: 0 });
+        goIdle(performance.now());
+      },
+      // Back to the whole window, at its saved floor position.
+      leaveBox(xRatio = defaultXRatio) {
+        box = null;
+        refreshWorld();
+        wake();
+        Object.assign(state, { x: clamp(xRatio * maxX(), 0, maxX()), y: 0, vx: 0, vy: 0 });
+        goIdle(performance.now());
+      },
     };
   }
 
-  const pets = PROJECTS.map(createPet);
+  let pets = [];
+  let statuses = null; // the petStatuses the current pets were built from
+  let positions = {};  // saved x positions: { [projectId]: { xRatio } }
   let hidden = false;
   let dirty = false;
 
   // ---- Storage ----
   // After the extension is reloaded, old content scripts lose access to chrome.*.
   const alive = () => Boolean(chrome.runtime?.id);
+  // A newer copy of this script replaced this one (its host is gone): stop reacting.
+  const stale = () => !host.isConnected || !alive();
+
+  // One pet per status. keepPlaces: the current pets stay where they are (a mood or project
+  // changed); otherwise every pet goes to its saved position.
+  function rebuild(next, keepPlaces) {
+    if (keepPlaces) for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
+    pets.forEach((pet) => pet.remove());
+    statuses = next;
+    const list = (next?.pets ?? []).filter((s) => KINDS[s.petKind]);
+    pets = list.map((s, i) => createPet(s, i, list.length));
+    const now = performance.now();
+    for (const pet of pets) {
+      pet.restore(positions[pet.id]?.xRatio);
+      pet.start(now);
+    }
+    applyHabitat();
+  }
 
   async function load() {
-    if (!alive()) return;
-    const { pets: saved = {}, petHidden = false } =
-      await chrome.storage.local.get(['pets', 'petHidden']);
-    for (const pet of pets) pet.restore(saved[pet.id]?.xRatio);
-    setHidden(petHidden);
+    if (stale()) return;
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses']);
+    // Saved data may come from an older version or be damaged: use only what's valid.
+    positions = L.parsePositions(stored.pets);
+    const next = L.parseStatuses(stored.petStatuses ?? null);
+    if (!L.statusesEqual(statuses, next)) rebuild(next, false);
+    else for (const pet of pets) if (!pet.boxEl()) pet.restore(positions[pet.id]?.xRatio);
+    setHidden(stored.petHidden);
   }
 
   function save() {
     // Only the tab you're looking at writes, so background tabs don't fight over positions.
-    if (!dirty || !alive() || !host.isConnected || document.visibilityState !== 'visible') return;
+    if (!dirty || stale() || document.visibilityState !== 'visible') return;
     dirty = false;
-    const saved = Object.fromEntries(pets.map((pet) => [pet.id, { xRatio: pet.xRatio() }]));
-    chrome.storage.local.set({ pets: saved }).catch(() => {});
+    for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
+    chrome.storage.local.set({ pets: positions }).catch(() => {});
   }
 
   function setHidden(value) {
-    hidden = value;
-    host.style.display = value ? 'none' : '';
+    hidden = Boolean(value);
+    host.style.display = hidden ? 'none' : '';
+    markAttached();
   }
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area === 'local' && changes.petHidden) setHidden(changes.petHidden.newValue);
+    if (area !== 'local' || stale()) return;
+    if (changes.petHidden) setHidden(changes.petHidden.newValue);
+    if (changes.petStatuses) {
+      const next = L.parseStatuses(changes.petStatuses.newValue ?? null);
+      if (!L.statusesEqual(statuses, next)) rebuild(next, true);
+    }
   });
+
+  // ---- On the Studium page: copy its pet statuses for every tab ----
+  const onStudium = L.isStudiumUrl(location.href);
+
+  function copyStatusesFromStudium() {
+    if (stale()) return;
+    let raw = null;
+    try {
+      raw = localStorage.getItem(L.PET_STATUS_KEY);
+    } catch {
+      return; // storage is blocked on this page
+    }
+    const parsed = L.parseStatuses(raw);
+    if (parsed) chrome.storage.local.set({ petStatuses: parsed }).catch(() => {});
+  }
+
+  if (onStudium) {
+    window.addEventListener(L.PET_STATUS_EVENT, copyStatusesFromStudium);
+    copyStatusesFromStudium();
+  }
 
   // When you come back to this tab, pick up wherever the pets were in the other tab.
   document.addEventListener('visibilitychange', () => {
@@ -480,7 +584,43 @@
   window.addEventListener('pagehide', save);
   setInterval(save, SAVE_EVERY_MS);
 
-  window.addEventListener('resize', () => pets.forEach((pet) => pet.clampToWindow()));
+  window.addEventListener('resize', () => pets.forEach((pet) => pet.clampToWorld()));
+
+  // ---- Habitat mode (Studium project pages) ----
+  // A Studium project page has <div data-pet-habitat="<projectId>">. While it's there, only that
+  // project's pet shows, living inside the box, and the box gets data-pet-attached so Studium hides
+  // its still picture. React can replace the box at any time (switching projects).
+  let habitatEl = null;
+  const habitatPet = () => (habitatEl ? pets.find((pet) => pet.id === habitatEl.dataset.petHabitat) : undefined);
+
+  function markAttached() {
+    if (habitatEl) habitatEl.toggleAttribute('data-pet-attached', !hidden && Boolean(habitatPet()));
+  }
+
+  function applyHabitat() {
+    const inside = habitatPet();
+    for (const pet of pets) {
+      pet.setShown(!habitatEl || pet === inside);
+      if (pet === inside && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
+      if (pet !== inside && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
+    }
+    markAttached();
+  }
+
+  function checkHabitat() {
+    if (stale()) {
+      habitatObserver?.disconnect();
+      return;
+    }
+    const el = document.querySelector('[data-pet-habitat]');
+    if (el === habitatEl) return;
+    if (habitatEl?.isConnected) habitatEl.removeAttribute('data-pet-attached');
+    habitatEl = el;
+    applyHabitat();
+  }
+
+  const habitatObserver = onStudium ? new MutationObserver(checkHabitat) : null;
+  habitatObserver?.observe(document.documentElement, { childList: true, subtree: true });
 
   // ---- Loop ----
   let last = performance.now();
@@ -490,17 +630,21 @@
     last = now;
     if (!hidden) {
       for (const pet of pets) {
+        if (!pet.isShown()) continue;
         pet.step(now, dt);
         pet.render();
       }
     }
+    // In habitat mode, draw only inside the box, so the pet can't cover the page when it scrolls away.
+    host.style.clipPath = habitatPet()
+      ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight)
+      : '';
     requestAnimationFrame(loop);
   }
 
   // ---- Start ----
   load().then(() => {
-    const now = performance.now();
-    pets.forEach((pet) => pet.start(now));
+    if (onStudium) checkHabitat();
     requestAnimationFrame(loop);
   });
 })();
