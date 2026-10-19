@@ -9,6 +9,12 @@
 // and makes its sound). Each kind of animal has its own habits (KINDS below), and its mood
 // changes how fast it moves and how often it talks (PetLogic.applyMood in logic.js).
 // Art lives in extension/assets/pets/.
+//
+// Right-clicking a pet opens its menu (content/menu.js): What should I work on?, Nap (a 15-minute
+// focus timer), Sleep (1 or 2 hours) and Open project. The background worker runs the timers and
+// writes petAway / petCheckIn; this script only shows them: away pets are hidden (or asleep in their
+// habitat), the others go quiet during a nap, and a returning pet asks how it went. Pets also
+// celebrate tasks completed in Studium.
 
 (() => {
   if (window.top !== window) return;
@@ -123,6 +129,20 @@
     .bubble.show { opacity: 1; }
     .pet.sleeping .bubble { font-style: italic; color: #6b6f7a; }
     .name { padding: 1px 6px; border-radius: 6px; background: var(--c); color: #fff; }
+
+    /* A bubble with buttons (check-ins). It stays until it's answered. */
+    .talk {
+      position: absolute; left: 50%; transform: translateX(-50%); display: none;
+      width: max-content; max-width: 220px; padding: 6px 8px; border-radius: 10px;
+      background: #fff; color: #1a1816; box-shadow: 0 2px 6px rgba(0,0,0,.2);
+      font: 600 12px/1.3 system-ui, sans-serif; white-space: normal; pointer-events: auto; cursor: default;
+    }
+    .talk.show { display: block; }
+    .talk button {
+      margin: 5px 4px 0 0; padding: 2px 8px; border: 1px solid #c9cdd6; border-radius: 6px;
+      background: #f4f5f8; color: inherit; font: 600 11px/1.4 system-ui, sans-serif; cursor: pointer;
+    }
+    .talk button:hover { background: #e6e8ee; }
     .pet:hover .name { opacity: 1; }
 
     @keyframes bob { 50% { transform: translateY(-3px) scaleY(.96); } }
@@ -137,7 +157,7 @@
   host.style.cssText =
     'all: initial; position: fixed; inset: 0; pointer-events: none; z-index: 2147483647;';
   const root = host.attachShadow({ mode: 'open' });
-  root.innerHTML = `<style>${STYLE}</style>`;
+  root.innerHTML = `<style>${STYLE}${globalThis.PetMenu?.STYLE ?? ''}</style>`;
   document.documentElement.appendChild(host);
 
   const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
@@ -163,7 +183,8 @@
 
   // ---- One pet ----
   // status: one of Studium's pet statuses (projectId, shortName, name, color, petKind, mood, idleRequirement).
-  function createPet(status, index, count) {
+  // env: { quiet(): true while another pet naps, onMenu(pet, { x, y }): right-click on the pet }
+  function createPet(status, index, count, env) {
     const kind = L.applyMood(KINDS[status.petKind], status.mood);
     const gravity = kind.gravity ?? GRAVITY;
     const bounce = kind.bounce ?? BOUNCE;
@@ -191,6 +212,7 @@
     petEl.innerHTML = `
       <div class="ring"></div>
       <div class="bubble" style="bottom:${h + 4}px"></div>
+      <div class="talk" style="bottom:${h + 4}px"></div>
       <div class="body"><div class="anim">
         <img class="sprite" alt="" src="${chrome.runtime.getURL(`assets/pets/${status.petKind}.png`)}">
         ${kind.mouth ? `<div class="tongue" style="left:${kind.mouth.x * 100}%;top:${kind.mouth.y * 100}%"></div>` : ''}
@@ -201,6 +223,7 @@
     const bodyEl = petEl.querySelector('.body');
     const ringEl = petEl.querySelector('.ring');
     const bubbleEl = petEl.querySelector('.bubble');
+    const talkEl = petEl.querySelector('.talk');
     root.appendChild(petEl);
 
     const state = {
@@ -209,7 +232,7 @@
       vx: 0,              // sideways speed, px/s (positive is right)
       vy: 0,              // vertical speed, px/s (positive is up)
       facing: 1,          // 1 = right, -1 = left (the art faces right or forward)
-      mode: 'idle',       // idle | walk | fall | drag | sleep | fly
+      mode: 'idle',       // idle | walk | fall | drag | sleep | fly | away (napping or sleeping for its project)
       targetX: 0,
       idleUntil: 0,
       sleepUntil: 0,
@@ -217,6 +240,7 @@
       nextSoundAt: 0,
       nextLickAt: 0,
       nextIdleMessageAt: 0,
+      extraHops: 0,       // celebration hops still to do, one each time it lands
     };
     // Spread the pets out across the window until they have saved positions.
     const defaultXRatio = (index + 0.5) / count;
@@ -226,6 +250,17 @@
       bubbleEl.classList.add('show');
       clearTimeout(say.timer);
       say.timer = setTimeout(() => bubbleEl.classList.remove('show'), ms);
+    }
+
+    // What a pet says on its own (sounds, naps, reminders). Quiet while another pet naps.
+    function chatter(text, ms) {
+      if (!env.quiet()) say(text, ms);
+    }
+
+    function hop(factor = 1) {
+      state.vx = 0;
+      state.vy = (kind.hopSpeed ?? HOP_SPEED) * factor;
+      state.mode = 'fall';
     }
 
     function lick() {
@@ -253,7 +288,7 @@
         state.mode = 'sleep';
         const napMs = between(kind.napMs);
         state.sleepUntil = now + napMs;
-        say('Zzzzz', napMs);
+        chatter('Zzzzz', napMs);
         return;
       }
       if (kind.extraHopChance && Math.random() < kind.extraHopChance) {
@@ -289,10 +324,11 @@
 
     function step(now, dt) {
       refreshWorld();
+      if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
       if (kind.sound && !busy && now > state.nextSoundAt) {
-        if (state.nextSoundAt) say(kind.sound);
+        if (state.nextSoundAt) chatter(kind.sound);
         state.nextSoundAt = now + between(kind.soundMs);
       }
       if (kind.mouth && !busy && state.y === 0 && now > state.nextLickAt) {
@@ -300,7 +336,7 @@
         state.nextLickAt = now + between(kind.tongueMs);
       }
       if (idleText && !busy && now > state.nextIdleMessageAt) {
-        if (state.nextIdleMessageAt) say(idleText, 4000);
+        if (state.nextIdleMessageAt) chatter(idleText, 4000);
         state.nextIdleMessageAt = L.nextIdleMessageAt(now);
       }
 
@@ -370,7 +406,12 @@
           if (Math.abs(state.vx) > 20) state.facing = Math.sign(state.vx);
           if (onFloor && state.vy === 0 && Math.abs(state.vx) < 10) {
             state.vx = 0;
-            goIdle(now);
+            if (state.extraHops > 0) {
+              state.extraHops -= 1;
+              hop(1.3);
+            } else {
+              goIdle(now);
+            }
           }
           dirty = true;
           break;
@@ -388,7 +429,7 @@
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
       petEl.classList.toggle('walking', state.mode === 'walk');
       petEl.classList.toggle('dragging', state.mode === 'drag');
-      petEl.classList.toggle('sleeping', state.mode === 'sleep');
+      petEl.classList.toggle('sleeping', state.mode === 'sleep' || state.mode === 'away');
       petEl.classList.toggle('flying', state.mode === 'fly');
       petEl.classList.toggle('gliding', airborne && Boolean(kind.maxFallSpeed));
     }
@@ -397,6 +438,7 @@
     let press = null;
 
     petEl.addEventListener('pointerdown', (e) => {
+      if (state.mode === 'away' || e.button !== 0) return; // an away pet can't be dragged; right-click opens the menu
       const rect = petEl.getBoundingClientRect();
       press = {
         startX: e.clientX, startY: e.clientY,
@@ -438,21 +480,29 @@
         // Clicking a napping pet wakes it up.
         wake();
         goIdle(performance.now());
-        say(kind.sound ? kind.sound.replace('!', '?') : '♥');
+        chatter(kind.sound ? kind.sound.replace('!', '?') : '♥');
       } else {
         // Clicked: hop and make its sound.
-        if (state.y === 0) {
-          state.vx = 0;
-          state.vy = kind.hopSpeed ?? HOP_SPEED;
-          state.mode = 'fall';
-        }
-        say(kind.sound ?? '♥');
+        if (state.y === 0) hop();
+        chatter(kind.sound ?? '♥');
         lick();
       }
       press = null;
     });
 
-    return {
+    // ---- Right-click: the pet's menu ----
+    petEl.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      env.onMenu(api, { x: e.clientX, y: e.clientY });
+    });
+
+    function clearTalk() {
+      talkEl.classList.remove('show');
+      talkEl.textContent = '';
+    }
+
+    const api = {
       id: status.projectId,
       step,
       render,
@@ -496,14 +546,81 @@
         Object.assign(state, { x: clamp(xRatio * maxX(), 0, maxX()), y: 0, vx: 0, vy: 0 });
         goIdle(performance.now());
       },
+      say,
+      // Napping or sleeping for its project: lies still with a "Zzz" (only seen in its habitat).
+      setAway(value) {
+        if (value === (state.mode === 'away')) return;
+        if (value) {
+          wake();
+          Object.assign(state, { y: 0, vx: 0, vy: 0, extraHops: 0, mode: 'away' });
+          clearTimeout(say.timer);
+          bubbleEl.textContent = 'Zzz';
+          bubbleEl.classList.add('show');
+          clearTalk();
+        } else {
+          bubbleEl.classList.remove('show');
+          goIdle(performance.now());
+        }
+        render();
+      },
+      isAway: () => state.mode === 'away',
+      // A bubble with buttons that stays until it's cleared. onAnswer gets the button's answer.
+      talk(text, buttons, onAnswer) {
+        clearTalk();
+        bubbleEl.classList.remove('show');
+        const line = document.createElement('div');
+        line.textContent = text;
+        talkEl.appendChild(line);
+        for (const b of buttons) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = b.label;
+          // Keep the pet's own drag/click handling out of it.
+          btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onAnswer(b.answer);
+          });
+          talkEl.appendChild(btn);
+        }
+        talkEl.classList.add('show');
+      },
+      clearTalk,
+      isTalking: () => talkEl.classList.contains('show'),
+      // A task was completed in Studium: hop (twice, higher, for a first task or a finished requirement).
+      celebrate(celebrationKind) {
+        if (state.mode === 'away') return;
+        say(L.celebrationText(celebrationKind), 2500);
+        if (state.mode === 'drag') return;
+        const hops = L.celebrationHops(celebrationKind);
+        const factor = hops > 1 ? 1.3 : 1;
+        wake();
+        if (state.y === 0 && state.mode !== 'fly') {
+          hop(factor);
+          state.extraHops = hops - 1;
+        } else {
+          state.extraHops = hops; // hops once it lands
+        }
+      },
     };
+    return api;
   }
 
   let pets = [];
-  let statuses = null; // the petStatuses the current pets were built from
+  let statuses = null; // the latest petStatuses (pets are rebuilt only when their looks change)
   let positions = {};  // saved x positions: { [projectId]: { xRatio } }
   let hidden = false;
   let dirty = false;
+  let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
+  let checkIn = null; // petCheckIn: the question a returning pet asks
+  let seenCelebrations = null; // { [projectId]: at } already seen by this tab (null until the first statuses)
+  let pendingCelebrations = [];
+
+  const send = (msg) => {
+    if (!stale()) chrome.runtime.sendMessage(msg).catch(() => {});
+  };
+  const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
+  const env = { quiet: () => L.isQuiet(away), onMenu: openMenu };
 
   // ---- Storage ----
   // After the extension is reloaded, old content scripts lose access to chrome.*.
@@ -514,11 +631,12 @@
   // One pet per status. keepPlaces: the current pets stay where they are (a mood or project
   // changed); otherwise every pet goes to its saved position.
   function rebuild(next, keepPlaces) {
+    globalThis.PetMenu?.close();
     if (keepPlaces) for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
     pets.forEach((pet) => pet.remove());
     statuses = next;
     const list = (next?.pets ?? []).filter((s) => KINDS[s.petKind]);
-    pets = list.map((s, i) => createPet(s, i, list.length));
+    pets = list.map((s, i) => createPet(s, i, list.length, env));
     const now = performance.now();
     for (const pet of pets) {
       pet.restore(positions[pet.id]?.xRatio);
@@ -529,13 +647,21 @@
 
   async function load() {
     if (stale()) return;
-    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses']);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
+    away = L.parseAway(stored.petAway, Date.now());
+    checkIn = L.parseCheckIn(stored.petCheckIn);
     const next = L.parseStatuses(stored.petStatuses ?? null);
-    if (!L.statusesEqual(statuses, next)) rebuild(next, false);
-    else for (const pet of pets) if (!pet.boxEl()) pet.restore(positions[pet.id]?.xRatio);
+    if (!L.statusesEqual(statuses, next)) {
+      rebuild(next, false);
+    } else {
+      statuses = next;
+      for (const pet of pets) if (!pet.boxEl()) pet.restore(positions[pet.id]?.xRatio);
+      applyHabitat();
+    }
     setHidden(stored.petHidden);
+    noteCelebrations();
   }
 
   function save() {
@@ -555,11 +681,64 @@
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local' || stale()) return;
     if (changes.petHidden) setHidden(changes.petHidden.newValue);
+    if (changes.petAway) {
+      away = L.parseAway(changes.petAway.newValue, Date.now());
+      globalThis.PetMenu?.close(); // its items may be out of date
+    }
+    if (changes.petCheckIn) checkIn = L.parseCheckIn(changes.petCheckIn.newValue);
     if (changes.petStatuses) {
       const next = L.parseStatuses(changes.petStatuses.newValue ?? null);
       if (!L.statusesEqual(statuses, next)) rebuild(next, true);
+      else statuses = next; // a new suggestion or celebration: same pets
+      noteCelebrations();
     }
+    if (changes.petAway || changes.petCheckIn) applyHabitat();
   });
+
+  // ---- The pet menu ----
+  function openMenu(pet, point) {
+    if (stale() || !globalThis.PetMenu) return;
+    globalThis.PetMenu.open(root, point, L.petMenuItems(pet.id, away, statuses), (id) => pick(pet, id));
+  }
+
+  function pick(pet, id) {
+    const projectId = pet.id;
+    if (id === 'suggest') pet.say(L.suggestionText(statusOf(projectId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
+    else if (id === 'nap') send({ type: 'nap', projectId });
+    else if (id === 'sleep1') send({ type: 'sleep', projectId, hours: 1 });
+    else if (id === 'sleep2') send({ type: 'sleep', projectId, hours: 2 });
+    else if (id === 'open') send({ type: 'openProject', projectId });
+    else if (id === 'wake') send({ type: 'wake', projectId });
+  }
+
+  // ---- Check-in: the pet back from a nap asks how it went, in every tab until it's answered ----
+  function showCheckIn() {
+    for (const pet of pets) pet.clearTalk();
+    if (!checkIn) return;
+    const shown = pets.filter((pet) => pet.isShown() && !pet.isAway());
+    const target = shown.find((pet) => pet.id === checkIn.projectId) ?? shown[0];
+    if (!target) return;
+    const prompt = L.checkInPrompt(checkIn);
+    target.talk(prompt.text, prompt.buttons, (answer) => send({ type: 'checkIn', answer }));
+  }
+
+  // ---- Celebrations: a task completed in Studium ----
+  // A tab in the background keeps them until you come back to it, so you see the hop.
+  function noteCelebrations() {
+    const r = L.newCelebrations(seenCelebrations, statuses);
+    seenCelebrations = r.seen;
+    pendingCelebrations.push(...r.celebrate);
+    playCelebrations();
+  }
+
+  function playCelebrations() {
+    if (hidden || document.visibilityState !== 'visible') return;
+    for (const c of pendingCelebrations) {
+      const pet = pets.find((p) => p.id === c.projectId);
+      if (pet?.isShown()) pet.celebrate(c.kind);
+    }
+    pendingCelebrations = [];
+  }
 
   // ---- On the Studium page: copy its pet statuses for every tab ----
   const onStudium = L.isStudiumUrl(location.href);
@@ -583,7 +762,7 @@
 
   // When you come back to this tab, pick up wherever the pets were in the other tab.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') load();
+    if (document.visibilityState === 'visible') load().then(playCelebrations);
     else save();
   });
   window.addEventListener('pagehide', save);
@@ -598,18 +777,29 @@
   let habitatEl = null;
   const habitatPet = () => (habitatEl ? pets.find((pet) => pet.id === habitatEl.dataset.petHabitat) : undefined);
 
+  // The box also gets data-pet-away while its pet naps or sleeps, so Studium can say when it's back.
+  // That stays even while pets are hidden, for Studium's still picture.
   function markAttached() {
-    if (habitatEl) habitatEl.toggleAttribute('data-pet-attached', !hidden && Boolean(habitatPet()));
+    if (!habitatEl) return;
+    habitatEl.toggleAttribute('data-pet-attached', !hidden && Boolean(habitatPet()));
+    const entry = away[habitatEl.dataset.petHabitat];
+    if (entry) habitatEl.setAttribute(L.PET_AWAY_ATTR, L.awayAttribute(entry));
+    else habitatEl.removeAttribute(L.PET_AWAY_ATTR);
   }
 
+  // Which pets show where. Away pets are hidden, except asleep in their own habitat box.
   function applyHabitat() {
     const inside = habitatPet();
     for (const pet of pets) {
-      pet.setShown(!habitatEl || pet === inside);
-      if (pet === inside && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
-      if (pet !== inside && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
+      const inBox = pet === inside;
+      const isAway = Boolean(away[pet.id]);
+      pet.setShown(isAway ? inBox : !habitatEl || inBox);
+      if (inBox && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
+      if (!inBox && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
+      pet.setAway(isAway);
     }
     markAttached();
+    showCheckIn();
   }
 
   function checkHabitat() {
@@ -619,7 +809,10 @@
     }
     const el = document.querySelector('[data-pet-habitat]');
     if (el === habitatEl) return;
-    if (habitatEl?.isConnected) habitatEl.removeAttribute('data-pet-attached');
+    if (habitatEl?.isConnected) {
+      habitatEl.removeAttribute('data-pet-attached');
+      habitatEl.removeAttribute(L.PET_AWAY_ATTR);
+    }
     habitatEl = el;
     applyHabitat();
   }
@@ -641,9 +834,12 @@
       }
     }
     // In habitat mode, draw only inside the box, so the pet can't cover the page when it scrolls away.
-    host.style.clipPath = habitatPet()
-      ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight)
-      : '';
+    // The menu isn't clipped, and a check-in bubble gets more room above the box.
+    const inside = habitatPet();
+    host.style.clipPath =
+      inside && !globalThis.PetMenu?.isOpen()
+        ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight, inside.isTalking() ? 90 : 40)
+        : '';
     requestAnimationFrame(loop);
   }
 
