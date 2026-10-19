@@ -325,6 +325,21 @@
       state.plan = null;
     }
 
+    // Furniture is placed in fractions of the box, so a pet using it (or asleep in its bed) keeps to
+    // it whenever the box's size changes: the box may not be laid out yet when a nap starts, and it
+    // changes with the page, not only when the window is resized. True if the pet is at furniture.
+    function stayAtFurniture() {
+      const entry =
+        state.mode === 'away' ? (box ? L.bedOf(furniture) : null)
+        : state.mode === 'use' || state.mode === 'sleep' ? state.plan?.entry
+        : null;
+      if (!box || !entry) return false;
+      const spot = spotFor(entry);
+      state.x = spot.x;
+      state.y = spot.y;
+      return true;
+    }
+
     // Back to normal: a pet up on furniture drops back to the floor first.
     function settle(now) {
       clearPlan();
@@ -401,6 +416,7 @@
 
     function step(now, dt) {
       refreshWorld();
+      stayAtFurniture();
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
@@ -636,18 +652,7 @@
       xRatio: () => (maxX() ? state.x / maxX() : 0),
       clampToWorld() {
         refreshWorld();
-        // Furniture is placed in fractions of the box, so a pet using it (or asleep in its bed)
-        // moves with it when the box changes size, instead of hanging in mid-air.
-        const atFurniture =
-          state.mode === 'away' ? (box ? L.bedOf(furniture) : null)
-          : state.mode === 'use' || state.mode === 'sleep' ? state.plan?.entry
-          : null;
-        if (box && atFurniture) {
-          const spot = spotFor(atFurniture);
-          state.x = spot.x;
-          state.y = spot.y;
-          return;
-        }
+        if (stayAtFurniture()) return;
         state.x = clamp(state.x, 0, maxX());
         state.y = clamp(state.y, 0, maxY());
         state.targetX = clamp(state.targetX, 0, maxX());
