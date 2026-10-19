@@ -29,7 +29,8 @@ const statuses = (appDevSuggestion: unknown = { taskId: "t1", title: "Push", est
 
 let ids = 0;
 const ctx = (now = T, s = statuses()) => ({ now, statuses: s, napMinutes: 15, newId: () => `n${++ids}` });
-const empty = () => ({ petAway: {}, focusOutbox: {}, petCheckIn: null });
+type State = { petAway: Record<string, unknown>; focusOutbox: Record<string, unknown>; petCheckIn: unknown };
+const empty = (): State => ({ petAway: {}, focusOutbox: {}, petCheckIn: null });
 
 const napEntry = (o: Record<string, unknown> = {}) => ({
   kind: "nap",
@@ -138,7 +139,7 @@ describe("validators", () => {
 });
 
 describe("applyAwayRequest", () => {
-  const nap = (state = empty(), c = ctx()) => L.applyAwayRequest(state, { type: "nap", projectId: "appDev" }, c);
+  const nap = (state: State = empty(), c = ctx()) => L.applyAwayRequest(state, { type: "nap", projectId: "appDev" }, c);
 
   it("nap stores the pet's suggested task and sets an alarm", () => {
     const r = nap(empty(), { ...ctx(), newId: () => "n1" });
