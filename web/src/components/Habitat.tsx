@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { inventory } from "../planner/history";
 import { MEDICINE_PRODUCT_ID } from "../planner/tuning";
+import { PET_AWAY_ATTR, WAKE_PET_EVENT } from "../store/petStatus";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { MOOD_COLORS, accuracyLabel, attentionLabel, gapLabel } from "../ui/format";
-import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, LABEL, SERIF } from "../ui/styles";
+import { MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, parsePetAway, type PetAway } from "../ui/format";
+import { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 
 /** How long to wait for the extension to put a pet in the box before showing a still picture. */
 export const HABITAT_FALLBACK_MS = 1000;
@@ -15,21 +16,27 @@ export default function Habitat({ projectId, justHatched, onOpenShop }: Props) {
   const s = useStudiumContext();
   const boxRef = useRef<HTMLDivElement>(null);
   const [showStill, setShowStill] = useState(false);
+  const [away, setAway] = useState<PetAway | null>(null);
 
   // The extension finds this box, puts the project's pet in it and sets data-pet-attached.
   // It removes the attribute when it lets go (pets hidden, extension gone), and the still picture comes back.
+  // While the pet naps or sleeps, the extension also sets data-pet-away.
   useEffect(() => {
     const box = boxRef.current;
     if (!box) return;
     let waited = false;
-    const update = () => setShowStill(waited && !box.hasAttribute("data-pet-attached"));
+    const update = () => {
+      setShowStill(waited && !box.hasAttribute("data-pet-attached"));
+      setAway(parsePetAway(box.getAttribute(PET_AWAY_ATTR)));
+    };
     setShowStill(false);
+    setAway(parsePetAway(box.getAttribute(PET_AWAY_ATTR)));
     const timer = setTimeout(() => {
       waited = true;
       update();
     }, HABITAT_FALLBACK_MS);
     const observer = new MutationObserver(update);
-    observer.observe(box, { attributes: true, attributeFilter: ["data-pet-attached"] });
+    observer.observe(box, { attributes: true, attributeFilter: ["data-pet-attached", PET_AWAY_ATTR] });
     return () => {
       clearTimeout(timer);
       observer.disconnect();
@@ -60,10 +67,26 @@ export default function Habitat({ projectId, justHatched, onOpenShop }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_20rem]">
         <div ref={boxRef} data-pet-habitat={project.id} className="relative h-56 overflow-hidden bg-[var(--color-muted)]">
           <div className="absolute inset-x-0 bottom-0 h-10 border-t border-[var(--color-border)] bg-[var(--color-card)]" />
-          {justHatched && (
-            <p className="absolute top-3 inset-x-0 text-center text-sm font-semibold" style={{ color: project.color }}>
-              It hatched: a {project.petKind}!
-            </p>
+          {away ? (
+            <div className="absolute top-3 inset-x-0 flex flex-wrap items-center justify-center gap-2 px-3 text-sm">
+              <p>
+                <strong style={{ color: project.color }}>{`${project.shortName} ${awayLabel(away, s.now).title}`}</strong> ·{" "}
+                {awayLabel(away, s.now).detail}
+              </p>
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent(WAKE_PET_EVENT, { detail: project.id }))}
+                className={BUTTON_SMALL}
+              >
+                Wake
+              </button>
+            </div>
+          ) : (
+            justHatched && (
+              <p className="absolute top-3 inset-x-0 text-center text-sm font-semibold" style={{ color: project.color }}>
+                It hatched: a {project.petKind}!
+              </p>
+            )
           )}
           {showStill && (
             <img

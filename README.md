@@ -29,6 +29,13 @@ After editing extension files, click the reload icon on the extension's card, th
 - One pet per Studium project wanders along the bottom of every normal web page. Its mood follows the project: happy pets are quicker and chattier, worried and upset ones slow down, and a sick pet looks green and sneezes. Drag it to move it, or click it to make it hop.
 - On a Studium project page, only that project's pet shows, living inside the page's habitat box.
 - Click the toolbar icon to open or focus the homepage.
+- Right-click a pet for its menu:
+  - **What should I work on?** names the project's next task.
+  - **Nap (15 min)** is a focus timer: the pet leaves while you work on that task and comes back to ask whether you finished. Every nap is saved in Studium as focus time ("Focused 45 min" on the task, "Focused this week" on the project), and it pre-fills "About how long did it take?". Only one pet naps at a time, and the others go quiet meanwhile.
+  - **Sleep** sends the pet away for 1 or 2 hours and records nothing.
+  - **Open project** opens that project in Studium.
+- An away pet lies asleep in its Studium habitat, with a **Wake** button. You can also wake it from the toolbar icon's right-click menu.
+- Pets hop when you complete a task in Studium, and celebrate bigger for a project's first task and for a finished requirement.
 - Right-click the toolbar icon and choose **Show / hide pet** to toggle it everywhere.
 - Chrome blocks extensions on `chrome://` pages and the Chrome Web Store, so the pet can't appear there.
 
@@ -38,6 +45,7 @@ After editing extension files, click the reload icon on the extension's card, th
 | --- | --- |
 | Which pet a project gets | the egg picker in Studium's New Project form |
 | How mood changes a pet | `MOOD_EFFECTS` in `extension/content/logic.js` |
+| Nap length, the pet menu, check-ins, celebrations (rules and wording) | `extension/content/logic.js` (`NAP_MINUTES`, `applyAwayRequest`, `petMenuItems`, …) |
 | Each pet's speed, size, sound, naps, hops, flying | `KINDS` in `extension/content/pet.js` |
 | Shared physics (gravity, throwing, bounce) | constants at the top of `extension/content/pet.js` |
 | Pet art | `extension/assets/pets/` (cleaned-up copies of the originals in `assets/`) |

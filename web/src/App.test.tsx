@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-import { fireEvent, screen, within } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { dayKey } from "./planner/testData";
 import { StudiumApp } from "./App";
 import { renderWithStudium, savedData } from "./test/render";
@@ -98,5 +98,59 @@ describe("StudiumApp switching projects", () => {
     const appBox = document.querySelector("[data-pet-habitat]");
     expect(appBox?.getAttribute("data-pet-habitat")).toBe("appDev");
     expect(appBox?.hasAttribute("data-pet-attached")).toBe(false);
+  });
+});
+
+describe("StudiumApp links from the pets", () => {
+  afterEach(() => history.replaceState(null, "", "/"));
+  const open = (hash: string) => {
+    history.replaceState(null, "", `/${hash}`);
+    return renderWithStudium(<StudiumApp />);
+  };
+
+  it("#project=<id> opens that project and clears the hash", () => {
+    open("#project=webDev");
+    screen.getByRole("heading", { name: "Web Development Portfolio" });
+    expect(location.hash).toBe("");
+  });
+
+  it("an unknown project stays on the overview", () => {
+    open("#project=nope");
+    screen.getByRole("heading", { name: "Your Projects" });
+    expect(location.hash).toBe("");
+  });
+
+  it("#complete=<taskId> opens the project and its completion prompt", () => {
+    open("#complete=webDev-t5");
+    screen.getByRole("heading", { name: "Web Development Portfolio" });
+    screen.getByRole("dialog", { name: 'About how long did "Write case study #3" take?' });
+  });
+
+  it("#complete for a done or blocked task only opens the project", () => {
+    open("#complete=webDev-t3");
+    screen.getByRole("heading", { name: "Web Development Portfolio" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("#complete for a blocked task only opens the project", () => {
+    open("#complete=webDev-t8");
+    screen.getByRole("heading", { name: "Web Development Portfolio" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("an unknown task does nothing", () => {
+    open("#complete=nope");
+    screen.getByRole("heading", { name: "Your Projects" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("follows links that arrive later", () => {
+    open("");
+    act(() => {
+      history.replaceState(null, "", "/#project=appDev");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    screen.getByRole("heading", { name: "Mobile App — Habit Tracker" });
+    expect(location.hash).toBe("");
   });
 });

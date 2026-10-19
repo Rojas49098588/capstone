@@ -70,9 +70,21 @@ export type StudiumEvent =
   | { type: "requirement_created"; at: string; requirementId: string }
   | { type: "requirement_edited"; at: string; requirementId: string; changes: Partial<Requirement> }
   | { type: "purchase"; at: string; productId: string; price: number }
-  | { type: "medicine_given"; at: string; projectId: string };
+  | { type: "medicine_given"; at: string; projectId: string }
+  | {
+      type: "focus_session"; // a nap with a browser pet (pet interactions spec)
+      at: string; // when the session ended
+      id: string; // made by the extension when the nap started; recording is idempotent by id
+      projectId: string;
+      taskId: string | null; // the task the nap was for, if any
+      startedAt: string;
+      minutes: number; // whole minutes actually focused, >= 0
+    };
 
 export type CompletedEvent = Extract<StudiumEvent, { type: "task_completed" }>;
+export type FocusSessionEvent = Extract<StudiumEvent, { type: "focus_session" }>;
+/** A finished nap as the extension sends it. */
+export type FocusSession = Omit<FocusSessionEvent, "type">;
 
 export type StudiumData = {
   version: 1;

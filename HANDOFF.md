@@ -2,9 +2,9 @@
 
 Briefing for the next Claude session working in this repo. Read this first, then the files it points to.
 
-## Start here: Plans 1–3 are done; ask the user what's next
+## Start here: Plans 1–3 and pet interactions are done; ask the user what's next
 
-All three plans from the spec are built. Ask the user to choose the next step, for example:
+All three plans from the planner spec are built, and so is the pet interactions round (spec `docs/superpowers/specs/2026-10-19-pet-interactions-design.md`, plan `docs/superpowers/plans/2026-10-19-pet-interactions.md`, branch `feature/pet-interactions`). Its planned next round is **work limiters**, built on the focus sessions it records. Ask the user to choose the next step, for example:
 - **Deploy Studium** somewhere other than `localhost` (Vercel, Netlify), so testers don't need Node. Then change `HOMEPAGE_URL` in `extension/content/logic.js`; the toolbar icon and the pets' Studium detection both use it.
 - **Deferred ideas** (spec "Out of scope"): the pet lifecycle (hatching later, growing), using food, clothes and toys, and sprite animation frames.
 - **Deferred minors** listed under "Known small issues" below.
@@ -35,6 +35,7 @@ The user is a student building this as their capstone. They make the product dec
 | Plan 1: planner core (rules, saving, actions, example data) | **Done**, reviewed, 101 tests | merged into `main` (PR #1) |
 | Plan 2: Studium screens | **Done**, reviewed (4 fixes after review), 183 tests, checked in a real browser (light, dark, 390 px) | merged into `main` (locally); plan `docs/superpowers/plans/2026-10-15-studium-screens.md` |
 | Plan 3: extension link (pet statuses, habitat mode, mood behavior) | **Done**, reviewed (2 fixes after review), 208 tests + a 27-step Playwright check with the real extension | branch `feature/extension-link`; plan `docs/superpowers/plans/2026-10-15-extension-link.md` |
+| Pet interactions: pet menu, naps as focus sessions, sleep, check-ins, celebrations | **Done**, 309 tests + a 39-step Playwright check with the real extension | branch `feature/pet-interactions`; plan `docs/superpowers/plans/2026-10-19-pet-interactions.md` |
 
 ## Code map
 
@@ -42,10 +43,17 @@ The user is a student building this as their capstone. They make the product dec
 extension/
   manifest.json            MV3; content script on <all_urls>; images web-accessible
   background.js            importScripts(content/logic.js); toolbar click → open/focus Studium; tooltip;
-                           "Show / hide pet" menu; injects logic.js + pet.js into open tabs on install
+                           toolbar menu ("Show / hide pet", "Wake <pet>"); the only writer of petAway/focusOutbox/
+                           petCheckIn (runs applyAwayRequest one request at a time, alarms away:<id>); injects the
+                           content scripts into open tabs on install
   content/logic.js         pure helpers on globalThis.PetLogic: HOMEPAGE_URL, status parsing, MOOD_EFFECTS/applyMood,
                            idle message, habitat geometry (tests: web/src/extension/petLogic.test.ts)
-  content/pet.js           all pet behavior: KINDS (per-animal tuning), pets from petStatuses, Studium copy, habitat mode
+  content/logic.js (cont.) pet interactions: validators for petAway/focusOutbox/petCheckIn, applyAwayRequest (the
+                           worker's whole nap/sleep/check-in state machine, pure), menu items, wording, celebrations
+  content/menu.js          the pet's right-click menu (DOM only, globalThis.PetMenu; tests: web/src/extension/menu.test.ts)
+  content/bridge.js        Studium page only: delivers focusOutbox to Studium, forwards studium:wake-pet (bridge.test.ts)
+  content/pet.js           all pet behavior: KINDS (per-animal tuning), pets from petStatuses, Studium copy, habitat mode,
+                           menu wiring, away pets, quiet mode, check-in bubbles, celebrations
   assets/pets/*.png        cleaned-up art (originals in /assets are JPEGs named .png)
 web/
   src/planner/             pure rules, no React: types, tuning (ALL numbers), time, history, blocking,
@@ -54,7 +62,10 @@ web/
                            seed.ts (example data), products.ts (shop incl. Medicine)
   src/store/useStudium.tsx StudiumProvider + useStudiumContext: data, `now` (refreshed every minute), notices,
                            every action with the time filled in; saves after each change; publishes pet statuses
-  src/store/petStatus.ts   buildPetStatuses / publishPetStatuses (studium-pets-v1 + studium:pets-updated event)
+  src/store/petStatus.ts   buildPetStatuses / publishPetStatuses (studium-pets-v1 + studium:pets-updated event);
+                           each pet's suggestion and celebration; the extension event names
+  src/planner/focus.ts     focus-session sums (focusMinutes, taskFocusMinutes)
+  src/ui/hashLinks.ts      #project=<id> / #complete=<taskId> links, followed by App.tsx
   src/extension/           tests for extension/content/logic.js (the extension has no node_modules of its own)
   src/ui/                  format.ts (ALL wording), derive.ts (per-project summaries), styles.ts (shared classes)
   src/pets/eggs.ts         egg looks + vague descriptions, shuffle
@@ -97,6 +108,14 @@ From Plan 3:
 - **Pets come only from Studium.** No `petStatuses` in chrome.storage means no pets, and the tooltip reads "Open Studium once to meet your pets".
 - **Mood rebuilds keep pets in place**, and a status write that only changes `updatedAt` doesn't rebuild anything (`statusesEqual`).
 - **Box positions are never saved** as window positions; leaving the habitat puts the pet back at its saved floor spot.
+
+From pet interactions:
+- **Every completion celebrates** (user's decision, changed from the spec draft): re-checks too. A project's first completed task and a finished requirement celebrate bigger.
+- **`statusesEqual` ignores `suggestion` and `celebration`**, so completing tasks doesn't rebuild the pets.
+- **A focus delivery Studium couldn't save isn't kept in memory**, so the next delivery isn't mistaken for a duplicate and deleted unsaved.
+- **The completion prompt's pre-fill follows focus time that arrives after it opened**, until the user picks a time.
+- **Right-button presses don't start a drag**, and a background tab plays celebrations when you come back to it.
+- `petTimingOverride: { napMinutes }` in chrome.storage shortens naps for browser checks (at most 15). `handleMenuClick` and `menuIds` are on the worker's `globalThis` because Playwright can't open the toolbar menu.
 
 Known small issues, deferred on purpose:
 - A task checked off while unlinked never pays its own share, even after it's linked.

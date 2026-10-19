@@ -1,6 +1,6 @@
 // App shell: navigation, theme, modals and toasts. Screens live in components/,
 // data and actions come from the Studium provider (store/useStudium.tsx).
-import { useCallback, useLayoutEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import CompletionPrompt from "./components/CompletionPrompt";
 import NoticeBanner from "./components/NoticeBanner";
 import Overview from "./components/Overview";
@@ -8,8 +8,10 @@ import ProjectDetail from "./components/ProjectDetail";
 import ProjectModal from "./components/ProjectModal";
 import Shop from "./components/Shop";
 import Toast from "./components/Toast";
+import { isBlocked } from "./planner/blocking";
 import { tokenBalance } from "./planner/history";
 import { StudiumProvider, useStudiumContext } from "./store/useStudium";
+import { parseHashLink } from "./ui/hashLinks";
 import { SERIF } from "./ui/styles";
 
 type Theme = "light" | "dark";
@@ -65,6 +67,29 @@ export function StudiumApp() {
     setSelectedId(id);
     setPage("projects");
   }
+
+  // Links from the browser pets (Open project, Done after a nap). Read through a ref, so the
+  // hashchange listener is added once and still sees the latest data.
+  const followLink = useRef<() => void>(() => {});
+  followLink.current = () => {
+    const link = parseHashLink(window.location.hash);
+    if (window.location.hash) history.replaceState(null, "", window.location.pathname + window.location.search);
+    if (!link) return;
+    if (link.kind === "project") {
+      if (s.data.projects.some((p) => p.id === link.id)) openProject(link.id);
+      return;
+    }
+    const task = s.data.tasks.find((t) => t.id === link.id);
+    if (!task) return;
+    openProject(task.projectId);
+    if (!task.done && !isBlocked(task, s.data.tasks)) setCompletingId(task.id);
+  };
+  useEffect(() => {
+    const follow = () => followLink.current();
+    follow();
+    window.addEventListener("hashchange", follow);
+    return () => window.removeEventListener("hashchange", follow);
+  }, []);
 
   const navButton = (label: string, active: boolean, onClick: () => void, color?: string, small = false) => (
     <button

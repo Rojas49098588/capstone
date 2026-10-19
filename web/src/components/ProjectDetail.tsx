@@ -1,6 +1,8 @@
+import { focusMinutes } from "../planner/focus";
+import { startOfWeek } from "../planner/time";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import { daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel } from "../ui/format";
 import { BUTTON_SMALL, LABEL, SERIF } from "../ui/styles";
 import Habitat from "./Habitat";
 import RequirementsSection from "./RequirementsSection";
@@ -19,6 +21,7 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
   if (!project) return null;
   const summary = summarizeProject(project, s.data, s.now);
   const soon = daysUntil(project.deadline, s.now) < 30;
+  const focusedThisWeek = focusMinutes(s.data.events, { projectId: project.id, since: startOfWeek(s.now) });
 
   return (
     <div className="space-y-8">
@@ -62,6 +65,9 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
           <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
             {summary.tasksDone} of {summary.tasksTotal} tasks complete · {gapLabel(summary.gap)}
           </p>
+          {focusedThisWeek > 0 && (
+            <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{weekFocusLabel(focusedThisWeek)}</p>
+          )}
         </div>
       </div>
 

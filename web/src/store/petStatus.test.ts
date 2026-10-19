@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
 import { memoryStorage } from "../test/render";
-import { giveMedicine, purchase } from "./actions";
+import { completeTask, giveMedicine, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
 import { buildSeed } from "./seed";
 
@@ -53,5 +53,80 @@ describe("pet statuses", () => {
       throw new Error("QuotaExceededError");
     };
     expect(publishPetStatuses(full, data, NOW)).toBe(false);
+  });
+});
+
+// The same tasks as suggest.test.ts: a unblocks c, d done, e unlinked, f in today, g pinned.
+function suggestData(todayIds = ["f"]) {
+  return makeData({
+    requirements: [makeRequirement()],
+    tasks: [
+      makeTask({ id: "a" }),
+      makeTask({ id: "b" }),
+      makeTask({ id: "c", blockedBy: ["a"] }),
+      makeTask({ id: "d", done: true }),
+      makeTask({ id: "e", requirementId: null }),
+      makeTask({ id: "f" }),
+      makeTask({ id: "g", priority: true }),
+    ],
+    today: { date: dayKey(0), taskIds: todayIds },
+  });
+}
+
+describe("pet suggestions", () => {
+  it("suggests today's tasks for the project first", () => {
+    expect(buildPetStatuses(suggestData(), NOW).pets[0].suggestion).toEqual({ taskId: "f", title: "Task", estimateMin: 60 });
+  });
+
+  it("then follows Suggested next", () => {
+    expect(buildPetStatuses(suggestData([]), NOW).pets[0].suggestion?.taskId).toBe("g");
+  });
+
+  it("skips today's tasks that are done, blocked or unlinked", () => {
+    expect(buildPetStatuses(suggestData(["d", "c", "e", "b"]), NOW).pets[0].suggestion?.taskId).toBe("b");
+  });
+
+  it("suggests nothing when every task is done, blocked or unlinked", () => {
+    const data = makeData({
+      requirements: [makeRequirement()],
+      tasks: [makeTask({ id: "x", done: true }), makeTask({ id: "y", blockedBy: ["z"] }), makeTask({ id: "z", requirementId: null }), makeTask({ id: "w", requirementId: null })],
+    });
+    // z is unlinked, so y waits on it and nothing is left to suggest.
+    expect(buildPetStatuses(data, NOW).pets[0].suggestion).toBeNull();
+  });
+});
+
+describe("pet celebrations", () => {
+  const hours = (n: number) => new Date(NOW.getTime() + n * 3_600_000);
+  const three = () =>
+    makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a" }), makeTask({ id: "b" }), makeTask({ id: "c" })] });
+  const celebration = (data: ReturnType<typeof makeData>) => buildPetStatuses(data, hours(6)).pets[0].celebration;
+
+  it("no completion, no celebration", () => {
+    expect(celebration(three())).toBeNull();
+  });
+
+  it("celebrates the project's first completed task bigger, then every completion", () => {
+    let data = completeTask(three(), "a", 60, NOW).data;
+    expect(celebration(data)).toEqual({ at: NOW.toISOString(), kind: "firstTask" });
+    data = completeTask(data, "b", 60, hours(1)).data;
+    expect(celebration(data)).toEqual({ at: hours(1).toISOString(), kind: "task" });
+  });
+
+  it("re-checks celebrate too", () => {
+    let data = completeTask(three(), "a", 60, NOW).data;
+    data = completeTask(data, "b", 60, hours(1)).data;
+    data = reopenTask(data, "b", hours(2));
+    data = completeTask(data, "b", 60, hours(3)).data;
+    expect(celebration(data)).toEqual({ at: hours(3).toISOString(), kind: "task" });
+  });
+
+  it("finishing a requirement is the biggest, even as the first completion", () => {
+    let data = completeTask(three(), "a", 60, NOW).data;
+    data = completeTask(data, "b", 60, hours(1)).data;
+    data = completeTask(data, "c", 60, hours(2)).data;
+    expect(celebration(data)).toEqual({ at: hours(2).toISOString(), kind: "requirement" });
+    const single = makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a" })] });
+    expect(celebration(completeTask(single, "a", 60, NOW).data)?.kind).toBe("requirement");
   });
 });

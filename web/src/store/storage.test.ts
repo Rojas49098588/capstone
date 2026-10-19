@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NOW, makeData, makeRequirement, makeTask } from "../planner/testData";
-import { BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, saveData } from "./storage";
+import { BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
 
 function memoryStorage(failWrites = false): Storage {
   const map = new Map<string, string>();
@@ -74,5 +74,34 @@ describe("isValidData dates", () => {
   it("rejects malformed date keys", () => {
     expect(isValidData({ ...valid(), projects: [{ ...valid().projects[0], deadline: "soon" }] })).toBe(false);
     expect(isValidData({ ...valid(), requirements: [makeRequirement({ dueDate: "" })] })).toBe(false);
+  });
+});
+
+const focusEvent = (o: Record<string, unknown> = {}) => ({
+  type: "focus_session",
+  at: NOW.toISOString(),
+  id: "s1",
+  projectId: "p1",
+  taskId: "t1",
+  startedAt: NOW.toISOString(),
+  minutes: 15,
+  ...o,
+});
+
+describe("focus sessions", () => {
+  it("accepts focus sessions and rejects damaged ones", () => {
+    expect(isValidData({ ...valid(), events: [focusEvent(), focusEvent({ taskId: null })] })).toBe(true);
+    for (const bad of [{ minutes: -1 }, { minutes: Number.NaN }, { taskId: 5 }, { startedAt: undefined }, { id: 7 }]) {
+      expect(isValidData({ ...valid(), events: [focusEvent(bad)] })).toBe(false);
+    }
+  });
+
+  it("parseFocusSessions keeps valid sessions only", () => {
+    expect(parseFocusSessions("{broken")).toEqual([]);
+    expect(parseFocusSessions('{"a":1}')).toEqual([]);
+    const good = { ...focusEvent(), type: undefined };
+    delete good.type;
+    const bad = { ...good, minutes: "5" };
+    expect(parseFocusSessions(JSON.stringify([good, bad]))).toEqual([good]);
   });
 });

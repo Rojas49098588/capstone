@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, endOfLocalDay, localDateKey, startOfLocalDay, wholeDaysBetween } from "./time";
+import { addDays, endOfLocalDay, localDateKey, startOfLocalDay, startOfWeek, wholeDaysBetween } from "./time";
 
 describe("time helpers", () => {
   it("formats a local date key, even late in the evening", () => {
@@ -29,5 +29,13 @@ describe("time helpers", () => {
 describe("time helpers with bad input", () => {
   it("treats an invalid date as 0 days, not NaN", () => {
     expect(wholeDaysBetween(new Date(Number.NaN), new Date(2026, 9, 8))).toBe(0);
+  });
+});
+
+describe("startOfWeek", () => {
+  it("starts on Monday", () => {
+    expect(startOfWeek(new Date(2026, 9, 14, 12))).toEqual(new Date(2026, 9, 12));
+    expect(startOfWeek(new Date(2026, 9, 18, 23))).toEqual(new Date(2026, 9, 12));
+    expect(startOfWeek(new Date(2026, 9, 19, 0, 30))).toEqual(new Date(2026, 9, 19));
   });
 });

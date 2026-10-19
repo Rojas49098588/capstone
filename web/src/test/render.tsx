@@ -4,6 +4,7 @@ import type { ReactElement } from "react";
 import { afterEach } from "vitest";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
+import { recordFocusSessions } from "../store/actions";
 import { buildSeed } from "../store/seed";
 import { STORAGE_KEY, saveData } from "../store/storage";
 import { StudiumProvider } from "../store/useStudium";
@@ -40,4 +41,17 @@ export function renderWithStudium(
 /** What the provider last saved. */
 export function savedData(storage: Storage | null): StudiumData {
   return JSON.parse(storage?.getItem(STORAGE_KEY) ?? "null") as StudiumData;
+}
+
+/** The example data plus one focus session (a nap) on a webDev task, ended at `at`. */
+export function withFocus(minutes: number, taskId: string | null = "webDev-t5", at: Date = NOW): StudiumData {
+  const session = {
+    id: `focus-${minutes}-${at.getTime()}`,
+    projectId: "webDev",
+    taskId,
+    startedAt: new Date(at.getTime() - minutes * 60_000).toISOString(),
+    at: at.toISOString(),
+    minutes,
+  };
+  return recordFocusSessions(buildSeed(NOW), [session], NOW).data;
 }

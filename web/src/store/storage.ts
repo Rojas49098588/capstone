@@ -1,6 +1,6 @@
 // Loading and saving Studium's data in localStorage, with validation and backups.
 import { isDateKey } from "../planner/time";
-import { PET_KINDS, type StudiumData } from "../planner/types";
+import { PET_KINDS, type FocusSession, type StudiumData } from "../planner/types";
 import { buildSeed } from "./seed";
 
 export const STORAGE_KEY = "studium-data-v1";
@@ -15,6 +15,27 @@ const isStr = (v: unknown): v is string => typeof v === "string";
 const isNum = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const isBool = (v: unknown): v is boolean => typeof v === "boolean";
 const allStr = (o: Obj, keys: string[]) => keys.every((k) => isStr(o[k]));
+
+export function isValidFocusSession(v: unknown): v is FocusSession {
+  return (
+    isObj(v) &&
+    allStr(v, ["id", "projectId", "startedAt", "at"]) &&
+    (v.taskId === null || isStr(v.taskId)) &&
+    isNum(v.minutes) &&
+    v.minutes >= 0
+  );
+}
+
+/** The valid sessions in a JSON array sent by the extension; anything else is ignored. */
+export function parseFocusSessions(json: string): FocusSession[] {
+  let value: unknown;
+  try {
+    value = JSON.parse(json);
+  } catch {
+    return [];
+  }
+  return Array.isArray(value) ? value.filter(isValidFocusSession) : [];
+}
 
 export function isValidData(value: unknown): value is StudiumData {
   if (!isObj(value) || value.version !== 1) return false;
@@ -49,6 +70,7 @@ export function isValidData(value: unknown): value is StudiumData {
     if (e.type === "task_completed" && !(isStr(e.taskId) && isNum(e.tokens) && isObj(e.breakdown) && isNum(e.breakdown.finish))) return false;
     if (e.type === "purchase" && !(isStr(e.productId) && isNum(e.price))) return false;
     if (e.type === "medicine_given" && !isStr(e.projectId)) return false;
+    if (e.type === "focus_session" && !isValidFocusSession(e)) return false;
   }
   return true;
 }
