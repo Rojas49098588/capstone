@@ -7,7 +7,7 @@ import { isDateKey, localDateKey } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import type { FocusSession, Project, Requirement, StudiumData, StudiumEvent, Task } from "../planner/types";
 import { computeCompletionPayout, type Payout } from "../planner/value";
-import { findProduct } from "./products";
+import { priceOf } from "./products";
 
 const newId = () => crypto.randomUUID();
 const stamp = (now: Date) => now.toISOString();
@@ -276,10 +276,10 @@ export function removeFromToday(data: StudiumData, taskId: string, now: Date): S
 // ---- Shop ----
 
 export function purchase(data: StudiumData, productId: string, now: Date): { data: StudiumData; ok: boolean } {
-  const product = findProduct(productId);
-  if (!product || tokenBalance(data.events) < product.price) return { data, ok: false };
+  const price = priceOf(productId);
+  if (price === undefined || tokenBalance(data.events) < price) return { data, ok: false };
   return {
-    data: { ...data, events: withEvent(data, { type: "purchase", at: stamp(now), productId, price: product.price }) },
+    data: { ...data, events: withEvent(data, { type: "purchase", at: stamp(now), productId, price }) },
     ok: true,
   };
 }
