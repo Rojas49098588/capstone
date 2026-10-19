@@ -99,6 +99,7 @@ export type StudiumData = {
   events: StudiumEvent[]; // only ever appended to
   today: { date: string; taskIds: string[] };
   decor?: Record<string, HabitatDecor>; // by project id; missing in data saved before habitat decor
+  defaultBeds?: true; // every habitat has been given its built-in bed (missing in older data)
 };
 
 export type Mood = "Proud" | "Delighted" | "Happy" | "Worried" | "Upset" | "Sick";

@@ -47,8 +47,9 @@ describe("loadData / saveData", () => {
 
   it("round-trips saved data", () => {
     const storage = memoryStorage();
-    expect(saveData(storage, valid())).toBe(true);
-    expect(loadData(storage, NOW).data).toEqual(valid());
+    const data = { ...valid(), defaultBeds: true as const };
+    expect(saveData(storage, data)).toBe(true);
+    expect(loadData(storage, NOW).data).toEqual(data);
   });
 
   it("keeps a backup and falls back when the saved data is damaged", () => {
@@ -112,7 +113,9 @@ describe("saved decor", () => {
     storage.setItem(STORAGE_KEY, JSON.stringify(valid()));
     const result = loadData(storage, NOW);
     expect(result.notice).toBeNull();
-    expect(result.data).toEqual(valid()); // unchanged: no decor added
+    // Unchanged except that each habitat is given its built-in bed.
+    const id = valid().projects[0].id;
+    expect(result.data).toEqual({ ...valid(), decor: { [id]: { floorLeft: "default-bed" } }, defaultBeds: true });
   });
 
   it("cleans damaged decor instead of resetting the data", () => {

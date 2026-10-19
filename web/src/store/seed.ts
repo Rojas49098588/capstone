@@ -10,6 +10,7 @@ import {
   type StudiumEvent,
   type Task,
 } from "../planner/types";
+import { giveDefaultBeds } from "./decor";
 
 type SeedTask = {
   title: string;
@@ -319,5 +320,5 @@ export function buildSeed(now: Date): StudiumData {
   }
 
   events.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
-  return { version: 1, projects, requirements, tasks, events, today: { date: localDateKey(now), taskIds: TODAY_TASK_IDS } };
+  return giveDefaultBeds({ version: 1, projects, requirements, tasks, events, today: { date: localDateKey(now), taskIds: TODAY_TASK_IDS } });
 }

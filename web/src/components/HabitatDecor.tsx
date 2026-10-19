@@ -3,6 +3,7 @@ import type { DecorSlot } from "../planner/types";
 import { allowedIn, findDecor } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
 import { SLOT_LAYOUT, SLOT_NAMES, SPOT_SLOTS, type SlotBox } from "../ui/decorLayout";
+import DecorArt from "./DecorArt";
 
 /** What the user is placing from the inventory. `from` is set for "Move here" (a copy in another slot). */
 export type Placing = { itemId: string; from?: { projectId: string; slot: DecorSlot } } | null;
@@ -22,6 +23,7 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
   const s = useStudiumContext();
   const [broken, setBroken] = useState<Set<string>>(() => new Set());
   const habitat = s.data.decor?.[projectId] ?? {};
+  const color = s.data.projects.find((p) => p.id === projectId)?.color ?? "currentColor";
   const wallpaper = habitat.wallpaper ? findDecor(habitat.wallpaper) : undefined;
   const flooring = habitat.flooring ? findDecor(habitat.flooring) : undefined;
   const placingItem = placing ? findDecor(placing.itemId) : undefined;
@@ -49,9 +51,10 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
         const item = habitat[slot] ? findDecor(habitat[slot] as string) : undefined;
         if (!item || broken.has(item.id)) return null;
         return (
-          <img
+          <DecorArt
             key={slot}
-            src={url(item.image)}
+            item={item}
+            color={color}
             alt={item.name}
             onError={() => setBroken((b) => new Set(b).add(item.id))}
             className="absolute object-contain object-bottom"
