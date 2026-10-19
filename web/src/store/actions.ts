@@ -5,7 +5,7 @@ import { inventory, tokenBalance } from "../planner/history";
 import { projectHealth } from "../planner/mood";
 import { isDateKey, localDateKey } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
-import type { Project, Requirement, StudiumData, StudiumEvent, Task } from "../planner/types";
+import type { FocusSession, Project, Requirement, StudiumData, StudiumEvent, Task } from "../planner/types";
 import { computeCompletionPayout, type Payout } from "../planner/value";
 import { findProduct } from "./products";
 
@@ -288,4 +288,40 @@ export function giveMedicine(data: StudiumData, projectId: string, now: Date): {
   const haveMedicine = (inventory(data.events)[MEDICINE_PRODUCT_ID] ?? 0) > 0;
   if (!haveMedicine || !projectHealth(projectId, data, now).sick) return { data, ok: false };
   return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId }) }, ok: true };
+}
+
+// ---- Focus sessions (naps with a browser pet) ----
+
+export const MAX_FOCUS_SESSION_MIN = 240;
+
+/**
+ * Records finished naps sent by the extension. Returns every id it has dealt with (recorded, already
+ * recorded, or dropped because the project is gone) so the extension can delete its copies.
+ * Focus sessions never pay tokens or change progress.
+ */
+export function recordFocusSessions(
+  data: StudiumData,
+  sessions: FocusSession[],
+  now: Date,
+): { data: StudiumData; handled: string[] } {
+  const known = new Set(data.events.filter((e) => e.type === "focus_session").map((e) => e.id));
+  const projects = new Set(data.projects.map((p) => p.id));
+  const tasks = new Set(data.tasks.map((t) => t.id));
+  const added: StudiumEvent[] = [];
+  const handled: string[] = [];
+  for (const s of sessions) {
+    handled.push(s.id);
+    if (known.has(s.id) || !projects.has(s.projectId)) continue;
+    known.add(s.id);
+    added.push({
+      type: "focus_session",
+      at: Number.isFinite(Date.parse(s.at)) ? s.at : stamp(now),
+      id: s.id,
+      projectId: s.projectId,
+      taskId: s.taskId !== null && tasks.has(s.taskId) ? s.taskId : null,
+      startedAt: s.startedAt,
+      minutes: Math.min(MAX_FOCUS_SESSION_MIN, Math.max(0, Math.round(s.minutes))),
+    });
+  }
+  return { data: added.length > 0 ? { ...data, events: [...data.events, ...added] } : data, handled };
 }

@@ -12,12 +12,14 @@ import {
   deleteTask,
   giveMedicine,
   purchase,
+  recordFocusSessions,
   reopenTask,
   updateProject,
   updateRequirement,
   updateTask,
 } from "./actions";
 import { isValidData } from "./storage";
+import { buildSeed } from "./seed";
 
 const base = () =>
   makeData({
@@ -170,5 +172,52 @@ describe("shop and medicine", () => {
     const given = giveMedicine(stocked, "p1", NOW);
     expect(given.ok).toBe(true);
     expect(inventory(given.data.events).medicine).toBe(0);
+  });
+});
+
+describe("recordFocusSessions", () => {
+  const s = (o: Record<string, unknown> = {}) => ({
+    id: "s1",
+    projectId: "webDev",
+    taskId: "webDev-t5",
+    startedAt: new Date(NOW.getTime() - 15 * 60_000).toISOString(),
+    at: NOW.toISOString(),
+    minutes: 15,
+    ...o,
+  }) as Parameters<typeof recordFocusSessions>[1][number];
+  const focusEvents = (d: ReturnType<typeof buildSeed>) => d.events.filter((e) => e.type === "focus_session");
+
+  it("records new sessions as events and reports them handled", () => {
+    const seed = buildSeed(NOW);
+    const r = recordFocusSessions(seed, [s()], NOW);
+    expect(r.handled).toEqual(["s1"]);
+    expect(r.data.events.slice(-1)[0]).toEqual({ type: "focus_session", ...s() });
+    expect(tokenBalance(r.data.events)).toBe(tokenBalance(seed.events));
+    expect(isValidData(r.data)).toBe(true);
+  });
+
+  it("skips ids already in the log, also within one batch", () => {
+    const first = recordFocusSessions(buildSeed(NOW), [s(), s()], NOW);
+    expect(first.handled).toEqual(["s1", "s1"]);
+    expect(focusEvents(first.data)).toHaveLength(1);
+    const second = recordFocusSessions(first.data, [s()], NOW);
+    expect(second.handled).toEqual(["s1"]);
+    expect(second.data).toBe(first.data);
+  });
+
+  it("drops sessions for deleted projects but still reports them handled", () => {
+    const r = recordFocusSessions(buildSeed(NOW), [s({ projectId: "gone" })], NOW);
+    expect(r.handled).toEqual(["s1"]);
+    expect(focusEvents(r.data)).toHaveLength(0);
+  });
+
+  it("records taskId null when the task no longer exists", () => {
+    const r = recordFocusSessions(buildSeed(NOW), [s({ taskId: "gone" })], NOW);
+    expect(focusEvents(r.data)[0]).toMatchObject({ taskId: null });
+  });
+
+  it("rounds and clamps minutes", () => {
+    const r = recordFocusSessions(buildSeed(NOW), [s({ id: "a", minutes: 14.6 }), s({ id: "b", minutes: -3 }), s({ id: "c", minutes: 500 })], NOW);
+    expect(focusEvents(r.data).map((e) => (e.type === "focus_session" ? e.minutes : null))).toEqual([15, 0, 240]);
   });
 });

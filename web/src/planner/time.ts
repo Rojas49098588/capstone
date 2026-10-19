@@ -29,6 +29,12 @@ export function isDateKey(value: unknown): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && localDateKey(startOfLocalDay(value)) === value;
 }
 
+/** Local midnight on the Monday of `now`'s week. */
+export function startOfWeek(now: Date): Date {
+  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  return addDays(day, -((day.getDay() + 6) % 7));
+}
+
 export function addDays(d: Date, n: number): Date {
   const r = new Date(d);
   r.setDate(r.getDate() + n);
