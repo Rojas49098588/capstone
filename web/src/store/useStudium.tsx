@@ -3,8 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { StudiumData } from "../planner/types";
 import * as A from "./actions";
-import { STORAGE_KEY, browserStorage, isValidData, loadData, saveData, type LoadNotice } from "./storage";
-import { PET_STATUS_REFRESH_MS, publishPetStatuses } from "./petStatus";
+import { STORAGE_KEY, browserStorage, isValidData, loadData, parseFocusSessions, saveData, type LoadNotice } from "./storage";
+import {
+  FOCUS_RECEIVED_EVENT,
+  FOCUS_SESSIONS_EVENT,
+  PET_STATUS_REFRESH_MS,
+  STUDIUM_READY_EVENT,
+  publishPetStatuses,
+} from "./petStatus";
 
 export const NOW_REFRESH_MS = 60_000;
 
@@ -59,6 +65,33 @@ export function useStudium(options: StudiumOptions = {}) {
     if (!persistent) return;
     const id = setInterval(() => publishPetStatuses(env.storage, dataRef.current, env.clock()), PET_STATUS_REFRESH_MS);
     return () => clearInterval(id);
+  }, [env, persistent]);
+
+  // The extension delivers finished naps (focus sessions). Answer only once they're saved: the
+  // extension keeps its copies until then. A failed save isn't kept in memory either, or the next
+  // delivery would look like a duplicate and be confirmed without ever being saved.
+  useEffect(() => {
+    const onSessions = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (typeof detail !== "string" || !persistent) return;
+      const sessions = parseFocusSessions(detail);
+      if (sessions.length === 0) return;
+      const at = env.clock();
+      const { data: next, handled } = A.recordFocusSessions(dataRef.current, sessions, at);
+      if (next !== dataRef.current) {
+        if (!saveData(env.storage, next)) {
+          setNotice("save-failed");
+          return;
+        }
+        dataRef.current = next;
+        setData(next);
+        setNow(at);
+      }
+      window.dispatchEvent(new CustomEvent(FOCUS_RECEIVED_EVENT, { detail: JSON.stringify(handled) }));
+    };
+    window.addEventListener(FOCUS_SESSIONS_EVENT, onSessions);
+    window.dispatchEvent(new Event(STUDIUM_READY_EVENT));
+    return () => window.removeEventListener(FOCUS_SESSIONS_EVENT, onSessions);
   }, [env, persistent]);
 
   const apply = useCallback(

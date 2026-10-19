@@ -1,9 +1,16 @@
 // @vitest-environment jsdom
 import { act, renderHook } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NOW, dayKey } from "../planner/testData";
 import { memoryStorage, savedData } from "../test/render";
-import { PET_STATUS_EVENT, PET_STATUS_KEY, PET_STATUS_REFRESH_MS } from "./petStatus";
+import {
+  FOCUS_RECEIVED_EVENT,
+  FOCUS_SESSIONS_EVENT,
+  PET_STATUS_EVENT,
+  PET_STATUS_KEY,
+  PET_STATUS_REFRESH_MS,
+  STUDIUM_READY_EVENT,
+} from "./petStatus";
 import { STORAGE_KEY } from "./storage";
 import { NOW_REFRESH_MS, useStudium } from "./useStudium";
 
@@ -135,5 +142,88 @@ describe("useStudium and the browser extension", () => {
       vi.advanceTimersByTime(PET_STATUS_REFRESH_MS);
     });
     expect(published(storage).updatedAt).toBe(time.toISOString());
+  });
+});
+
+describe("useStudium receiving focus sessions", () => {
+  const session = (id = "s1") => ({
+    id,
+    projectId: "webDev",
+    taskId: "webDev-t5",
+    startedAt: new Date(NOW.getTime() - 15 * 60_000).toISOString(),
+    at: NOW.toISOString(),
+    minutes: 15,
+  });
+  const send = (detail: unknown) =>
+    act(() => {
+      window.dispatchEvent(new CustomEvent(FOCUS_SESSIONS_EVENT, { detail }));
+    });
+  const focusCount = (events: { type: string }[]) => events.filter((e) => e.type === "focus_session").length;
+
+  let answers: unknown[] = [];
+  const onAnswer = (e: Event) => answers.push(JSON.parse((e as CustomEvent).detail));
+  beforeEach(() => {
+    answers = [];
+    window.addEventListener(FOCUS_RECEIVED_EVENT, onAnswer);
+  });
+  afterEach(() => window.removeEventListener(FOCUS_RECEIVED_EVENT, onAnswer));
+
+  it("announces it is ready after mounting", () => {
+    const onReady = vi.fn();
+    window.addEventListener(STUDIUM_READY_EVENT, onReady);
+    renderHook(() => useStudium({ storage: memoryStorage(), clock: () => NOW }));
+    window.removeEventListener(STUDIUM_READY_EVENT, onReady);
+    expect(onReady).toHaveBeenCalled();
+  });
+
+  it("records sessions, saves and answers with the handled ids", () => {
+    const storage = memoryStorage();
+    renderHook(() => useStudium({ storage, clock: () => NOW }));
+    send(JSON.stringify([session()]));
+    expect(focusCount(savedData(storage).events)).toBe(1);
+    expect(answers).toEqual([["s1"]]);
+  });
+
+  it("answers again for sessions it already has", () => {
+    const storage = memoryStorage();
+    renderHook(() => useStudium({ storage, clock: () => NOW }));
+    send(JSON.stringify([session()]));
+    send(JSON.stringify([session()]));
+    expect(focusCount(savedData(storage).events)).toBe(1);
+    expect(answers).toEqual([["s1"], ["s1"]]);
+  });
+
+  it("ignores damaged deliveries", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const before = result.current.data;
+    send("{broken");
+    send(42);
+    expect(answers).toEqual([]);
+    expect(result.current.data).toBe(before);
+  });
+
+  it("doesn't answer or keep sessions it couldn't save, and records them on the next delivery", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const setItem = storage.setItem;
+    storage.setItem = () => {
+      throw new Error("QuotaExceededError");
+    };
+    send(JSON.stringify([session()]));
+    expect(answers).toEqual([]);
+    expect(focusCount(result.current.data.events)).toBe(0);
+    expect(result.current.notice).toBe("save-failed");
+
+    storage.setItem = setItem;
+    send(JSON.stringify([session()]));
+    expect(answers).toEqual([["s1"]]);
+    expect(focusCount(savedData(storage).events)).toBe(1);
+  });
+
+  it("doesn't answer when storage is unavailable", () => {
+    renderHook(() => useStudium({ storage: null, clock: () => NOW }));
+    send(JSON.stringify([session()]));
+    expect(answers).toEqual([]);
   });
 });
