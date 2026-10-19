@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NOW } from "../planner/testData";
 import { buildSeed } from "../store/seed";
+import { WAKE_PET_EVENT } from "../store/petStatus";
 import { renderWithStudium } from "../test/render";
 import Habitat, { HABITAT_FALLBACK_MS } from "./Habitat";
 
@@ -80,5 +81,54 @@ describe("Habitat", () => {
       box.removeAttribute("data-pet-attached");
     });
     screen.getByRole("img", { name: "webDev's pigeon" });
+  });
+});
+
+describe("Habitat while the pet is away", () => {
+  const box = () => document.querySelector('[data-pet-habitat="webDev"]') as HTMLElement;
+  // The box's MutationObserver reports after a microtask, so let it run inside act.
+  const setAway = (value: string | null) =>
+    act(async () => {
+      if (value === null) box().removeAttribute("data-pet-away");
+      else box().setAttribute("data-pet-away", value);
+    });
+  const inMinutes = (n: number) => new Date(NOW.getTime() + n * 60_000).toISOString();
+
+  it("shows that the pet is napping, with a Wake button", async () => {
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />);
+    await setAway(`nap:${inMinutes(12)}`);
+    screen.getByText("webDev is napping");
+    screen.getByText(/back in 12 min/);
+    const onWake = vi.fn();
+    window.addEventListener(WAKE_PET_EVENT, onWake);
+    await userEvent.click(screen.getByRole("button", { name: "Wake" }));
+    window.removeEventListener(WAKE_PET_EVENT, onWake);
+    expect((onWake.mock.calls[0][0] as CustomEvent).detail).toBe("webDev");
+  });
+
+  it("shows sleeping with the return time", async () => {
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />);
+    await setAway(`sleep:${new Date(2026, 9, 14, 13, 30).toISOString()}`);
+    screen.getByText("webDev is sleeping");
+    screen.getByText(/back at 1:30 PM/);
+  });
+
+  it("goes back to normal when the attribute is removed", async () => {
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />);
+    await setAway(`nap:${inMinutes(12)}`);
+    await setAway(null);
+    expect(screen.queryByText(/is napping/)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Wake" })).toBeNull();
+  });
+
+  it("shows the still picture with the napping line when no pet is attached", async () => {
+    vi.useFakeTimers();
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />);
+    await setAway(`nap:${inMinutes(12)}`);
+    act(() => {
+      vi.advanceTimersByTime(HABITAT_FALLBACK_MS);
+    });
+    screen.getByRole("img", { name: "webDev's pigeon" });
+    screen.getByText("webDev is napping");
   });
 });

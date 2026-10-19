@@ -4,11 +4,13 @@ import { ZERO_BREAKDOWN } from "../planner/types";
 import {
   accuracyLabel,
   attentionLabel,
+  awayLabel,
   deadlineLabel,
   focusedLabel,
   formatDate,
   formatMinutes,
   gapLabel,
+  parsePetAway,
   payoutMessage,
   weekFocusLabel,
 } from "./format";
@@ -64,5 +66,28 @@ describe("focus wording", () => {
   it("labels focus time", () => {
     expect(focusedLabel(45)).toBe("Focused 45 min");
     expect(weekFocusLabel(150)).toBe("Focused this week: 2 h 30 min");
+  });
+});
+
+describe("away pets", () => {
+  const minutes = (n: number) => new Date(NOW.getTime() + n * 60_000);
+
+  it("reads the extension's data-pet-away attribute", () => {
+    expect(parsePetAway(`nap:${minutes(12).toISOString()}`)).toEqual({ kind: "nap", until: minutes(12) });
+    expect(parsePetAway(`sleep:${minutes(60).toISOString()}`)?.kind).toBe("sleep");
+    for (const bad of ["nap:nope", `dance:${minutes(1).toISOString()}`, "", null]) expect(parsePetAway(bad)).toBeNull();
+  });
+
+  it("says when a napping pet comes back", () => {
+    expect(awayLabel({ kind: "nap", until: minutes(12) }, NOW)).toEqual({ title: "is napping", detail: "back in 12 min" });
+    expect(awayLabel({ kind: "nap", until: new Date(NOW.getTime() + 10_000) }, NOW).detail).toBe("back in 1 min");
+    expect(awayLabel({ kind: "nap", until: minutes(-5) }, NOW).detail).toBe("back in 1 min");
+  });
+
+  it("says what time a sleeping pet comes back", () => {
+    expect(awayLabel({ kind: "sleep", until: new Date(2026, 9, 14, 16, 30) }, NOW)).toEqual({
+      title: "is sleeping",
+      detail: "back at 4:30 PM",
+    });
   });
 });

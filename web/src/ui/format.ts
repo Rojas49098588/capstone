@@ -32,6 +32,28 @@ export function weekFocusLabel(minutes: number): string {
   return `Focused this week: ${formatMinutes(minutes)}`;
 }
 
+export type PetAway = { kind: "nap" | "sleep"; until: Date };
+
+/** The extension's data-pet-away attribute: "<nap|sleep>:<ISO time it returns>". */
+export function parsePetAway(value: string | null): PetAway | null {
+  if (!value) return null;
+  const colon = value.indexOf(":");
+  const kind = value.slice(0, colon);
+  const until = new Date(value.slice(colon + 1));
+  if ((kind !== "nap" && kind !== "sleep") || !Number.isFinite(until.getTime())) return null;
+  return { kind, until };
+}
+
+export function awayLabel(away: PetAway, now: Date): { title: string; detail: string } {
+  if (away.kind === "nap") {
+    const minutes = Math.max(1, Math.ceil((away.until.getTime() - now.getTime()) / 60_000));
+    return { title: "is napping", detail: `back in ${minutes} min` };
+  }
+  // Newer ICU puts a narrow no-break space before AM/PM; keep plain spaces.
+  const time = away.until.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s/g, " ");
+  return { title: "is sleeping", detail: `back at ${time}` };
+}
+
 export function formatDate(key: string): string {
   if (!isDateKey(key)) return "No date";
   return startOfLocalDay(key).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
