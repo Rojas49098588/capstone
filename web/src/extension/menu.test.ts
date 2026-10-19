@@ -91,6 +91,24 @@ describe("PetMenu", () => {
     expect(root.querySelectorAll('[role="menu"]')).toHaveLength(1);
   });
 
+  it("stays inside the window when Sleep opens near the bottom", () => {
+    // jsdom has no layout: give each menu 30px per item and 8px of padding.
+    const rect = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (this: HTMLElement) {
+      const height = this.classList.contains("pet-menu") ? this.querySelectorAll("button").length * 30 + 8 : 0;
+      return { width: 180, height, left: 0, top: 0, right: 180, bottom: height, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    const bottom = window.innerHeight - 20;
+    M.open(root, { x: 100, y: bottom }, items(), vi.fn());
+    const el = root.querySelector(".pet-menu") as HTMLElement;
+    const fits = () => parseFloat(el.style.top) + el.querySelectorAll("button").length * 30 + 8 <= window.innerHeight - 8;
+    expect(fits()).toBe(true);
+    byLabel("Sleep").click();
+    expect(fits()).toBe(true);
+    byLabel("Sleep").click(); // closing it again moves it back
+    expect(el.style.top).toBe(`${bottom - (4 * 30 + 8)}px`);
+    rect.mockRestore();
+  });
+
   it("brings STYLE for the shadow root", () => {
     expect(M.STYLE).toContain(".pet-menu");
   });

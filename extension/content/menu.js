@@ -28,7 +28,8 @@
     current = null;
   }
 
-  function button(item, onPick) {
+  // relayout: re-measures and re-places the menu after a submenu opens or closes.
+  function button(item, onPick, relayout) {
     const b = document.createElement('button');
     b.type = 'button';
     b.setAttribute('role', 'menuitem');
@@ -51,12 +52,14 @@
         b.setAttribute('aria-expanded', String(!open));
         if (open) {
           b.nextElementSibling?.remove();
+          relayout();
           return;
         }
         const group = document.createElement('div');
         group.setAttribute('role', 'group');
-        for (const child of item.children) group.appendChild(button(child, onPick));
+        for (const child of item.children) group.appendChild(button(child, onPick, relayout));
         b.after(group);
+        relayout(); // a taller menu may no longer fit where it is
         group.querySelector('button')?.focus();
       });
       return b;
@@ -74,17 +77,20 @@
     const el = document.createElement('div');
     el.className = 'pet-menu';
     el.setAttribute('role', 'menu');
-    for (const item of items) el.appendChild(button(item, onPick));
+    // Kept inside the window, measured again whenever a submenu changes its size.
+    const place = () => {
+      const rect = el.getBoundingClientRect();
+      const pos = globalThis.PetLogic.menuPosition(
+        point,
+        { width: rect.width, height: rect.height },
+        { width: window.innerWidth, height: window.innerHeight },
+      );
+      el.style.left = `${pos.left}px`;
+      el.style.top = `${pos.top}px`;
+    };
+    for (const item of items) el.appendChild(button(item, onPick, place));
     root.appendChild(el);
-
-    const rect = el.getBoundingClientRect();
-    const pos = globalThis.PetLogic.menuPosition(
-      point,
-      { width: rect.width, height: rect.height },
-      { width: window.innerWidth, height: window.innerHeight },
-    );
-    el.style.left = `${pos.left}px`;
-    el.style.top = `${pos.top}px`;
+    place();
 
     const controller = new AbortController();
     const { signal } = controller;
