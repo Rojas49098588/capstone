@@ -5,10 +5,12 @@ import {
   accuracyLabel,
   attentionLabel,
   deadlineLabel,
+  focusedLabel,
   formatDate,
   formatMinutes,
   gapLabel,
   payoutMessage,
+  weekFocusLabel,
 } from "./format";
 
 describe("format", () => {
@@ -55,5 +57,12 @@ describe("format", () => {
     const zero = { tokens: 0, breakdown: { ...ZERO_BREAKDOWN } };
     expect(payoutMessage(zero, makeTask({ requirementId: null }))).toMatch(/Unlinked tasks earn no tokens/);
     expect(payoutMessage(zero, makeTask())).toMatch(/already paid/);
+  });
+});
+
+describe("focus wording", () => {
+  it("labels focus time", () => {
+    expect(focusedLabel(45)).toBe("Focused 45 min");
+    expect(weekFocusLabel(150)).toBe("Focused this week: 2 h 30 min");
   });
 });

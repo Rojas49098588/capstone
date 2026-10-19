@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NOW } from "../planner/testData";
 import { buildSeed } from "../store/seed";
-import { renderWithStudium, savedData } from "../test/render";
+import { renderWithStudium, savedData, withFocus } from "../test/render";
 import TaskRow from "./TaskRow";
 
 const task = (storage: Storage | null, id: string) => savedData(storage).tasks.find((t) => t.id === id);
@@ -57,5 +57,17 @@ describe("TaskRow", () => {
     const { storage } = renderWithStudium(<TaskRow taskId="webDev-t6" onRequestComplete={vi.fn()} />, { data });
     await userEvent.selectOptions(screen.getByLabelText("Link Record demo videos to a requirement"), "webDev-r2");
     expect(task(storage, "webDev-t6")?.requirementId).toBe("webDev-r2");
+  });
+});
+
+describe("TaskRow focus time", () => {
+  it("shows focus time since the task was last reopened", () => {
+    renderWithStudium(<TaskRow taskId="webDev-t5" onRequestComplete={vi.fn()} />, { data: withFocus(45) });
+    screen.getByText(/Focused 45 min/);
+  });
+
+  it("shows nothing without focus time", () => {
+    renderWithStudium(<TaskRow taskId="webDev-t5" onRequestComplete={vi.fn()} />);
+    expect(screen.queryByText(/Focused/)).toBeNull();
   });
 });

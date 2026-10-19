@@ -24,6 +24,14 @@ export function formatMinutes(minutes: number): string {
   return rest ? `${h} h ${rest} min` : `${h} h`;
 }
 
+export function focusedLabel(minutes: number): string {
+  return `Focused ${formatMinutes(minutes)}`;
+}
+
+export function weekFocusLabel(minutes: number): string {
+  return `Focused this week: ${formatMinutes(minutes)}`;
+}
+
 export function formatDate(key: string): string {
   if (!isDateKey(key)) return "No date";
   return startOfLocalDay(key).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NOW, dayKey } from "../planner/testData";
 import { createProject } from "../store/actions";
 import { buildSeed } from "../store/seed";
-import { renderWithStudium, savedData } from "../test/render";
+import { renderWithStudium, savedData, withFocus } from "../test/render";
 import ProjectDetail from "./ProjectDetail";
 
 const props = { justHatched: false, onRequestComplete: vi.fn(), onEditProject: vi.fn(), onOpenShop: vi.fn() };
@@ -51,5 +51,19 @@ describe("ProjectDetail", () => {
     renderWithStudium(<ProjectDetail projectId="webDev" {...props} onEditProject={onEditProject} />);
     await userEvent.click(screen.getByRole("button", { name: "Edit project" }));
     expect(onEditProject).toHaveBeenCalled();
+  });
+});
+
+describe("ProjectDetail focus time", () => {
+  it("shows this week's focus time", () => {
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data: withFocus(150) });
+    screen.getByText("Focused this week: 2 h 30 min");
+  });
+
+  it("leaves out focus time from earlier weeks", () => {
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, {
+      data: withFocus(150, "webDev-t5", new Date(NOW.getTime() - 9 * 86_400_000)),
+    });
+    expect(screen.queryByText(/Focused this week/)).toBeNull();
   });
 });

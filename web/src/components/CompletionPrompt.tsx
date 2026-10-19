@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { taskFocusMinutes } from "../planner/focus";
 import { useStudiumContext } from "../store/useStudium";
 import { formatMinutes, payoutMessage } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, SERIF } from "../ui/styles";
@@ -12,7 +13,16 @@ export default function CompletionPrompt({ taskId, onClose, onDone }: Props) {
   const s = useStudiumContext();
   useReturnFocus();
   const task = s.data.tasks.find((t) => t.id === taskId);
-  const [minutes, setMinutes] = useState(task?.estimateMin ?? 60);
+  // Focus time from naps with the pet pre-fills the answer. A nap can arrive after the prompt opens
+  // (Done from a pet opens a new Studium tab), so follow it until the user picks a time.
+  const focused = task ? taskFocusMinutes(task, s.data.events) : 0;
+  const prefill = focused > 0 ? focused : (task?.estimateMin ?? 60);
+  const [minutes, setMinutes] = useState(prefill);
+  const [touched, setTouched] = useState(false);
+
+  useEffect(() => {
+    if (!touched) setMinutes(prefill);
+  }, [prefill, touched]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -38,9 +48,18 @@ export default function CompletionPrompt({ taskId, onClose, onDone }: Props) {
           About how long did "{task.title}" take?
         </h2>
         <p className="text-sm text-[var(--color-muted-foreground)]">
-          You estimated {formatMinutes(task.estimateMin)}. A rough answer is fine; it helps Studium learn your pace.
+          You estimated {formatMinutes(task.estimateMin)}
+          {focused > 0 ? ` and focused ${formatMinutes(focused)} on it with your pet` : ""}. A rough answer is fine; it helps
+          Studium learn your pace.
         </p>
-        <EstimatePicker label="Time taken" value={minutes} onChange={setMinutes} />
+        <EstimatePicker
+          label="Time taken"
+          value={minutes}
+          onChange={(m) => {
+            setTouched(true);
+            setMinutes(m);
+          }}
+        />
         <div className="flex flex-wrap gap-2 pt-2">
           {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
           <button type="button" autoFocus onClick={() => finish(minutes)} className={BUTTON_PRIMARY}>

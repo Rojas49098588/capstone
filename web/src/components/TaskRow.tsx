@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { openBlockers } from "../planner/blocking";
+import { taskFocusMinutes } from "../planner/focus";
 import { todayTaskIds } from "../planner/suggest";
 import { useStudiumContext } from "../store/useStudium";
-import { formatMinutes } from "../ui/format";
+import { focusedLabel, formatMinutes } from "../ui/format";
 import { BUTTON_SMALL } from "../ui/styles";
 import TaskForm from "./TaskForm";
 
@@ -20,6 +21,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
   const inToday = todayTaskIds(s.data, s.now).includes(task.id);
   const blockers = task.done ? [] : openBlockers(task, projectTasks);
   const color = project?.color ?? "var(--color-foreground)";
+  const focused = taskFocusMinutes(task, s.data.events);
 
   if (editing) {
     return (
@@ -67,6 +69,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         <p className="text-xs text-[var(--color-muted-foreground)]">
           {formatMinutes(task.estimateMin)} estimate
           {task.done && task.actualMin !== null && ` · took ${formatMinutes(task.actualMin)}`}
+          {focused > 0 && ` · ${focusedLabel(focused)}`}
           {blockers.length > 0 && (
             <span className="text-[var(--color-accent)]"> · Waiting on: {blockers.map((b) => b.title).join(", ")}</span>
           )}
