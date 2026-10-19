@@ -408,3 +408,47 @@ describe("newCelebrations", () => {
     expect(L.newCelebrations(null, null)).toEqual({ seen: null, celebrate: [] });
   });
 });
+
+describe("habitat furniture", () => {
+  const withFurniture = (furniture: unknown, o: Record<string, unknown> = {}) =>
+    L.parseStatuses({ pets: [pet({ furniture, ...o })] }).pets[0].furniture;
+
+  it("parseStatuses reads furniture and drops damaged entries", () => {
+    expect(withFurniture([{ use: "bed", slot: "floorLeft" }, { use: "dance", slot: "floorRight" }, { use: "perch", slot: "roof" }, 5])).toEqual([
+      { use: "bed", slot: "floorLeft" },
+    ]);
+    expect(withFurniture("junk")).toEqual([]);
+    expect(L.parseStatuses({ pets: [pet()] }).pets[0].furniture).toEqual([]);
+  });
+
+  it("statusesEqual notices furniture changes", () => {
+    const a = L.parseStatuses({ pets: [pet()] });
+    const b = L.parseStatuses({ pets: [pet({ furniture: [{ use: "bed", slot: "floorLeft" }] })] });
+    expect(L.statusesEqual(a, b)).toBe(false);
+  });
+
+  it("ownFurniture picks the pet's own use", () => {
+    const f = [
+      { use: "bed", slot: "floorLeft" },
+      { use: "perch", slot: "wallLeft" },
+      { use: "lounge", slot: "floorRight" },
+    ];
+    expect(L.ownFurniture("frog", f)).toEqual({ use: "lounge", slot: "floorRight" });
+    expect(L.ownFurniture("pigeon", f)).toEqual({ use: "perch", slot: "wallLeft" });
+    expect(L.ownFurniture("cat", f)).toBeNull();
+    expect(L.bedOf(f)).toEqual({ use: "bed", slot: "floorLeft" });
+    expect(L.bedOf([])).toBeNull();
+  });
+
+  it("furnitureSpot turns a spot into a place in the box", () => {
+    const world = { left: 0, bottom: 0, width: 600, height: 224 };
+    const bed = L.furnitureSpot({ use: "bed", slot: "floorLeft" }, world, 46);
+    expect(bed.x).toBeCloseTo(85);
+    expect(bed.y).toBeCloseTo(13.44);
+    const perch = L.furnitureSpot({ use: "perch", slot: "wallRight" }, world, 46);
+    expect(perch.x).toBeCloseTo(493);
+    expect(perch.y).toBeCloseTo(133.952);
+    expect(L.furnitureSpot({ use: "scratch", slot: "floorLeft" }, { ...world, width: 60 }, 46).x).toBeCloseTo(0); // clamped
+    expect(L.furnitureSpot({ use: "lounge", slot: "floorRight" }, world, 46).y).toBeCloseTo(31.36);
+  });
+});
