@@ -6,7 +6,9 @@ import { dayKey } from "./planner/testData";
 import { StudiumApp } from "./App";
 import { renderWithStudium, savedData } from "./test/render";
 
-describe("StudiumApp", () => {
+// These render the whole app; the first one also pays the file's cold start, which can pass 5 s
+// when the full suite runs in parallel on a busy machine.
+describe("StudiumApp", { timeout: 15_000 }, () => {
   it("navigates between overview, a project and the shop", async () => {
     renderWithStudium(<StudiumApp />);
     screen.getByRole("heading", { name: "Your Projects" });

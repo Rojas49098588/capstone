@@ -15,6 +15,9 @@
 // writes petAway / petCheckIn; this script only shows them: away pets are hidden (or asleep in their
 // habitat), the others go quiet during a nap, and a returning pet asks how it went. Pets also
 // celebrate tasks completed in Studium.
+//
+// In its Studium habitat a pet uses its furniture (status.furniture, from Studium's habitat decor):
+// it naps in the bed, and now and then uses the piece made for its kind (furnitureChance below).
 
 (() => {
   if (window.top !== window) return;
@@ -45,23 +48,28 @@
   //   height/aspect: display size in px (aspect = width / height of the art)
   //   walkSpeed px/s, idleMs pause between walks, strollPx typical walk length
   //   sound: what it says when clicked and every soundMs or so
+  //   furnitureChance: how often it uses its own furniture instead of walking (habitat only);
+  //   furnitureMs: how long it stays there
   const KINDS = {
     cat: {
       height: 56, aspect: 0.82,
       walkSpeed: 28, idleMs: [3000, 8000], strollPx: 160,
       sound: 'Meow!', soundMs: [20000, 45000],
       napChance: 0.4, napMs: [10000, 20000], // sometimes naps instead of walking
+      furnitureChance: 0.3, furnitureMs: [2000, 3000], // scratches its post
     },
     dog: {
       height: 60, aspect: 0.82,
       walkSpeed: 60, idleMs: [400, 1800], strollPx: 450, longWalkChance: 0.4,
       sound: 'Bark!', soundMs: [8000, 20000],
+      furnitureChance: 0.3, furnitureMs: [8000, 15000], // lounges on its sofa
     },
     turtle: {
       height: 44, aspect: 1.48,
       walkSpeed: 10, idleMs: [3000, 8000], strollPx: 120,
       throwable: false, // drops straight down when let go
       bounce: 0.08, hopSpeed: 120,
+      furnitureChance: 0.3, furnitureMs: [20000, 40000], // basks under its heat lamp
     },
     frog: {
       height: 50, aspect: 1.04,
@@ -69,6 +77,7 @@
       idleMs: [1500, 5000], bounce: 0.15, hopSpeed: 850,
       sound: 'Ribbit!', soundMs: [12000, 30000],
       tongueMs: [4000, 10000], mouth: { x: 0.8, y: 0.37 }, // tongue flick, from the mouth corner
+      furnitureChance: 0.3, furnitureMs: [8000, 15000], // lies on its log
     },
     pigeon: {
       height: 50, aspect: 0.81,
@@ -76,6 +85,7 @@
       sound: 'Coo!', soundMs: [10000, 25000],
       flyChance: 0.35, flyHeight: [150, 400], riseSpeed: 150, // floats up the page...
       gravity: 200, maxFallSpeed: 90, airDrag: 1.2,           // ...and drifts down slowly
+      furnitureChance: 0.3, furnitureMs: [8000, 15000],       // sits on its perch
     },
   };
 
@@ -106,6 +116,9 @@
     .pet.sleeping .anim { animation: breathe 2.4s ease-in-out infinite; }
     .pet.flying .anim { animation: flap .18s ease-in-out infinite; }
     .pet.gliding .anim { animation: flap .6s ease-in-out infinite; }
+    .pet.scratching .anim { animation: scratch .25s ease-in-out infinite; }
+    .pet.lounging .anim { animation: breathe 2.4s ease-in-out infinite; }
+    .pet.basking .sprite { filter: drop-shadow(0 0 6px #ffd36b) drop-shadow(0 0 2px #ffb000); }
 
     .tongue {
       position: absolute; height: 4px; width: 26px; border-radius: 2px;
@@ -148,6 +161,7 @@
     @keyframes bob { 50% { transform: translateY(-3px) scaleY(.96); } }
     @keyframes breathe { 50% { transform: scaleY(.93) scaleX(1.03); } }
     @keyframes flap { 50% { transform: translateY(-3px) scaleY(1.04); } }
+    @keyframes scratch { 25% { transform: translateX(-2px) rotate(-4deg); } 75% { transform: translateX(2px) rotate(4deg); } }
     @keyframes lick { 40%, 55% { transform: scaleX(1); } 100% { transform: scaleX(0); } }
   `;
 
@@ -233,6 +247,7 @@
       vy: 0,              // vertical speed, px/s (positive is up)
       facing: 1,          // 1 = right, -1 = left (the art faces right or forward)
       mode: 'idle',       // idle | walk | fall | drag | sleep | fly | away (napping or sleeping for its project)
+                          // | goto (on its way to furniture) | use (using it)
       targetX: 0,
       idleUntil: 0,
       sleepUntil: 0,
@@ -241,7 +256,11 @@
       nextLickAt: 0,
       nextIdleMessageAt: 0,
       extraHops: 0,       // celebration hops still to do, one each time it lands
+      plan: null,         // { activity: 'use' | 'nap', entry: { use, slot } }: what it does at the furniture
+      gotoUntil: 0,       // gives up on reaching furniture after this
+      useUntil: 0,
     };
+    const furniture = status.furniture ?? [];
     // Spread the pets out across the window until they have saved positions.
     const defaultXRatio = (index + 0.5) / count;
 
@@ -258,6 +277,7 @@
     }
 
     function hop(factor = 1) {
+      clearPlan();
       state.vx = 0;
       state.vy = (kind.hopSpeed ?? HOP_SPEED) * factor;
       state.mode = 'fall';
@@ -269,6 +289,52 @@
       void petEl.offsetWidth; // restart the animation if it's already running
       petEl.classList.add('licking');
       setTimeout(() => petEl.classList.remove('licking'), 450);
+    }
+
+    // ---- Furniture (habitat only) ----
+    const spotFor = (entry) => L.furnitureSpot(entry, world, w);
+
+    // Speed on the way to furniture: the pigeon flies to its perch, everyone else walks.
+    const gotoSpeed = (entry) => (entry.use === 'perch' ? kind.riseSpeed ?? 150 : kind.walkSpeed ?? 120);
+
+    function goTo(entry, activity, now) {
+      state.plan = { activity, entry };
+      // Give up only if it takes much longer than the trip should (slow pets have far to go).
+      const spot = spotFor(entry);
+      const trip = Math.hypot(spot.x - state.x, spot.y - state.y) / gotoSpeed(entry);
+      state.gotoUntil = now + trip * 1500 + 3000;
+      state.mode = 'goto';
+    }
+
+    function arrive(now) {
+      const { activity, entry } = state.plan;
+      const spot = spotFor(entry);
+      Object.assign(state, { x: spot.x, y: spot.y, vx: 0, vy: 0 });
+      if (activity === 'nap') {
+        state.mode = 'sleep';
+        const napMs = between(kind.napMs);
+        state.sleepUntil = now + napMs;
+        chatter('Zzzzz', napMs);
+      } else {
+        state.mode = 'use';
+        state.useUntil = now + between(kind.furnitureMs ?? [8000, 15000]);
+      }
+    }
+
+    function clearPlan() {
+      state.plan = null;
+    }
+
+    // Back to normal: a pet up on furniture drops back to the floor first.
+    function settle(now) {
+      clearPlan();
+      if (state.y > 0) {
+        state.vx = 0;
+        state.vy = 0;
+        state.mode = 'fall';
+      } else {
+        goIdle(now);
+      }
     }
 
     function goIdle(now) {
@@ -284,7 +350,18 @@
 
     // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind and mood.
     function act(now) {
+      // In its habitat: sometimes use its own furniture, and nap in the bed.
+      const own = box ? L.ownFurniture(status.petKind, furniture) : null;
+      if (own && Math.random() < (kind.furnitureChance ?? 0)) {
+        goTo(own, 'use', now);
+        return;
+      }
       if (kind.napChance && Math.random() < kind.napChance) {
+        const bed = box ? L.bedOf(furniture) : null;
+        if (bed) {
+          goTo(bed, 'nap', now);
+          return;
+        }
         state.mode = 'sleep';
         const napMs = between(kind.napMs);
         state.sleepUntil = now + napMs;
@@ -347,8 +424,43 @@
         case 'sleep':
           if (now > state.sleepUntil) {
             wake();
-            goIdle(now);
+            settle(now);
           }
+          break;
+        case 'goto': {
+          if (!state.plan || now > state.gotoUntil) {
+            settle(now);
+            break;
+          }
+          const spot = spotFor(state.plan.entry);
+          if (state.plan.entry.use === 'perch') {
+            // Fly straight to the perch.
+            const dx = spot.x - state.x;
+            const dy = spot.y - state.y;
+            const d = Math.hypot(dx, dy);
+            const move = gotoSpeed(state.plan.entry) * dt;
+            if (d <= move) {
+              arrive(now);
+            } else {
+              state.x += (dx / d) * move;
+              state.y += (dy / d) * move;
+              if (Math.abs(dx) > 1) state.facing = Math.sign(dx);
+            }
+          } else {
+            const dist = spot.x - state.x;
+            const move = gotoSpeed(state.plan.entry) * dt;
+            if (Math.abs(dist) <= move) {
+              arrive(now);
+            } else {
+              state.x += Math.sign(dist) * move;
+              state.facing = Math.sign(dist);
+            }
+          }
+          dirty = true;
+          break;
+        }
+        case 'use':
+          if (now > state.useUntil) settle(now);
           break;
         case 'walk': {
           const dist = state.targetX - state.x;
@@ -427,10 +539,15 @@
       bodyEl.style.transform = `rotate(${tilt}deg) scaleX(${state.facing})`;
       // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
-      petEl.classList.toggle('walking', state.mode === 'walk');
+      const flyingToPerch = state.mode === 'goto' && state.plan?.entry.use === 'perch';
+      petEl.classList.toggle('walking', state.mode === 'walk' || (state.mode === 'goto' && !flyingToPerch));
+      const using = state.mode === 'use' ? state.plan?.entry.use : null;
+      petEl.classList.toggle('scratching', using === 'scratch');
+      petEl.classList.toggle('basking', using === 'bask');
+      petEl.classList.toggle('lounging', using === 'lounge');
       petEl.classList.toggle('dragging', state.mode === 'drag');
       petEl.classList.toggle('sleeping', state.mode === 'sleep' || state.mode === 'away');
-      petEl.classList.toggle('flying', state.mode === 'fly');
+      petEl.classList.toggle('flying', state.mode === 'fly' || flyingToPerch);
       petEl.classList.toggle('gliding', airborne && Boolean(kind.maxFallSpeed));
     }
 
@@ -455,6 +572,7 @@
       if (!press.moved && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) < 4) return;
       press.moved = true;
       wake();
+      clearPlan();
       state.mode = 'drag';
       refreshWorld();
       const p = L.dragPosition(
@@ -479,10 +597,11 @@
       } else if (state.mode === 'sleep') {
         // Clicking a napping pet wakes it up.
         wake();
-        goIdle(performance.now());
+        settle(performance.now());
         chatter(kind.sound ? kind.sound.replace('!', '?') : '♥');
       } else {
-        // Clicked: hop and make its sound.
+        // Clicked: stop using furniture, hop and make its sound.
+        if (state.mode === 'goto' || state.mode === 'use') settle(performance.now());
         if (state.y === 0) hop();
         chatter(kind.sound ?? '♥');
         lick();
@@ -517,6 +636,18 @@
       xRatio: () => (maxX() ? state.x / maxX() : 0),
       clampToWorld() {
         refreshWorld();
+        // Furniture is placed in fractions of the box, so a pet using it (or asleep in its bed)
+        // moves with it when the box changes size, instead of hanging in mid-air.
+        const atFurniture =
+          state.mode === 'away' ? (box ? L.bedOf(furniture) : null)
+          : state.mode === 'use' || state.mode === 'sleep' ? state.plan?.entry
+          : null;
+        if (box && atFurniture) {
+          const spot = spotFor(atFurniture);
+          state.x = spot.x;
+          state.y = spot.y;
+          return;
+        }
         state.x = clamp(state.x, 0, maxX());
         state.y = clamp(state.y, 0, maxY());
         state.targetX = clamp(state.targetX, 0, maxX());
@@ -535,6 +666,7 @@
         box = el;
         refreshWorld();
         wake();
+        clearPlan();
         Object.assign(state, { x: maxX() / 2, y: 0, vx: 0, vy: 0 });
         goIdle(performance.now());
       },
@@ -543,6 +675,7 @@
         box = null;
         refreshWorld();
         wake();
+        clearPlan();
         Object.assign(state, { x: clamp(xRatio * maxX(), 0, maxX()), y: 0, vx: 0, vy: 0 });
         goIdle(performance.now());
       },
@@ -552,14 +685,20 @@
         if (value === (state.mode === 'away')) return;
         if (value) {
           wake();
-          Object.assign(state, { y: 0, vx: 0, vy: 0, extraHops: 0, mode: 'away' });
+          clearPlan();
+          // Asleep in its bed if the habitat has one.
+          refreshWorld();
+          const bed = box ? L.bedOf(furniture) : null;
+          const spot = bed ? spotFor(bed) : { x: state.x, y: 0 };
+          Object.assign(state, { x: spot.x, y: spot.y, vx: 0, vy: 0, extraHops: 0, mode: 'away' });
           clearTimeout(say.timer);
           bubbleEl.textContent = 'Zzz';
           bubbleEl.classList.add('show');
           clearTalk();
         } else {
           bubbleEl.classList.remove('show');
-          goIdle(performance.now());
+          state.mode = 'idle';
+          settle(performance.now());
         }
         render();
       },

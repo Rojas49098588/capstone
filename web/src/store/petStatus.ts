@@ -4,7 +4,8 @@ import { isBlocked } from "../planner/blocking";
 import { estimateMultipliers } from "../planner/learning";
 import { projectMood } from "../planner/mood";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
-import type { Mood, PetKind, StudiumData } from "../planner/types";
+import type { DecorSlot, Mood, PetKind, Project, StudiumData } from "../planner/types";
+import { DECOR_SLOTS, findDecor, type FurnitureUse } from "./decor";
 
 export const PET_STATUS_KEY = "studium-pets-v1";
 export const PET_STATUS_EVENT = "studium:pets-updated";
@@ -39,7 +40,10 @@ export type PetStatus = {
   idleRequirement: { title: string; days: number } | null;
   suggestion: PetSuggestion | null; // what "What should I work on?" names
   celebration: PetCelebration | null; // the project's latest completion
+  furniture: PetFurniture[]; // what the pet can use in its habitat
 };
+
+export type PetFurniture = { use: FurnitureUse; slot: DecorSlot };
 
 export type PetStatuses = { updatedAt: string; pets: PetStatus[] };
 
@@ -73,6 +77,17 @@ function celebrationsByProject(data: StudiumData): Map<string, PetCelebration> {
   return out;
 }
 
+/** The habitat's bed (any pet) and the furniture made for this kind of pet, in slot order. */
+function furnitureFor(project: Project, data: StudiumData): PetFurniture[] {
+  const habitat = data.decor?.[project.id] ?? {};
+  const out: PetFurniture[] = [];
+  for (const slot of DECOR_SLOTS) {
+    const item = habitat[slot] ? findDecor(habitat[slot] as string) : undefined;
+    if (item?.use && (item.type === "bed" || item.forKind === project.petKind)) out.push({ use: item.use, slot });
+  }
+  return out;
+}
+
 export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
   const multipliers = estimateMultipliers(data);
   const suggestions = suggestionsByProject(data, now);
@@ -93,6 +108,7 @@ export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
         idleRequirement: idlest ? { title: idlest.requirement.title, days: idlest.idleDays } : null,
         suggestion: suggestions.get(p.id) ?? null,
         celebration: celebrations.get(p.id) ?? null,
+        furniture: furnitureFor(p, data),
       };
     }),
   };

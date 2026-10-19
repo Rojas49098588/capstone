@@ -35,6 +35,7 @@ The user is a student building this as their capstone. They make the product dec
 | Plan 1: planner core (rules, saving, actions, example data) | **Done**, reviewed, 101 tests | merged into `main` (PR #1) |
 | Plan 2: Studium screens | **Done**, reviewed (4 fixes after review), 183 tests, checked in a real browser (light, dark, 390 px) | merged into `main` (locally); plan `docs/superpowers/plans/2026-10-15-studium-screens.md` |
 | Plan 3: extension link (pet statuses, habitat mode, mood behavior) | **Done**, reviewed (2 fixes after review), 208 tests + a 27-step Playwright check with the real extension | branch `feature/extension-link`; plan `docs/superpowers/plans/2026-10-15-extension-link.md` |
+| Habitat decor: Shop Habitat tab, inventory under the habitat, fixed spots, pets use their furniture | **Done**, 362 tests + a 14-step Playwright check (and the 40-step pet-interactions check still passes) | branch `feature/habitat-decor` (from `feature/pet-interactions`); plan `docs/superpowers/plans/2026-10-19-habitat-decor.md` |
 | Pet interactions: pet menu, naps as focus sessions, sleep, check-ins, celebrations | **Done**, 309 tests + a 39-step Playwright check with the real extension | branch `feature/pet-interactions`; plan `docs/superpowers/plans/2026-10-19-pet-interactions.md` |
 
 ## Code map
@@ -66,6 +67,11 @@ web/
                            each pet's suggestion and celebration; the extension event names
   src/planner/focus.ts     focus-session sums (focusMinutes, taskFocusMinutes)
   src/ui/hashLinks.ts      #project=<id> / #complete=<taskId> links, followed by App.tsx
+  src/store/decor.ts       habitat decor catalog (DECOR_ITEMS), slots, copy counts, cleanDecor
+  src/ui/decorLayout.ts    where the five spots sit in the habitat box (shared with the extension)
+  src/components/HabitatDecor.tsx  draws decor in the habitat box, outlines free spots while placing
+  src/components/Inventory.tsx     Items | Furniture under the habitat (Give medicine lives here now)
+  public/decor/*.svg       placeholder decor art; the user will replace these
   src/extension/           tests for extension/content/logic.js (the extension has no node_modules of its own)
   src/ui/                  format.ts (ALL wording), derive.ts (per-project summaries), styles.ts (shared classes)
   src/pets/eggs.ts         egg looks + vague descriptions, shuffle
@@ -108,6 +114,18 @@ From Plan 3:
 - **Pets come only from Studium.** No `petStatuses` in chrome.storage means no pets, and the tooltip reads "Open Studium once to meet your pets".
 - **Mood rebuilds keep pets in place**, and a status write that only changes `updatedAt` doesn't rebuild anything (`statusesEqual`).
 - **Box positions are never saved** as window positions; leaving the habitat puts the pet back at its saved floor spot.
+
+From habitat decor:
+- **One idea of a slot:** `wallpaper`, `flooring`, three floor spots and two wall spots. A habitat's decor is `StudiumData.decor[projectId][slot] = itemId`. An empty slot is "Plain".
+- **Saved decor is cleaned, never rejected:**
+  - `normalizeData` (on load and on cross-tab sync) drops unknown items, wrong slots, a second bed and copies beyond what's owned;
+  - data saved without `decor` loads unchanged;
+  - `version` is still 1.
+- **Decor actions append no events and take no `now`:** placing changes no history, tokens or mood.
+- **Pets know their furniture:**
+  - `PetStatus.furniture` lists the habitat's bed and only the furniture made for that pet's kind;
+  - a furniture change rebuilds the habitat pet, because `statusesEqual` compares it;
+  - the trip to a piece of furniture gives up only after 1.5× its expected time, so slow pets still get there.
 
 From pet interactions:
 - **Every completion celebrates** (user's decision, changed from the spec draft): re-checks too. A project's first completed task and a finished requirement celebrate bigger.

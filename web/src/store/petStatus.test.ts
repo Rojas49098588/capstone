@@ -2,7 +2,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
 import { memoryStorage } from "../test/render";
-import { completeTask, giveMedicine, purchase, reopenTask } from "./actions";
+import { completeTask, giveMedicine, placeDecor, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
 import { buildSeed } from "./seed";
 
@@ -128,5 +128,24 @@ describe("pet celebrations", () => {
     expect(celebration(data)).toEqual({ at: hours(2).toISOString(), kind: "requirement" });
     const single = makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a" })] });
     expect(celebration(completeTask(single, "a", 60, NOW).data)?.kind).toBe("requirement");
+  });
+});
+
+describe("pet furniture", () => {
+  it("lists the bed and the pet's own furniture", () => {
+    let data = buildSeed(NOW);
+    for (const productId of ["pet-bed", "scratching-post", "perch"]) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
+    data = placeDecor(data, "seniorCap", "floorLeft", "pet-bed");
+    data = placeDecor(data, "seniorCap", "floorRight", "scratching-post");
+    data = placeDecor(data, "seniorCap", "wallLeft", "perch"); // the pigeon's, so the cat ignores it
+    const cap = buildPetStatuses(data, NOW).pets.find((p) => p.projectId === "seniorCap");
+    expect(cap?.furniture).toEqual([
+      { use: "bed", slot: "floorLeft" },
+      { use: "scratch", slot: "floorRight" },
+    ]);
+  });
+
+  it("no decor, no furniture", () => {
+    expect(buildPetStatuses(buildSeed(NOW), NOW).pets.every((p) => p.furniture.length === 0)).toBe(true);
   });
 });

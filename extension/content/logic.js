@@ -21,6 +21,22 @@
   const PET_AWAY_ATTR = 'data-pet-away';
   const CELEBRATION_KINDS = ['task', 'firstTask', 'requirement'];
 
+  // Habitat decor (spec 2026-10-19-habitat-decor-design.md). Where each spot sits in the habitat box,
+  // as fractions of the box: x = centre from the left, y = bottom above the box's floor, w/h = size.
+  // Must match Studium's web/src/ui/decorLayout.ts (web/src/extension/decorLayout.test.ts checks).
+  const SLOT_POSITIONS = {
+    floorLeft: { x: 0.18, y: 0.04, w: 0.2, h: 0.32 },
+    floorMiddle: { x: 0.5, y: 0.02, w: 0.3, h: 0.16 },
+    floorRight: { x: 0.82, y: 0.04, w: 0.2, h: 0.32 },
+    wallLeft: { x: 0.14, y: 0.5, w: 0.14, h: 0.28 },
+    wallRight: { x: 0.86, y: 0.5, w: 0.14, h: 0.28 },
+  };
+  const FURNITURE_USES = ['bed', 'scratch', 'bask', 'perch', 'lounge'];
+  /** Which furniture each kind of pet uses (besides the bed, which every pet uses). */
+  const KIND_USE = { cat: 'scratch', turtle: 'bask', pigeon: 'perch', dog: 'lounge', frog: 'lounge' };
+  /** How high a pet sits on floor furniture, as a fraction of the box's height. */
+  const SEAT = { bed: 0.06, lounge: 0.14, scratch: 0, bask: 0 };
+
   const PET_KINDS = ['cat', 'dog', 'frog', 'pigeon', 'turtle'];
   const MOODS = ['Proud', 'Delighted', 'Happy', 'Worried', 'Upset', 'Sick'];
 
@@ -63,6 +79,14 @@
     return isObject(c) && text(c.at) && CELEBRATION_KINDS.includes(c.kind) ? { at: c.at, kind: c.kind } : null;
   }
 
+  /** What the pet can use in its habitat: [{ use, slot }], valid entries only (old statuses: none). */
+  function cleanFurniture(list) {
+    if (!Array.isArray(list)) return [];
+    return list
+      .filter((f) => isObject(f) && FURNITURE_USES.includes(f.use) && Object.hasOwnProperty.call(SLOT_POSITIONS, f.slot))
+      .map((f) => ({ use: f.use, slot: f.slot }));
+  }
+
   function cleanStatus(p) {
     if (!p || typeof p !== 'object') return null;
     if (!text(p.projectId) || !PET_KINDS.includes(p.petKind) || !MOODS.includes(p.mood)) return null;
@@ -80,6 +104,7 @@
       // Missing in statuses from older Studium builds.
       suggestion: cleanSuggestion(p.suggestion),
       celebration: cleanCelebration(p.celebration),
+      furniture: cleanFurniture(p.furniture),
     };
   }
 
@@ -121,6 +146,7 @@
   /**
    * Same pets with the same looks and moods. The time stamp, suggestions and celebrations don't
    * matter: they change with every task but don't change how a pet looks, so they mustn't rebuild pets.
+   * Furniture does count, so the habitat pet learns what it can use.
    */
   function statusesEqual(a, b) {
     const looks = (s) => s?.pets?.map(({ suggestion, celebration, ...rest }) => rest) ?? null;
@@ -502,6 +528,29 @@
     };
   }
 
+  // ---- Habitat furniture ----
+
+  /** The furniture this kind of pet uses, if its habitat has it. */
+  function ownFurniture(petKind, furniture) {
+    return (furniture ?? []).find((f) => f.use === KIND_USE[petKind]) ?? null;
+  }
+
+  function bedOf(furniture) {
+    return (furniture ?? []).find((f) => f.use === 'bed') ?? null;
+  }
+
+  /**
+   * Where a pet stands to use a piece of furniture, in its world (the habitat box): x from the left
+   * wall (the pet's left edge, centred on the furniture), y above the floor.
+   */
+  function furnitureSpot(entry, world, petW) {
+    const slot = SLOT_POSITIONS[entry.slot];
+    const x = Math.min(Math.max(0, slot.x * world.width - petW / 2), Math.max(0, world.width - petW));
+    const onWall = entry.slot === 'wallLeft' || entry.slot === 'wallRight';
+    const y = (onWall ? slot.y + slot.h * 0.35 : SEAT[entry.use] ?? 0) * world.height;
+    return { x, y };
+  }
+
   globalThis.PetLogic = {
     HOMEPAGE_URL,
     PET_STATUS_KEY,
@@ -545,5 +594,11 @@
     awayAttribute,
     isQuiet,
     menuPosition,
+    SLOT_POSITIONS,
+    FURNITURE_USES,
+    KIND_USE,
+    ownFurniture,
+    bedOf,
+    furnitureSpot,
   };
 })();

@@ -1,9 +1,18 @@
 // Owns Studium's saved data for the React tree. Every action gets the current time,
 // is applied with the pure functions in actions.ts, and is saved straight away.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { StudiumData } from "../planner/types";
+import type { DecorSlot, StudiumData } from "../planner/types";
 import * as A from "./actions";
-import { STORAGE_KEY, browserStorage, isValidData, loadData, parseFocusSessions, saveData, type LoadNotice } from "./storage";
+import {
+  STORAGE_KEY,
+  browserStorage,
+  isValidData,
+  loadData,
+  normalizeData,
+  parseFocusSessions,
+  saveData,
+  type LoadNotice,
+} from "./storage";
 import {
   FOCUS_RECEIVED_EVENT,
   FOCUS_SESSIONS_EVENT,
@@ -47,8 +56,9 @@ export function useStudium(options: StudiumOptions = {}) {
         return;
       }
       if (!isValidData(next)) return;
-      dataRef.current = next;
-      setData(next);
+      const clean = normalizeData(next);
+      dataRef.current = clean;
+      setData(clean);
       setNow(env.clock());
     };
     window.addEventListener("storage", onStorage);
@@ -152,6 +162,10 @@ export function useStudium(options: StudiumOptions = {}) {
           const r = A.purchase(d, productId, at);
           return { data: r.data, result: r.ok };
         }),
+      placeDecor: (projectId: string, slot: DecorSlot, itemId: string) => change((d) => A.placeDecor(d, projectId, slot, itemId)),
+      removeDecor: (projectId: string, slot: DecorSlot) => change((d) => A.removeDecor(d, projectId, slot)),
+      moveDecor: (from: { projectId: string; slot: DecorSlot }, to: { projectId: string; slot: DecorSlot }, expected?: string) =>
+        change((d) => A.moveDecor(d, from, to, expected)),
       giveMedicine: (projectId: string) =>
         apply((d, at) => {
           const r = A.giveMedicine(d, projectId, at);

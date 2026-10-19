@@ -1,4 +1,5 @@
 import { MEDICINE_PRICE, MEDICINE_PRODUCT_ID } from "../planner/tuning";
+import { findDecor } from "./decor";
 
 export type ShopCategory = "Food" | "Clothes" | "Toys" | "Care";
 
@@ -25,6 +26,11 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
     price: MEDICINE_PRICE,
   },
 ];
+
+/** The price of anything the Shop sells: supplies and habitat decor. */
+export function priceOf(id: string): number | undefined {
+  return (findProduct(id) ?? findDecor(id))?.price;
+}
 
 export function findProduct(id: string): ShopProduct | undefined {
   return SHOP_PRODUCTS.find((p) => p.id === id);

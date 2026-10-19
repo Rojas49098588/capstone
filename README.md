@@ -29,6 +29,15 @@ After editing extension files, click the reload icon on the extension's card, th
 - One pet per Studium project wanders along the bottom of every normal web page. Its mood follows the project: happy pets are quicker and chattier, worried and upset ones slow down, and a sick pet looks green and sneezes. Drag it to move it, or click it to make it hop.
 - On a Studium project page, only that project's pet shows, living inside the page's habitat box.
 - Click the toolbar icon to open or focus the homepage.
+- **Decorate habitats.** Studium's Shop has a **Habitat** tab (next to **Supplies**). It sells:
+  - wallpaper and flooring;
+  - rugs and wall decor;
+  - a pet bed;
+  - one piece of furniture per kind of pet: a scratching post, a heat lamp, a perch, a mini sofa and a log.
+
+  Under each project's habitat, the **Inventory** box lists what you own. **Items** has Medicine, food, clothes and toys. **Furniture** has your decor, with **Place**, **Move here**, **Remove** and **Plain**.
+
+  In its habitat, a pet naps in its bed and now and then uses its own furniture.
 - Right-click a pet for its menu:
   - **What should I work on?** names the project's next task.
   - **Nap (15 min)** is a focus timer: the pet leaves while you work on that task and comes back to ask whether you finished. Every nap is saved in Studium as focus time ("Focused 45 min" on the task, "Focused this week" on the project), and it pre-fills "About how long did it take?". Only one pet naps at a time, and the others go quiet meanwhile.
@@ -45,6 +54,10 @@ After editing extension files, click the reload icon on the extension's card, th
 | --- | --- |
 | Which pet a project gets | the egg picker in Studium's New Project form |
 | How mood changes a pet | `MOOD_EFFECTS` in `extension/content/logic.js` |
+| Habitat decor: items, prices, which spots they fit | `DECOR_ITEMS` in `web/src/store/decor.ts` |
+| Decor art (placeholders) | `web/public/decor/<item id>.svg`. Replace a file to swap its art, or change `image` in `decor.ts` (for example to a `.png`). |
+| Where the habitat spots are | `SLOT_LAYOUT` in `web/src/ui/decorLayout.ts` and `SLOT_POSITIONS` in `extension/content/logic.js`; a test keeps them the same |
+| How often pets use furniture, and for how long | `furnitureChance` / `furnitureMs` in `KINDS` (`extension/content/pet.js`) |
 | Nap length, the pet menu, check-ins, celebrations (rules and wording) | `extension/content/logic.js` (`NAP_MINUTES`, `applyAwayRequest`, `petMenuItems`, …) |
 | Each pet's speed, size, sound, naps, hops, flying | `KINDS` in `extension/content/pet.js` |
 | Shared physics (gravity, throwing, bounce) | constants at the top of `extension/content/pet.js` |

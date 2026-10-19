@@ -221,3 +221,19 @@ describe("recordFocusSessions", () => {
     expect(focusEvents(r.data).map((e) => (e.type === "focus_session" ? e.minutes : null))).toEqual([15, 0, 240]);
   });
 });
+
+describe("buying decor", () => {
+  it("buys decor like any product", () => {
+    const seed = buildSeed(NOW);
+    const r = purchase(seed, "pet-bed", NOW);
+    expect(r.ok).toBe(true);
+    expect(tokenBalance(r.data.events)).toBe(tokenBalance(seed.events) - 150);
+    expect(inventory(r.data.events)["pet-bed"]).toBe(1);
+  });
+
+  it("refuses decor it can't afford", () => {
+    const seed = buildSeed(NOW);
+    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed.events) - 199 });
+    expect(purchase(seed, "log", NOW).ok).toBe(false);
+  });
+});

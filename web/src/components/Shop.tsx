@@ -1,7 +1,15 @@
+import { useState } from "react";
 import { inventory, tokenBalance } from "../planner/history";
 import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
 import { useStudiumContext } from "../store/useStudium";
 import { CARD, SERIF } from "../ui/styles";
+import DecorShop from "./DecorShop";
+
+type ShopTab = "supplies" | "habitat";
+const TABS: { id: ShopTab; label: string }[] = [
+  { id: "supplies", label: "Supplies" },
+  { id: "habitat", label: "Habitat" },
+];
 
 const CATEGORIES: { category: ShopCategory; blurb: string }[] = [
   { category: "Care", blurb: "Health & recovery" },
@@ -49,6 +57,7 @@ export default function Shop() {
   const balance = tokenBalance(s.data.events);
   const owned = inventory(s.data.events);
   const ownedCount = Object.values(owned).reduce((n, c) => n + c, 0);
+  const [tab, setTab] = useState<ShopTab>("supplies");
 
   return (
     <div className="space-y-10">
@@ -73,46 +82,73 @@ export default function Shop() {
         </div>
       </div>
 
-      {CATEGORIES.map(({ category, blurb }) => (
-        <section key={category} aria-labelledby={`shop-${category}`}>
-          <div className="flex items-baseline justify-between gap-4 mb-4">
-            <h2 id={`shop-${category}`} style={SERIF} className="text-2xl">
-              {category}
-            </h2>
-            <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-muted-foreground)]">{blurb}</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {SHOP_PRODUCTS.filter((p) => p.category === category).map((product) => {
-              const count = owned[product.id] ?? 0;
-              const canAfford = balance >= product.price;
-              return (
-                <article key={product.id} className={`${CARD} p-5 flex gap-5`}>
-                  <div className="w-24 h-24 flex-shrink-0 bg-[var(--color-muted)] text-[var(--color-primary)] flex items-center justify-center">
-                    <ProductIcon category={product.category} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <h3 className="font-semibold text-[var(--color-foreground)]">{product.name}</h3>
-                        <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed mt-1">{product.description}</p>
+      <div role="tablist" aria-label="Shop sections" className="flex gap-1">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            id={`shop-tab-${t.id}`}
+            aria-selected={tab === t.id}
+            aria-controls={`shop-panel-${t.id}`}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-1.5 text-sm border transition-colors ${
+              tab === t.id
+                ? "bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] border-[var(--color-inverse)]"
+                : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div role="tabpanel" id={`shop-panel-${tab}`} aria-labelledby={`shop-tab-${tab}`} className="space-y-10">
+        {tab === "habitat" ? (
+          <DecorShop />
+        ) : (
+          CATEGORIES.map(({ category, blurb }) => (
+            <section key={category} aria-labelledby={`shop-${category}`}>
+              <div className="flex items-baseline justify-between gap-4 mb-4">
+                <h2 id={`shop-${category}`} style={SERIF} className="text-2xl">
+                  {category}
+                </h2>
+                <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-muted-foreground)]">{blurb}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {SHOP_PRODUCTS.filter((p) => p.category === category).map((product) => {
+                  const count = owned[product.id] ?? 0;
+                  const canAfford = balance >= product.price;
+                  return (
+                    <article key={product.id} className={`${CARD} p-5 flex gap-5`}>
+                      <div className="w-24 h-24 flex-shrink-0 bg-[var(--color-muted)] text-[var(--color-primary)] flex items-center justify-center">
+                        <ProductIcon category={product.category} />
                       </div>
-                      {count > 0 && <span className="text-xs font-mono text-[var(--color-accent)] whitespace-nowrap">Owned ×{count}</span>}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => s.purchase(product.id)}
-                      disabled={!canAfford}
-                      className="mt-4 w-full px-3 py-2 text-xs font-mono uppercase tracking-widest bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-muted-foreground)] disabled:cursor-not-allowed transition-colors"
-                    >
-                      {canAfford ? `Buy · ${product.price} tokens` : `Need ${product.price - balance} more`}
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      ))}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <h3 className="font-semibold text-[var(--color-foreground)]">{product.name}</h3>
+                            <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed mt-1">{product.description}</p>
+                          </div>
+                          {count > 0 && <span className="text-xs font-mono text-[var(--color-accent)] whitespace-nowrap">Owned ×{count}</span>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => s.purchase(product.id)}
+                          disabled={!canAfford}
+                          className="mt-4 w-full px-3 py-2 text-xs font-mono uppercase tracking-widest bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] disabled:bg-[var(--color-muted)] disabled:text-[var(--color-muted-foreground)] disabled:cursor-not-allowed transition-colors"
+                        >
+                          {canAfford ? `Buy · ${product.price} tokens` : `Need ${product.price - balance} more`}
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            </section>
+          ))
+        )}
+      </div>
 
       <div className="border-t border-[var(--color-border)] pt-4 flex justify-between text-xs font-mono uppercase tracking-widest text-[var(--color-muted-foreground)]">
         <span>Inventory</span>

@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { act, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NOW } from "../planner/testData";
 import { buildSeed } from "../store/seed";
 import { WAKE_PET_EVENT } from "../store/petStatus";
+import { placeDecor } from "../store/actions";
 import { renderWithStudium } from "../test/render";
 import Habitat, { HABITAT_FALLBACK_MS } from "./Habitat";
 
@@ -54,13 +55,12 @@ describe("Habitat", () => {
     expect(onOpenShop).toHaveBeenCalled();
   });
 
-  it("gives medicine and starts recovery", async () => {
+  it("leaves giving medicine to the inventory", () => {
     const data = buildSeed(NOW);
     data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "medicine", price: 80 });
     renderWithStudium(<Habitat projectId="seniorCap" justHatched={false} onOpenShop={vi.fn()} />, { data });
-    await userEvent.click(screen.getByRole("button", { name: "Give medicine (1 left)" }));
-    expect(screen.queryByText("Sick")).toBeNull();
-    screen.getByText(/Recovering/);
+    expect(screen.queryByRole("button", { name: /Give medicine/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Buy medicine in the Shop" })).toBeNull();
   });
 
   it("celebrates a fresh hatch", () => {
@@ -130,5 +130,55 @@ describe("Habitat while the pet is away", () => {
     });
     screen.getByRole("img", { name: "webDev's pigeon" });
     screen.getByText("webDev is napping");
+  });
+});
+
+describe("Habitat decor", () => {
+  const owning = (...ids: string[]) => {
+    const data = buildSeed(NOW);
+    for (const productId of ids) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
+    return data;
+  };
+
+  it("draws placed decor", () => {
+    let data = placeDecor(owning("oak-planks", "pet-bed"), "webDev", "flooring", "oak-planks");
+    data = placeDecor(data, "webDev", "floorLeft", "pet-bed");
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />, { data });
+    screen.getByRole("img", { name: "Pet Bed" });
+    const floor = document.querySelector('[data-decor-layer="flooring"]') as HTMLElement;
+    expect(floor.style.backgroundImage).toContain("decor/oak-planks.svg");
+    expect(document.querySelector('[data-decor-layer="wallpaper"]')).toBeNull(); // Plain
+    expect(screen.queryAllByRole("button", { name: /^Put / })).toHaveLength(0); // not placing
+  });
+
+  it("outlines the free slots while placing", async () => {
+    const data = placeDecor(owning("pet-bed", "clock"), "webDev", "floorMiddle", "pet-bed");
+    const onPickSlot = vi.fn();
+    renderWithStudium(
+      <Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} placing={{ itemId: "clock" }} onPickSlot={onPickSlot} />,
+      { data },
+    );
+    expect(screen.getAllByRole("button", { name: /^Put Clock in/ }).map((b) => b.getAttribute("aria-label"))).toEqual([
+      "Put Clock in the left wall spot",
+      "Put Clock in the right wall spot",
+    ]);
+    await userEvent.click(screen.getByRole("button", { name: "Put Clock in the right wall spot" }));
+    expect(onPickSlot).toHaveBeenCalledWith("wallRight");
+  });
+
+  it("skips taken slots and slots that would break the rules", () => {
+    const data = placeDecor(owning("pet-bed", "pet-bed"), "webDev", "floorMiddle", "pet-bed");
+    renderWithStudium(
+      <Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} placing={{ itemId: "pet-bed" }} onPickSlot={vi.fn()} />,
+      { data },
+    );
+    expect(screen.queryAllByRole("button", { name: /^Put Pet Bed/ })).toHaveLength(0); // one bed per habitat
+  });
+
+  it("hides an item whose image fails to load", () => {
+    const data = placeDecor(owning("pet-bed"), "webDev", "floorLeft", "pet-bed");
+    renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />, { data });
+    fireEvent.error(screen.getByRole("img", { name: "Pet Bed" }));
+    expect(screen.queryByRole("img", { name: "Pet Bed" })).toBeNull();
   });
 });

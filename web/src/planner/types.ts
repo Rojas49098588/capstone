@@ -86,6 +86,11 @@ export type FocusSessionEvent = Extract<StudiumEvent, { type: "focus_session" }>
 /** A finished nap as the extension sends it. */
 export type FocusSession = Omit<FocusSessionEvent, "type">;
 
+/** Where decor goes in a habitat: the two surfaces, three floor spots and two wall spots. */
+export type DecorSlot = "wallpaper" | "flooring" | "floorLeft" | "floorMiddle" | "floorRight" | "wallLeft" | "wallRight";
+/** One habitat's decor: slot → decor item id. A missing slot is empty ("Plain" for the surfaces). */
+export type HabitatDecor = Partial<Record<DecorSlot, string>>;
+
 export type StudiumData = {
   version: 1;
   projects: Project[];
@@ -93,6 +98,7 @@ export type StudiumData = {
   tasks: Task[];
   events: StudiumEvent[]; // only ever appended to
   today: { date: string; taskIds: string[] };
+  decor?: Record<string, HabitatDecor>; // by project id; missing in data saved before habitat decor
 };
 
 export type Mood = "Proud" | "Delighted" | "Happy" | "Worried" | "Upset" | "Sick";

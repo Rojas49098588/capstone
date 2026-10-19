@@ -105,3 +105,23 @@ describe("focus sessions", () => {
     expect(parseFocusSessions(JSON.stringify([good, bad]))).toEqual([good]);
   });
 });
+
+describe("saved decor", () => {
+  it("loads data saved before decor existed", () => {
+    const storage = memoryStorage();
+    storage.setItem(STORAGE_KEY, JSON.stringify(valid()));
+    const result = loadData(storage, NOW);
+    expect(result.notice).toBeNull();
+    expect(result.data).toEqual(valid()); // unchanged: no decor added
+  });
+
+  it("cleans damaged decor instead of resetting the data", () => {
+    const storage = memoryStorage();
+    const data = { ...valid(), decor: { p1: { floorLeft: "pet-bed" }, junk: 5 } };
+    storage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const result = loadData(storage, NOW);
+    expect(result.notice).toBeNull();
+    expect(result.data.tasks).toHaveLength(1);
+    expect(result.data.decor).toEqual({}); // the bed was never bought
+  });
+});

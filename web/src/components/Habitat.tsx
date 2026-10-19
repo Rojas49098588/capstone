@@ -1,18 +1,26 @@
 import { useEffect, useRef, useState } from "react";
 import { inventory } from "../planner/history";
+import type { DecorSlot } from "../planner/types";
 import { MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import { PET_AWAY_ATTR, WAKE_PET_EVENT } from "../store/petStatus";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
 import { MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, parsePetAway, type PetAway } from "../ui/format";
-import { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
+import { BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
+import HabitatDecor, { type Placing } from "./HabitatDecor";
 
 /** How long to wait for the extension to put a pet in the box before showing a still picture. */
 export const HABITAT_FALLBACK_MS = 1000;
 
-type Props = { projectId: string; justHatched: boolean; onOpenShop: () => void };
+type Props = {
+  projectId: string;
+  justHatched: boolean;
+  onOpenShop: () => void;
+  placing?: Placing;
+  onPickSlot?: (slot: DecorSlot) => void;
+};
 
-export default function Habitat({ projectId, justHatched, onOpenShop }: Props) {
+export default function Habitat({ projectId, justHatched, onOpenShop, placing = null, onPickSlot }: Props) {
   const s = useStudiumContext();
   const boxRef = useRef<HTMLDivElement>(null);
   const [showStill, setShowStill] = useState(false);
@@ -67,6 +75,7 @@ export default function Habitat({ projectId, justHatched, onOpenShop }: Props) {
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_20rem]">
         <div ref={boxRef} data-pet-habitat={project.id} className="relative h-56 overflow-hidden bg-[var(--color-muted)]">
           <div className="absolute inset-x-0 bottom-0 h-10 border-t border-[var(--color-border)] bg-[var(--color-card)]" />
+          <HabitatDecor projectId={project.id} placing={placing} onPickSlot={onPickSlot} />
           {away ? (
             <div className="absolute top-3 inset-x-0 flex flex-wrap items-center justify-center gap-2 px-3 text-sm">
               <p>
@@ -121,16 +130,12 @@ export default function Habitat({ projectId, justHatched, onOpenShop }: Props) {
             <p className={LABEL}>Estimate accuracy</p>
             <p>{accuracy ?? "Finish a few tasks with a time to see how your estimates compare."}</p>
           </div>
-          {sick &&
-            (medicine > 0 ? (
-              <button type="button" onClick={() => s.giveMedicine(project.id)} className={BUTTON_PRIMARY}>
-                Give medicine ({medicine} left)
-              </button>
-            ) : (
-              <button type="button" onClick={onOpenShop} className={BUTTON_SECONDARY}>
-                Buy medicine in the Shop
-              </button>
-            ))}
+          {/* Giving medicine is in the inventory below; here, only say where to get it. */}
+          {sick && medicine === 0 && (
+            <button type="button" onClick={onOpenShop} className={BUTTON_SECONDARY}>
+              Buy medicine in the Shop
+            </button>
+          )}
         </div>
       </div>
     </section>
