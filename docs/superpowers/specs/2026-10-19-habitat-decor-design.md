@@ -1,6 +1,6 @@
 # Habitat Decor — Design
 
-_Date: 2026-10-19. Status: drafted from conversation, awaiting the user's review._
+_Date: 2026-10-19. Status: approved; implemented by `docs/superpowers/plans/2026-10-19-habitat-decor.md`._
 _Builds on: `2026-10-14-studium-planner-design.md` (Plans 1–3) and `2026-10-19-pet-interactions-design.md` (branch `feature/pet-interactions`, PR open). This work is on `feature/habitat-decor`, branched from `feature/pet-interactions`._
 
 ## Goal
