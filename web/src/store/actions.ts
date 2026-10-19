@@ -5,8 +5,18 @@ import { inventory, tokenBalance } from "../planner/history";
 import { projectHealth } from "../planner/mood";
 import { isDateKey, localDateKey } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
-import type { FocusSession, Project, Requirement, StudiumData, StudiumEvent, Task } from "../planner/types";
+import type {
+  DecorSlot,
+  FocusSession,
+  HabitatDecor,
+  Project,
+  Requirement,
+  StudiumData,
+  StudiumEvent,
+  Task,
+} from "../planner/types";
 import { computeCompletionPayout, type Payout } from "../planner/value";
+import { allowedIn, freeCopies } from "./decor";
 import { priceOf } from "./products";
 
 const newId = () => crypto.randomUUID();
@@ -92,7 +102,13 @@ export function deleteProject(data: StudiumData, id: string): StudiumData {
     ...withoutTasks(data, removed),
     projects: data.projects.filter((p) => p.id !== id),
     requirements: data.requirements.filter((r) => r.projectId !== id),
+    // Its decor goes back to the inventory.
+    ...(data.decor ? { decor: withoutKey(data.decor, id) } : {}),
   };
+}
+
+function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
+  return Object.fromEntries(Object.entries(record).filter(([k]) => k !== key));
 }
 
 // ---- Requirements ----
@@ -324,4 +340,41 @@ export function recordFocusSessions(
     });
   }
   return { data: added.length > 0 ? { ...data, events: [...data.events, ...added] } : data, handled };
+}
+
+// ---- Habitat decor ----
+// No events: placing decor changes no history, tokens or mood. Refusals return the same object.
+
+function withHabitat(data: StudiumData, projectId: string, habitat: HabitatDecor): StudiumData {
+  const rest = withoutKey(data.decor ?? {}, projectId);
+  return { ...data, decor: Object.keys(habitat).length > 0 ? { ...rest, [projectId]: habitat } : rest };
+}
+
+/** Puts a free copy of an item in a slot. Whatever was there goes back to the inventory. */
+export function placeDecor(data: StudiumData, projectId: string, slot: DecorSlot, itemId: string): StudiumData {
+  if (!data.projects.some((p) => p.id === projectId)) return data;
+  const habitat = data.decor?.[projectId] ?? {};
+  if (habitat[slot] === itemId || !allowedIn(habitat, slot, itemId)) return data;
+  const cleared = removeDecor(data, projectId, slot);
+  if (freeCopies(cleared, itemId) < 1) return data;
+  return withHabitat(cleared, projectId, { ...(cleared.decor?.[projectId] ?? {}), [slot]: itemId });
+}
+
+export function removeDecor(data: StudiumData, projectId: string, slot: DecorSlot): StudiumData {
+  const habitat = data.decor?.[projectId];
+  if (!habitat?.[slot]) return data;
+  return withHabitat(data, projectId, Object.fromEntries(Object.entries(habitat).filter(([s]) => s !== slot)));
+}
+
+/** Moves the copy in one slot to another slot (any habitat). Nothing changes if it can't go there. */
+export function moveDecor(
+  data: StudiumData,
+  from: { projectId: string; slot: DecorSlot },
+  to: { projectId: string; slot: DecorSlot },
+): StudiumData {
+  const itemId = data.decor?.[from.projectId]?.[from.slot];
+  if (!itemId) return data;
+  const removed = removeDecor(data, from.projectId, from.slot);
+  const placed = placeDecor(removed, to.projectId, to.slot, itemId);
+  return placed === removed ? data : placed;
 }

@@ -92,6 +92,16 @@ describe("useStudium with two tabs", () => {
     expect(savedData(storage).tasks.find((t) => t.id === "webDev-t5")?.done).toBe(true);
   });
 
+  it("cross-tab data is cleaned too", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const other = { ...result.current.data, decor: { webDev: { floorLeft: "pet-bed" } } }; // not owned
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: JSON.stringify(other) }));
+    });
+    expect(result.current.data.decor).toEqual({});
+  });
+
   it("ignores damaged data from another tab", () => {
     const storage = memoryStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));

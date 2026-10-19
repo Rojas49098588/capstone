@@ -1,6 +1,7 @@
 // Loading and saving Studium's data in localStorage, with validation and backups.
 import { isDateKey } from "../planner/time";
 import { PET_KINDS, type FocusSession, type StudiumData } from "../planner/types";
+import { cleanDecor } from "./decor";
 import { buildSeed } from "./seed";
 
 export const STORAGE_KEY = "studium-data-v1";
@@ -35,6 +36,11 @@ export function parseFocusSessions(json: string): FocusSession[] {
     return [];
   }
   return Array.isArray(value) ? value.filter(isValidFocusSession) : [];
+}
+
+/** Valid data with its decor cleaned: damaged decor is dropped, never a reason to reject the data. */
+export function normalizeData(data: StudiumData): StudiumData {
+  return data.decor === undefined ? data : { ...data, decor: cleanDecor(data) };
 }
 
 export function isValidData(value: unknown): value is StudiumData {
@@ -121,7 +127,7 @@ export function loadData(storage: Storage | null, now: Date): LoadResult {
   } catch {
     parsed = undefined;
   }
-  if (isValidData(parsed)) return { data: parsed, persistent: true, notice: null };
+  if (isValidData(parsed)) return { data: normalizeData(parsed), persistent: true, notice: null };
 
   // Damaged: keep the original text so nothing is lost, then start from the example data.
   try {
