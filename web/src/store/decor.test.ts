@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { DECOR_GROUPS, DECOR_ITEMS, DECOR_SLOTS, findDecor } from "./decor";
 
@@ -34,5 +35,11 @@ describe("decor catalog", () => {
 
   it("groups decor for the Shop and the inventory", () => {
     expect(DECOR_GROUPS.map((g) => g.label)).toEqual(["Wallpaper", "Flooring", "Rugs", "Wall decor", "Beds", "Pet furniture"]);
+  });
+});
+
+describe("decor art", () => {
+  it("has a file in web/public for every item", () => {
+    for (const i of DECOR_ITEMS) expect(existsSync(new URL(`../../public/${i.image}`, import.meta.url)), i.image).toBe(true);
   });
 });
