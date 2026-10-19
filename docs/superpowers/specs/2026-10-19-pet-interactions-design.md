@@ -1,6 +1,6 @@
 # Pet Interactions and Focus Sessions — Design
 
-_Date: 2026-10-19. Status: approved in conversation, awaiting written-spec review._
+_Date: 2026-10-19. Status: approved; implemented by `docs/superpowers/plans/2026-10-19-pet-interactions.md`. The celebration rule was changed by the user before implementation (see "Celebrations" below)._
 _Builds on: `2026-10-14-studium-planner-design.md` (Plans 1–3, all merged)._
 
 ## Goal
@@ -71,7 +71,7 @@ New event type:
 
 ```ts
 suggestion: { taskId: string; title: string; estimateMin: number } | null;
-celebration: { at: string; finishedRequirement: boolean } | null;
+celebration: { at: string; kind: "task" | "firstTask" | "requirement" } | null;
 ```
 
 - **`suggestion`** is the project's first open, linked, unblocked task:
@@ -79,7 +79,7 @@ celebration: { at: string; finishedRequirement: boolean } | null;
   2. then the project's tasks in the same order as Suggested next (pinned first, then by expected tokens).
 
   It is `null` when there is none.
-- **`celebration`** is the project's latest `task_completed` event that **paid tokens** (a first completion). `finishedRequirement` is true when that event's `breakdown.finish > 0`. Re-checking an old task doesn't celebrate.
+- **`celebration`** is the project's latest `task_completed` event, of any kind: every completion celebrates, re-checks and 0-token completions included (changed by the user on 2026-10-19; the first draft only celebrated completions that paid tokens). `kind` is `"requirement"` when that event's `breakdown.finish > 0`, otherwise `"firstTask"` when it is the project's first completion, otherwise `"task"`.
 - The extension's `parseStatuses` accepts both fields when they're valid and treats missing or damaged ones as `null`, so old statuses still load.
 
 ### Links into Studium
@@ -178,7 +178,8 @@ petCheckIn: { projectId, taskId, taskTitle, minutes, at } | null
 - **Celebrations:**
   - Each tab remembers the last `celebration.at` it saw per project (from the first statuses it loads, so old completions don't celebrate).
   - A newer one makes that pet hop once and say "Task done!".
-  - With `finishedRequirement`, it hops twice and says "Requirement finished!".
+  - Bigger for `firstTask` and `requirement`: two higher hops, with "First task done!" or "Requirement finished!".
+  - A tab in the background plays it when you come back to it.
   - Pets that are away don't celebrate.
 
 ### Mailbox delivery
