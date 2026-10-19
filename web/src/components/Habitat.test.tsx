@@ -55,13 +55,12 @@ describe("Habitat", () => {
     expect(onOpenShop).toHaveBeenCalled();
   });
 
-  it("gives medicine and starts recovery", async () => {
+  it("leaves giving medicine to the inventory", () => {
     const data = buildSeed(NOW);
     data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "medicine", price: 80 });
     renderWithStudium(<Habitat projectId="seniorCap" justHatched={false} onOpenShop={vi.fn()} />, { data });
-    await userEvent.click(screen.getByRole("button", { name: "Give medicine (1 left)" }));
-    expect(screen.queryByText("Sick")).toBeNull();
-    screen.getByText(/Recovering/);
+    expect(screen.queryByRole("button", { name: /Give medicine/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Buy medicine in the Shop" })).toBeNull();
   });
 
   it("celebrates a fresh hatch", () => {

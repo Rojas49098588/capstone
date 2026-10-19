@@ -6,7 +6,7 @@ import { PET_AWAY_ATTR, WAKE_PET_EVENT } from "../store/petStatus";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
 import { MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, parsePetAway, type PetAway } from "../ui/format";
-import { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
+import { BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 import HabitatDecor, { type Placing } from "./HabitatDecor";
 
 /** How long to wait for the extension to put a pet in the box before showing a still picture. */
@@ -130,16 +130,12 @@ export default function Habitat({ projectId, justHatched, onOpenShop, placing = 
             <p className={LABEL}>Estimate accuracy</p>
             <p>{accuracy ?? "Finish a few tasks with a time to see how your estimates compare."}</p>
           </div>
-          {sick &&
-            (medicine > 0 ? (
-              <button type="button" onClick={() => s.giveMedicine(project.id)} className={BUTTON_PRIMARY}>
-                Give medicine ({medicine} left)
-              </button>
-            ) : (
-              <button type="button" onClick={onOpenShop} className={BUTTON_SECONDARY}>
-                Buy medicine in the Shop
-              </button>
-            ))}
+          {/* Giving medicine is in the inventory below; here, only say where to get it. */}
+          {sick && medicine === 0 && (
+            <button type="button" onClick={onOpenShop} className={BUTTON_SECONDARY}>
+              Buy medicine in the Shop
+            </button>
+          )}
         </div>
       </div>
     </section>

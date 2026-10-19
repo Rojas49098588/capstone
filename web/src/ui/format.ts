@@ -54,6 +54,16 @@ export function awayLabel(away: PetAway, now: Date): { title: string; detail: st
   return { title: "is sleeping", detail: `back at ${time}` };
 }
 
+/** Where the copies of a decor item are: "1 here · 1 in appDev · 1 free". */
+export function copiesLabel(here: number, elsewhere: { shortName: string; count: number }[], free: number): string {
+  const parts = [
+    ...(here > 0 ? [`${here} here`] : []),
+    ...elsewhere.filter((e) => e.count > 0).map((e) => `${e.count} in ${e.shortName}`),
+    ...(free > 0 ? [`${free} free`] : []),
+  ];
+  return parts.length > 0 ? parts.join(" · ") : "none";
+}
+
 export function formatDate(key: string): string {
   if (!isDateKey(key)) return "No date";
   return startOfLocalDay(key).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });

@@ -1,10 +1,14 @@
 import { focusMinutes } from "../planner/focus";
 import { startOfWeek } from "../planner/time";
+import { useEffect, useState } from "react";
+import type { DecorSlot } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
 import { daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel } from "../ui/format";
 import { BUTTON_SMALL, LABEL, SERIF } from "../ui/styles";
 import Habitat from "./Habitat";
+import type { Placing } from "./HabitatDecor";
+import Inventory from "./Inventory";
 import RequirementsSection from "./RequirementsSection";
 
 type Props = {
@@ -17,8 +21,27 @@ type Props = {
 
 export default function ProjectDetail({ projectId, justHatched, onRequestComplete, onEditProject, onOpenShop }: Props) {
   const s = useStudiumContext();
+  // Placing decor: the inventory starts it, the habitat box finishes it.
+  const [placing, setPlacing] = useState<Placing>(null);
+
+  useEffect(() => {
+    if (!placing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setPlacing(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [placing]);
+
   const project = s.data.projects.find((p) => p.id === projectId);
   if (!project) return null;
+
+  function pickSlot(slot: DecorSlot) {
+    if (!placing) return;
+    if (placing.from) s.moveDecor(placing.from, { projectId, slot });
+    else s.placeDecor(projectId, slot, placing.itemId);
+    setPlacing(null);
+  }
   const summary = summarizeProject(project, s.data, s.now);
   const soon = daysUntil(project.deadline, s.now) < 30;
   const focusedThisWeek = focusMinutes(s.data.events, { projectId: project.id, since: startOfWeek(s.now) });
@@ -72,7 +95,8 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
       </div>
 
       <RequirementsSection projectId={project.id} onRequestComplete={onRequestComplete} />
-      <Habitat projectId={project.id} justHatched={justHatched} onOpenShop={onOpenShop} />
+      <Habitat projectId={project.id} justHatched={justHatched} onOpenShop={onOpenShop} placing={placing} onPickSlot={pickSlot} />
+      <Inventory projectId={project.id} placing={placing} onPlace={setPlacing} onCancel={() => setPlacing(null)} onOpenShop={onOpenShop} />
     </div>
   );
 }

@@ -67,3 +67,41 @@ describe("ProjectDetail focus time", () => {
     expect(screen.queryByText(/Focused this week/)).toBeNull();
   });
 });
+
+describe("ProjectDetail decor", () => {
+  const owningBed = () => {
+    const data = buildSeed(NOW);
+    data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "pet-bed", price: 0 });
+    return data;
+  };
+  const startPlacing = async () => {
+    await userEvent.click(screen.getByRole("tab", { name: "Furniture" }));
+    await userEvent.click(screen.getByRole("button", { name: "Place Pet Bed" }));
+    screen.getByText("Placing Pet Bed: pick a free spot in the habitat.");
+  };
+
+  it("shows the inventory under the habitat", () => {
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />);
+    screen.getByRole("region", { name: "Inventory" });
+  });
+
+  it("places from the inventory into a spot in the habitat", async () => {
+    const { storage } = renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data: owningBed() });
+    await startPlacing();
+    await userEvent.click(screen.getByRole("button", { name: "Put Pet Bed in the right floor spot" }));
+    expect(savedData(storage).decor?.webDev).toEqual({ floorRight: "pet-bed" });
+    expect(screen.queryByText(/^Placing /)).toBeNull();
+    screen.getByRole("img", { name: "Pet Bed" });
+  });
+
+  it("Cancel and Escape stop placing", async () => {
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data: owningBed() });
+    await startPlacing();
+    await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByText(/^Placing /)).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Place Pet Bed" }));
+    await userEvent.keyboard("{Escape}");
+    expect(screen.queryByText(/^Placing /)).toBeNull();
+    expect(screen.queryAllByRole("button", { name: /^Put / })).toHaveLength(0);
+  });
+});

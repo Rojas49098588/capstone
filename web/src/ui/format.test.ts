@@ -5,6 +5,7 @@ import {
   accuracyLabel,
   attentionLabel,
   awayLabel,
+  copiesLabel,
   deadlineLabel,
   focusedLabel,
   formatDate,
@@ -89,5 +90,15 @@ describe("away pets", () => {
       title: "is sleeping",
       detail: "back at 4:30 PM",
     });
+  });
+});
+
+describe("copiesLabel", () => {
+  it("says where the copies of an item are", () => {
+    expect(copiesLabel(1, [{ shortName: "appDev", count: 1 }], 1)).toBe("1 here · 1 in appDev · 1 free");
+    expect(copiesLabel(0, [], 2)).toBe("2 free");
+    expect(copiesLabel(2, [], 0)).toBe("2 here");
+    expect(copiesLabel(0, [{ shortName: "a", count: 1 }, { shortName: "b", count: 2 }], 0)).toBe("1 in a · 2 in b");
+    expect(copiesLabel(0, [], 0)).toBe("none");
   });
 });
