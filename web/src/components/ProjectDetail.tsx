@@ -2,6 +2,7 @@ import { focusMinutes } from "../planner/focus";
 import { startOfWeek } from "../planner/time";
 import { useEffect, useState } from "react";
 import type { DecorSlot } from "../planner/types";
+import { freeCopies } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
 import { daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel } from "../ui/format";
@@ -38,8 +39,11 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
 
   function pickSlot(slot: DecorSlot) {
     if (!placing) return;
-    if (placing.from) s.moveDecor(placing.from, { projectId, slot });
-    else s.placeDecor(projectId, slot, placing.itemId);
+    const { from, itemId } = placing;
+    // Move here: only if the source still holds that item (another tab may have changed it since);
+    // otherwise place a free copy if there is one now.
+    if (from && s.data.decor?.[from.projectId]?.[from.slot] === itemId) s.moveDecor(from, { projectId, slot }, itemId);
+    else if (freeCopies(s.data, itemId) > 0) s.placeDecor(projectId, slot, itemId);
     setPlacing(null);
   }
   const summary = summarizeProject(project, s.data, s.now);

@@ -366,14 +366,18 @@ export function removeDecor(data: StudiumData, projectId: string, slot: DecorSlo
   return withHabitat(data, projectId, Object.fromEntries(Object.entries(habitat).filter(([s]) => s !== slot)));
 }
 
-/** Moves the copy in one slot to another slot (any habitat). Nothing changes if it can't go there. */
+/**
+ * Moves the copy in one slot to another slot (any habitat). Nothing changes if it can't go there,
+ * or if `expected` is given and the source no longer holds that item (another tab changed it).
+ */
 export function moveDecor(
   data: StudiumData,
   from: { projectId: string; slot: DecorSlot },
   to: { projectId: string; slot: DecorSlot },
+  expected?: string,
 ): StudiumData {
   const itemId = data.decor?.[from.projectId]?.[from.slot];
-  if (!itemId) return data;
+  if (!itemId || (expected !== undefined && itemId !== expected)) return data;
   const removed = removeDecor(data, from.projectId, from.slot);
   const placed = placeDecor(removed, to.projectId, to.slot, itemId);
   return placed === removed ? data : placed;

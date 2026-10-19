@@ -164,8 +164,8 @@ export function useStudium(options: StudiumOptions = {}) {
         }),
       placeDecor: (projectId: string, slot: DecorSlot, itemId: string) => change((d) => A.placeDecor(d, projectId, slot, itemId)),
       removeDecor: (projectId: string, slot: DecorSlot) => change((d) => A.removeDecor(d, projectId, slot)),
-      moveDecor: (from: { projectId: string; slot: DecorSlot }, to: { projectId: string; slot: DecorSlot }) =>
-        change((d) => A.moveDecor(d, from, to)),
+      moveDecor: (from: { projectId: string; slot: DecorSlot }, to: { projectId: string; slot: DecorSlot }, expected?: string) =>
+        change((d) => A.moveDecor(d, from, to, expected)),
       giveMedicine: (projectId: string) =>
         apply((d, at) => {
           const r = A.giveMedicine(d, projectId, at);

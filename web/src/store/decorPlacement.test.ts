@@ -75,6 +75,14 @@ describe("removeDecor and moveDecor", () => {
     expect(moveDecor(data, { projectId: "appDev", slot: "wallLeft" }, { projectId: "webDev", slot: "floorRight" })).toBe(data);
   });
 
+  it("moveDecor refuses when the source no longer holds the expected item", () => {
+    let data = placeDecor(owning("clock", "study-poster"), "appDev", "wallLeft", "study-poster");
+    const from = { projectId: "appDev", slot: "wallLeft" as const };
+    expect(moveDecor(data, from, { projectId: "webDev", slot: "wallLeft" }, "clock")).toBe(data);
+    data = placeDecor(removeDecor(data, "appDev", "wallLeft"), "appDev", "wallLeft", "clock");
+    expect(moveDecor(data, from, { projectId: "webDev", slot: "wallLeft" }, "clock").decor).toEqual({ webDev: { wallLeft: "clock" } });
+  });
+
   it("deleting a project returns its decor", () => {
     const placed = placeDecor(owning("pet-bed"), "appDev", "floorLeft", "pet-bed");
     const after = deleteProject(placed, "appDev");

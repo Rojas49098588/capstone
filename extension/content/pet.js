@@ -636,6 +636,18 @@
       xRatio: () => (maxX() ? state.x / maxX() : 0),
       clampToWorld() {
         refreshWorld();
+        // Furniture is placed in fractions of the box, so a pet using it (or asleep in its bed)
+        // moves with it when the box changes size, instead of hanging in mid-air.
+        const atFurniture =
+          state.mode === 'away' ? (box ? L.bedOf(furniture) : null)
+          : state.mode === 'use' || state.mode === 'sleep' ? state.plan?.entry
+          : null;
+        if (box && atFurniture) {
+          const spot = spotFor(atFurniture);
+          state.x = spot.x;
+          state.y = spot.y;
+          return;
+        }
         state.x = clamp(state.x, 0, maxX());
         state.y = clamp(state.y, 0, maxY());
         state.targetX = clamp(state.targetX, 0, maxX());

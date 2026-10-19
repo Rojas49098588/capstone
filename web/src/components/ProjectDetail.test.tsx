@@ -1,10 +1,11 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NOW, dayKey } from "../planner/testData";
-import { createProject } from "../store/actions";
+import { createProject, placeDecor, removeDecor } from "../store/actions";
 import { buildSeed } from "../store/seed";
+import { STORAGE_KEY } from "../store/storage";
 import { renderWithStudium, savedData, withFocus } from "../test/render";
 import ProjectDetail from "./ProjectDetail";
 
@@ -103,5 +104,37 @@ describe("ProjectDetail decor", () => {
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByText(/^Placing /)).toBeNull();
     expect(screen.queryAllByRole("button", { name: /^Put / })).toHaveLength(0);
+  });
+});
+
+describe("ProjectDetail Move here", () => {
+  const owning = (...ids: string[]) => {
+    const data = buildSeed(NOW);
+    for (const productId of ids) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
+    return data;
+  };
+
+  it("moves the copy from the other habitat", async () => {
+    const data = placeDecor(owning("clock"), "appDev", "wallLeft", "clock");
+    const { storage } = renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data });
+    await userEvent.click(screen.getByRole("tab", { name: "Furniture" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move Clock here" }));
+    await userEvent.click(screen.getByRole("button", { name: "Put Clock in the right wall spot" }));
+    expect(savedData(storage).decor).toEqual({ webDev: { wallRight: "clock" } });
+  });
+
+  it("never moves a different item when the source changed in another tab", async () => {
+    const data = placeDecor(owning("clock", "study-poster"), "appDev", "wallLeft", "clock");
+    const { storage } = renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data });
+    await userEvent.click(screen.getByRole("tab", { name: "Furniture" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move Clock here" }));
+    // Another tab takes the Clock down and hangs the Poster in its place.
+    const other = placeDecor(removeDecor(data, "appDev", "wallLeft"), "appDev", "wallLeft", "study-poster");
+    act(() => {
+      window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: JSON.stringify(other) }));
+    });
+    await userEvent.click(screen.getByRole("button", { name: "Put Clock in the right wall spot" }));
+    // The free Clock is placed; the Poster stays where it is.
+    expect(savedData(storage).decor).toEqual({ appDev: { wallLeft: "study-poster" }, webDev: { wallRight: "clock" } });
   });
 });
