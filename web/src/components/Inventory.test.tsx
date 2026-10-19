@@ -9,8 +9,9 @@ import { buildSeed } from "../store/seed";
 import { renderWithStudium, savedData } from "../test/render";
 import Inventory from "./Inventory";
 
+/** The example data with empty habitats (no built-in beds placed) plus one purchase of each id. */
 function owning(...ids: string[]): StudiumData {
-  const data = buildSeed(NOW);
+  const data: StudiumData = { ...buildSeed(NOW), decor: {} };
   for (const productId of ids) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
   return data;
 }
@@ -55,10 +56,21 @@ describe("Inventory", () => {
 
   it("an empty tab points to the Shop", async () => {
     const onOpenShop = vi.fn();
+    // Items: the example data has bought nothing. (Furniture always has the built-in bed.)
     renderWithStudium(<Inventory projectId="webDev" {...props} onOpenShop={onOpenShop} />);
-    await furnitureTab();
     await userEvent.click(screen.getByRole("button", { name: "Visit the Shop" }));
     expect(onOpenShop).toHaveBeenCalled();
+  });
+
+  it("lists the habitat's built-in bed, drawn in the project's color", async () => {
+    const { storage } = renderWithStudium(<Inventory projectId="webDev" {...props} />);
+    await furnitureTab();
+    screen.getByText("Cozy Bed ×5");
+    const row = screen.getByText("Cozy Bed ×5").closest("li") as HTMLElement;
+    expect(row.querySelector("ellipse")?.getAttribute("fill")).toBe("#2d3a8c");
+    await userEvent.click(screen.getByRole("button", { name: "Remove Cozy Bed from the left floor spot" }));
+    expect(savedData(storage).decor?.webDev).toBeUndefined();
+    screen.getByRole("button", { name: "Place Cozy Bed" });
   });
 
   it("Use here and Plain set the wallpaper", async () => {

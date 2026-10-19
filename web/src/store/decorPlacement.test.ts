@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
-import { deleteProject, moveDecor, placeDecor, removeDecor } from "./actions";
-import { cleanDecor, freeCopies, ownedCopies, placements } from "./decor";
+import { createProject, deleteProject, moveDecor, placeDecor, purchase, removeDecor } from "./actions";
+import { DEFAULT_BED, cleanDecor, freeCopies, giveDefaultBeds, ownedCopies, placements } from "./decor";
 import { buildSeed } from "./seed";
 
-/** The example data plus one purchase of each id given. */
+/** The example data with empty habitats (no built-in beds) plus one purchase of each id given. */
 function owning(...ids: string[]): StudiumData {
-  const data = buildSeed(NOW);
+  const data: StudiumData = { ...buildSeed(NOW), decor: {} };
   for (const productId of ids) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
   return data;
 }
@@ -112,5 +112,41 @@ describe("cleanDecor", () => {
       const cleaned = cleanDecor(data);
       expect(Object.values(cleaned).every((h) => Object.keys(h).length === 0) || Object.keys(cleaned).length === 0).toBe(true);
     }
+  });
+});
+
+describe("the built-in bed", () => {
+  const bed = DEFAULT_BED.id;
+  const input = { name: "Thesis", shortName: "thesis", color: "#aa3366", deadline: "2026-12-01", description: "", petKind: "cat" as const };
+
+  it("every example habitat starts with one", () => {
+    const data = buildSeed(NOW);
+    expect(data.defaultBeds).toBe(true);
+    for (const p of data.projects) expect(data.decor?.[p.id]).toEqual({ floorLeft: bed });
+    expect(ownedCopies(data, bed)).toBe(data.projects.length);
+    expect(freeCopies(data, bed)).toBe(0);
+  });
+
+  it("a new project comes with one", () => {
+    const { data, project } = createProject(buildSeed(NOW), input, NOW);
+    expect(data.decor?.[project.id]).toEqual({ floorLeft: bed });
+    expect(freeCopies(data, bed)).toBe(0);
+    expect(cleanDecor(data)[project.id]).toEqual({ floorLeft: bed });
+  });
+
+  it("older data gets one per habitat, once, next to what is already there", () => {
+    const { defaultBeds: _, ...old } = { ...buildSeed(NOW), decor: { webDev: { floorLeft: "pet-bed" }, appDev: { floorLeft: "mini-sofa" } } };
+    const data = giveDefaultBeds(old);
+    expect(data.decor?.webDev).toEqual({ floorLeft: "pet-bed" }); // already has a bed
+    expect(data.decor?.appDev).toEqual({ floorLeft: "mini-sofa", floorRight: bed });
+    const removed = removeDecor(data, "appDev", "floorRight");
+    expect(giveDefaultBeds(removed)).toBe(removed); // a removed bed stays removed
+  });
+
+  it("can be removed and placed again, but not bought", () => {
+    const data = removeDecor(buildSeed(NOW), "webDev", "floorLeft");
+    expect(freeCopies(data, bed)).toBe(1);
+    expect(placeDecor(data, "webDev", "floorRight", bed).decor?.webDev).toEqual({ floorRight: bed });
+    expect(purchase(data, bed, NOW).ok).toBe(false);
   });
 });

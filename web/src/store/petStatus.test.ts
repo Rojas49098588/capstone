@@ -146,6 +146,10 @@ describe("pet furniture", () => {
   });
 
   it("no decor, no furniture", () => {
-    expect(buildPetStatuses(buildSeed(NOW), NOW).pets.every((p) => p.furniture.length === 0)).toBe(true);
+    expect(buildPetStatuses({ ...buildSeed(NOW), decor: {} }, NOW).pets.every((p) => p.furniture.length === 0)).toBe(true);
+  });
+
+  it("every pet can use its habitat's built-in bed", () => {
+    for (const p of buildPetStatuses(buildSeed(NOW), NOW).pets) expect(p.furniture).toEqual([{ use: "bed", slot: "floorLeft" }]);
   });
 });

@@ -57,6 +57,7 @@ Each habitat has:
 Rules:
 - **A spot holds one item.** A rug may only go in the middle floor spot. Other floor items may go in any floor spot.
 - **At most one pet bed per habitat.**
+- **Built-in bed (Cozy Bed):** every project comes with one, free and not sold in the Shop. It is drawn in the color of the project whose habitat it is in. A new project's habitat starts with it in the left floor spot. Data saved before built-in beds gives each habitat its bed once on load (left floor spot, else the right, else the middle; skipped if the habitat already has a bed or no floor spot is free). After that a removed Cozy Bed stays in the inventory like any other copy. Copies owned = the number of projects.
 - **Copies:** a copy is in one habitat at a time. "Placed copies of an item across all habitats ≤ copies owned" always holds.
 - **Placing:** in the inventory's Furniture tab, pick an item with a free copy. The allowed free spots light up in the habitat box. Click one to place it. "Cancel" or Escape stops placing.
 - **Move here:** takes a copy from another habitat when no copy is free.

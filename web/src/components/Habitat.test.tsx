@@ -16,7 +16,7 @@ describe("Habitat", () => {
     vi.useFakeTimers();
     renderWithStudium(<Habitat projectId="webDev" justHatched={false} onOpenShop={vi.fn()} />);
     expect(document.querySelector('[data-pet-habitat="webDev"]')).not.toBeNull();
-    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByRole("img", { name: /pigeon/ })).toBeNull();
     act(() => {
       vi.advanceTimersByTime(HABITAT_FALLBACK_MS);
     });
@@ -30,7 +30,7 @@ describe("Habitat", () => {
     act(() => {
       vi.advanceTimersByTime(HABITAT_FALLBACK_MS);
     });
-    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByRole("img", { name: /pigeon/ })).toBeNull();
   });
 
   it("shows mood, plan gap, attention and estimate accuracy", () => {
@@ -76,7 +76,7 @@ describe("Habitat", () => {
     act(() => {
       vi.advanceTimersByTime(HABITAT_FALLBACK_MS);
     });
-    expect(screen.queryByRole("img")).toBeNull();
+    expect(screen.queryByRole("img", { name: /pigeon/ })).toBeNull();
     await act(async () => {
       box.removeAttribute("data-pet-attached");
     });
