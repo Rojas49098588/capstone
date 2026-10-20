@@ -9,11 +9,13 @@ import ProjectModal from "./components/ProjectModal";
 import Settings from "./components/Settings";
 import Shop from "./components/Shop";
 import Toast from "./components/Toast";
+import Tour from "./components/Tour";
 import { isBlocked } from "./planner/blocking";
 import { tokenBalance } from "./planner/history";
 import { StudiumProvider, useStudiumContext } from "./store/useStudium";
 import { parseHashLink } from "./ui/hashLinks";
 import { SERIF } from "./ui/styles";
+import { tourSteps } from "./ui/tourSteps";
 
 type Theme = "light" | "dark";
 type Modal = null | { mode: "create" } | { mode: "edit"; projectId: string };
@@ -40,6 +42,9 @@ export function StudiumApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [justHatchedId, setJustHatchedId] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  // The tutorial: which step is showing (null: none), and the project its project-page steps use.
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const [tourProjectId, setTourProjectId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -68,6 +73,40 @@ export function StudiumApp() {
     setSelectedId(id);
     setPage("projects");
   }
+
+  // ---- Tutorial ----
+  const tourProject = s.data.projects.find((p) => p.id === tourProjectId) ?? null;
+  const steps = tourSteps(tourProject !== null);
+
+  function showTourStep(index: number, projectId = tourProjectId) {
+    const step = tourSteps(s.data.projects.some((p) => p.id === projectId))[index];
+    if (!step) return;
+    if (step.page === "project" && projectId) openProject(projectId);
+    else if (step.page === "overview") openProjects();
+    else if (step.page === "shop") setPage("shop");
+    setTourStep(index);
+  }
+
+  function endTour() {
+    setTourStep(null);
+    if (!s.settings.tutorialDone) s.updateSettings({ tutorialDone: true });
+  }
+
+  /** From Settings: the tour again, on the project being looked at last (or the first one). */
+  function replayTour() {
+    const projectId = selectedId ?? s.data.projects[0]?.id ?? null;
+    setTourProjectId(projectId);
+    showTourStep(0, projectId);
+  }
+
+  // The first time a project page opens (right after creating the first project, once Studium
+  // starts with none), the tour begins on that project. It runs once; Settings can replay it.
+  const startTour = !s.settings.tutorialDone && tourStep === null && page === "projects" && selected !== null && !modal;
+  useEffect(() => {
+    if (!startTour || !selected) return;
+    setTourProjectId(selected.id);
+    setTourStep(0);
+  }, [startTour, selected]);
 
   // Links from the browser pets (Open project, Done after a nap). Read through a ref, so the
   // hashchange listener is added once and still sees the latest data.
@@ -138,6 +177,7 @@ export function StudiumApp() {
             <button
               type="button"
               onClick={() => setModal({ mode: "create" })}
+              data-tour="new-project"
               className="text-sm px-4 py-1.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] transition-colors whitespace-nowrap"
             >
               + New Project
@@ -152,6 +192,7 @@ export function StudiumApp() {
                   : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:border-[var(--color-foreground)]"
               }`}
               aria-label="Settings"
+              data-tour="settings"
               title="Settings"
             >
               {"⚙︎"}
@@ -170,7 +211,7 @@ export function StudiumApp() {
         {page === "shop" ? (
           <Shop />
         ) : page === "settings" ? (
-          <Settings />
+          <Settings onReplayTutorial={replayTour} />
         ) : selected ? (
           <>
             <button
@@ -208,6 +249,16 @@ export function StudiumApp() {
       )}
       {completingId && <CompletionPrompt taskId={completingId} onClose={closePrompt} onDone={setToast} />}
       <Toast message={toast} onDismiss={dismissToast} />
+      {tourStep !== null && steps[tourStep] && (
+        <Tour
+          step={steps[tourStep]}
+          index={tourStep}
+          count={steps.length}
+          onNext={() => (tourStep + 1 < steps.length ? showTourStep(tourStep + 1) : endTour())}
+          onBack={() => showTourStep(Math.max(0, tourStep - 1))}
+          onSkip={endTour}
+        />
+      )}
     </div>
   );
 }

@@ -37,6 +37,7 @@ describe("Settings", () => {
       petOrder: "dueDate",
       progressStyle: "bar",
       petInvolvement: "notMuch",
+      tutorialDone: true,
     });
   });
 });

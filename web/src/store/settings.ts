@@ -21,6 +21,7 @@ export type Settings = {
   petOrder: PetOrder;
   progressStyle: ProgressStyle;
   petInvolvement: PetInvolvement;
+  tutorialDone: boolean; // the tour has been finished or skipped (Settings can replay it)
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -29,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   petOrder: "project",
   progressStyle: "circle",
   petInvolvement: "very",
+  tutorialDone: false,
 };
 
 export const DIFFICULTIES: { value: Difficulty; label: string }[] = [
@@ -69,6 +71,7 @@ export function parseSettings(raw: string | null): Settings {
     petOrder: oneOf(PET_ORDERS, o.petOrder, DEFAULT_SETTINGS.petOrder),
     progressStyle: oneOf(PROGRESS_STYLES, o.progressStyle, DEFAULT_SETTINGS.progressStyle),
     petInvolvement: oneOf(PET_INVOLVEMENTS, o.petInvolvement, DEFAULT_SETTINGS.petInvolvement),
+    tutorialDone: o.tutorialDone === true,
   };
 }
 

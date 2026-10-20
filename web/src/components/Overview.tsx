@@ -52,7 +52,7 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
       </div>
 
       {/* Total progress */}
-      <div className={`${CARD} p-6`}>
+      <div data-tour="total-progress" className={`${CARD} p-6`}>
         <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
           <div>
             <p className={LABEL}>Total Progress — All Projects</p>
@@ -137,6 +137,7 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
       {/* Priority focus */}
       <section
         aria-labelledby="priority-focus"
+        data-tour="priority-focus"
         className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] border-l-4 border-[var(--color-accent)] p-6 space-y-6"
       >
         <div>

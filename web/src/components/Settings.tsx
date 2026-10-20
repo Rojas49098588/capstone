@@ -7,12 +7,14 @@ import {
   type Settings as SettingsValues,
 } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
-import { CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
+import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 
 const LATER = "Saved now; what it changes comes in a later update.";
 
 /** The User Settings page: account details (once accounts exist) and preferences. */
-export default function Settings() {
+type Props = { onReplayTutorial?: () => void };
+
+export default function Settings({ onReplayTutorial }: Props) {
   const s = useStudiumContext();
   const { settings, settingsSaved: saved } = s;
   const change = (next: Partial<SettingsValues>) => s.updateSettings(next);
@@ -117,6 +119,16 @@ export default function Settings() {
           "How Total Progress on the Overview shows each project: rings in a circle, or one bar per project.",
         )}
         {choices("involvement", "How involved your pet is", PET_INVOLVEMENTS, settings.petInvolvement, (petInvolvement) => change({ petInvolvement }))}
+      </section>
+
+      <section aria-labelledby="settings-tutorial" className={`${CARD} p-6 space-y-3`}>
+        <h2 id="settings-tutorial" style={SERIF} className="text-xl">
+          Tutorial
+        </h2>
+        <p className={`text-sm ${MUTED}`}>A short tour of the project page, the Overview and the Shop.</p>
+        <button type="button" onClick={onReplayTutorial} className={BUTTON_SECONDARY}>
+          Replay tutorial
+        </button>
       </section>
     </div>
   );

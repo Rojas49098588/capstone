@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings, parseSettings, saveSettin
 
 describe("settings", () => {
   it("defaults to Easy, all pets in project order, circle progress and a very involved pet", () => {
-    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "circle", petInvolvement: "very" });
+    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "circle", petInvolvement: "very", tutorialDone: false });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
   });
@@ -16,6 +16,7 @@ describe("settings", () => {
       petOrder: "dueDate",
       progressStyle: "circle",
       petInvolvement: "notMuch",
+      tutorialDone: false,
     });
     expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, petOrder: "random", progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ petCount: 1.5 })).petCount).toBe("all");

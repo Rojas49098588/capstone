@@ -6,6 +6,7 @@ import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
 import { recordFocusSessions } from "../store/actions";
 import { buildSeed } from "../store/seed";
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../store/settings";
 import { STORAGE_KEY, saveData } from "../store/storage";
 import { StudiumProvider } from "../store/useStudium";
 
@@ -26,14 +27,20 @@ export function memoryStorage(): Storage {
   } as Storage;
 }
 
-/** Renders `ui` inside a StudiumProvider with saved data (the example data by default) and a fixed clock. */
+/**
+ * Renders `ui` inside a StudiumProvider with saved data (the example data by default) and a fixed
+ * clock. The tutorial counts as already seen unless `tutorial` is true (or the storage has settings).
+ */
 export function renderWithStudium(
   ui: ReactElement,
-  o: { data?: StudiumData; now?: Date; storage?: Storage | null } = {},
+  o: { data?: StudiumData; now?: Date; storage?: Storage | null; tutorial?: boolean } = {},
 ) {
   const now = o.now ?? NOW;
   const storage = o.storage === null ? null : (o.storage ?? memoryStorage());
   if (storage) saveData(storage, o.data ?? buildSeed(now));
+  if (storage && !o.tutorial && storage.getItem(SETTINGS_KEY) === null) {
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, tutorialDone: true }));
+  }
   const result = render(<StudiumProvider options={{ storage, clock: () => now }}>{ui}</StudiumProvider>);
   return { ...result, storage };
 }

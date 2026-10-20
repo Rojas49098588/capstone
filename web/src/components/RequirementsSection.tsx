@@ -14,7 +14,7 @@ export default function RequirementsSection({ projectId, onRequestComplete }: Pr
   const unlinked = s.data.tasks.filter((t) => t.projectId === projectId && t.requirementId === null);
 
   return (
-    <section aria-labelledby="requirements-heading" className="space-y-4">
+    <section aria-labelledby="requirements-heading" data-tour="requirements" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <h2 id="requirements-heading" style={SERIF} className="text-2xl">
           Requirements

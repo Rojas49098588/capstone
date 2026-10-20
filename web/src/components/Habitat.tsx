@@ -59,7 +59,7 @@ export default function Habitat({ projectId, justHatched, onOpenShop, placing = 
   const sick = summary.mood === "Sick";
 
   return (
-    <section aria-label={`${project.shortName} habitat`} className={CARD}>
+    <section aria-label={`${project.shortName} habitat`} data-tour="habitat" className={CARD}>
       <div className="flex items-center justify-between gap-4 border-b border-[var(--color-border)] px-6 py-3">
         <div>
           <p className={LABEL}>Project Companion</p>

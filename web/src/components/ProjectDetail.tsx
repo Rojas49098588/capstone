@@ -74,7 +74,7 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
             </p>
           </div>
         </div>
-        <div className="mt-5">
+        <div className="mt-5" data-tour="project-progress">
           <div className="flex justify-between items-baseline mb-2">
             <span className={LABEL}>Overall Progress</span>
             <span className="font-mono text-sm font-medium">{percent(summary.progress)}%</span>

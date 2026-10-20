@@ -71,7 +71,7 @@ export default function Shop() {
             Spend study tokens on care, treats, outfits and toys for your project companions.
           </p>
         </div>
-        <div className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] px-5 py-3 min-w-44">
+        <div data-tour="shop-balance" className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] px-5 py-3 min-w-44">
           <p className="text-xs font-mono uppercase tracking-widest text-white/55">Your Balance</p>
           <div className="flex items-baseline gap-2 mt-1">
             <span style={SERIF} className="text-3xl">
@@ -82,7 +82,7 @@ export default function Shop() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Shop sections" className="flex gap-1">
+      <div role="tablist" aria-label="Shop sections" data-tour="shop-tabs" className="flex gap-1">
         {TABS.map((t) => (
           <button
             key={t.id}
