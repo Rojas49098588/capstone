@@ -6,6 +6,9 @@
   const HOMEPAGE_URL = 'http://localhost:5173/';
   const PET_STATUS_KEY = 'studium-pets-v1';
   const PET_STATUS_EVENT = 'studium:pets-updated';
+  // User settings (Studium's web/src/store/settings.ts uses the same names).
+  const SETTINGS_KEY = 'studium-settings-v1';
+  const SETTINGS_EVENT = 'studium:settings-updated';
   const IDLE_MESSAGE_GAP_MS = 120000; // at most one "Haven't seen …" per pet every 2 minutes
 
   // Pet interactions (spec 2026-10-19-pet-interactions-design.md). Studium's store/petStatus.ts
@@ -513,6 +516,35 @@
     return `${entry.kind}:${entry.until}`;
   }
 
+  // ---- Pets on screen (User Settings) ----
+
+  /** The "Pets on screen at once" setting from Studium's saved settings: a whole number, or null for all. */
+  function petLimitFromSettings(raw) {
+    let value = raw;
+    if (typeof raw === 'string') {
+      try {
+        value = JSON.parse(raw);
+      } catch {
+        return null;
+      }
+    }
+    return isObject(value) ? cleanPetLimit(value.petCount) : null;
+  }
+
+  /** A saved limit: a whole number of at least 1, or null (all pets). */
+  function cleanPetLimit(limit) {
+    return Number.isInteger(limit) && limit >= 1 ? limit : null;
+  }
+
+  /**
+   * Which pets show around the page under the limit: the first ones in project order, skipping
+   * away pets (they are hidden anyway), so a nap lets the next pet out. null limit: all of them.
+   */
+  function petsOnScreen(ids, petAway, limit) {
+    const awake = ids.filter((id) => !petAway?.[id]);
+    return new Set(limit === null ? awake : awake.slice(0, limit));
+  }
+
   /** While any pet naps, the others go quiet. */
   function isQuiet(petAway) {
     return isNapping(petAway);
@@ -555,6 +587,11 @@
     HOMEPAGE_URL,
     PET_STATUS_KEY,
     PET_STATUS_EVENT,
+    SETTINGS_KEY,
+    SETTINGS_EVENT,
+    petLimitFromSettings,
+    cleanPetLimit,
+    petsOnScreen,
     IDLE_MESSAGE_GAP_MS,
     MOOD_EFFECTS,
     isStudiumUrl,

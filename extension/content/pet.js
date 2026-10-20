@@ -10,6 +10,9 @@
 // changes how fast it moves and how often it talks (PetLogic.applyMood in logic.js).
 // Art lives in extension/assets/pets/.
 //
+// How many pets show around the page at once is a User Setting in Studium (petLimit below);
+// on a project page only that project's pet shows, in its habitat.
+//
 // Right-clicking a pet opens its menu (content/menu.js): What should I work on?, Nap (a 15-minute
 // focus timer), Sleep (1 or 2 hours) and Open project. The background worker runs the timers and
 // writes petAway / petCheckIn; this script only shows them: away pets are hidden (or asleep in their
@@ -750,6 +753,7 @@
   let positions = {};  // saved x positions: { [projectId]: { xRatio } }
   let hidden = false;
   let dirty = false;
+  let petLimit = null; // petLimit: how many pets show around the page (User Settings); null = all
   let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
   let checkIn = null; // petCheckIn: the question a returning pet asks
   let seenCelebrations = null; // { [projectId]: at } already seen by this tab (null until the first statuses)
@@ -786,10 +790,11 @@
 
   async function load() {
     if (stale()) return;
-    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn']);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petLimit']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
     away = L.parseAway(stored.petAway, Date.now());
+    petLimit = L.cleanPetLimit(stored.petLimit);
     checkIn = L.parseCheckIn(stored.petCheckIn);
     const next = L.parseStatuses(stored.petStatuses ?? null);
     if (!L.statusesEqual(statuses, next)) {
@@ -831,7 +836,8 @@
       else statuses = next; // a new suggestion or celebration: same pets
       noteCelebrations();
     }
-    if (changes.petAway || changes.petCheckIn) applyHabitat();
+    if (changes.petLimit) petLimit = L.cleanPetLimit(changes.petLimit.newValue);
+    if (changes.petAway || changes.petCheckIn || changes.petLimit) applyHabitat();
   });
 
   // ---- The pet menu ----
@@ -894,9 +900,23 @@
     if (parsed) chrome.storage.local.set({ petStatuses: parsed }).catch(() => {});
   }
 
+  // The same for the "Pets on screen at once" setting.
+  function copySettingsFromStudium() {
+    if (stale()) return;
+    let raw = null;
+    try {
+      raw = localStorage.getItem(L.SETTINGS_KEY);
+    } catch {
+      return;
+    }
+    chrome.storage.local.set({ petLimit: L.petLimitFromSettings(raw) }).catch(() => {});
+  }
+
   if (onStudium) {
     window.addEventListener(L.PET_STATUS_EVENT, copyStatusesFromStudium);
+    window.addEventListener(L.SETTINGS_EVENT, copySettingsFromStudium);
     copyStatusesFromStudium();
+    copySettingsFromStudium();
   }
 
   // When you come back to this tab, pick up wherever the pets were in the other tab.
@@ -926,13 +946,15 @@
     else habitatEl.removeAttribute(L.PET_AWAY_ATTR);
   }
 
-  // Which pets show where. Away pets are hidden, except asleep in their own habitat box.
+  // Which pets show where. Away pets are hidden, except asleep in their own habitat box. Around
+  // the page, at most petLimit pets show (User Settings); a habitat always shows its own pet.
   function applyHabitat() {
     const inside = habitatPet();
+    const onScreen = L.petsOnScreen(pets.map((pet) => pet.id), away, petLimit);
     for (const pet of pets) {
       const inBox = pet === inside;
       const isAway = Boolean(away[pet.id]);
-      pet.setShown(isAway ? inBox : !habitatEl || inBox);
+      pet.setShown(isAway || habitatEl ? inBox : onScreen.has(pet.id));
       if (inBox && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
       if (!inBox && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
       pet.setAway(isAway);

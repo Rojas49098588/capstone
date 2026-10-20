@@ -101,7 +101,9 @@ export default function Settings({ storage }: Props) {
               </option>
             ))}
           </select>
-          <p className={`text-xs mt-2 ${MUTED}`}>{LATER}</p>
+          <p className={`text-xs mt-2 ${MUTED}`}>
+            How many pets walk around your pages, first projects first. A napping pet makes room for the next one. A project page always shows its own pet.
+          </p>
         </div>
         {choices("progress", "Progress style", PROGRESS_STYLES, settings.progressStyle, (progressStyle) => change({ progressStyle }))}
         {choices("involvement", "How involved your pet is", PET_INVOLVEMENTS, settings.petInvolvement, (petInvolvement) => change({ petInvolvement }))}

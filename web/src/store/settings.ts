@@ -1,8 +1,10 @@
 // User settings: preferences saved in this browser, apart from the project data (like the theme).
-// Difficulty, pets on screen, progress style and pet involvement are saved here now; what each one
-// changes in Studium and the extension comes later.
+// "Pets on screen at once" is read by the browser extension (content/pet.js copies it on the Studium
+// page, on SETTINGS_EVENT). Difficulty, progress style and pet involvement do nothing yet.
 
 export const SETTINGS_KEY = "studium-settings-v1";
+/** Sent after settings are saved, so the extension picks them up. extension/content/logic.js uses the same names. */
+export const SETTINGS_EVENT = "studium:settings-updated";
 
 export type Difficulty = "easy" | "medium" | "hard";
 export type ProgressStyle = "bar" | "circle";
@@ -73,8 +75,9 @@ export function saveSettings(storage: Storage | null, settings: Settings): boole
   if (!storage) return false;
   try {
     storage.setItem(SETTINGS_KEY, JSON.stringify(settings));
-    return true;
   } catch {
     return false;
   }
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(SETTINGS_EVENT));
+  return true;
 }
