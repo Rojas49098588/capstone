@@ -6,6 +6,7 @@ import NoticeBanner from "./components/NoticeBanner";
 import Overview from "./components/Overview";
 import ProjectDetail from "./components/ProjectDetail";
 import ProjectModal from "./components/ProjectModal";
+import Settings from "./components/Settings";
 import Shop from "./components/Shop";
 import Toast from "./components/Toast";
 import { isBlocked } from "./planner/blocking";
@@ -32,7 +33,7 @@ const NAV_IDLE = "text-[var(--color-muted-foreground)] hover:text-[var(--color-f
 
 export function StudiumApp() {
   const s = useStudiumContext();
-  const [page, setPage] = useState<"projects" | "shop">("projects");
+  const [page, setPage] = useState<"projects" | "shop" | "settings">("projects");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -141,6 +142,20 @@ export function StudiumApp() {
             >
               + New Project
             </button>
+            <button
+              type="button"
+              onClick={() => setPage("settings")}
+              aria-current={page === "settings" ? "page" : undefined}
+              className={`w-8 h-8 border transition-colors flex items-center justify-center ${
+                page === "settings"
+                  ? "border-[var(--color-foreground)] text-[var(--color-foreground)]"
+                  : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:border-[var(--color-foreground)]"
+              }`}
+              aria-label="Settings"
+              title="Settings"
+            >
+              {"⚙︎"}
+            </button>
           </div>
         </div>
       </header>
@@ -154,6 +169,8 @@ export function StudiumApp() {
       <main className="max-w-6xl mx-auto w-full px-6 py-10">
         {page === "shop" ? (
           <Shop />
+        ) : page === "settings" ? (
+          <Settings />
         ) : selected ? (
           <>
             <button
