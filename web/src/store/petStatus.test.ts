@@ -153,3 +153,11 @@ describe("pet furniture", () => {
     for (const p of buildPetStatuses(buildSeed(NOW), NOW).pets) expect(p.furniture).toEqual([{ use: "bed", slot: "floorLeft" }]);
   });
 });
+
+describe("pet due dates", () => {
+  it("publishes each project's due date, for Which pets show first", () => {
+    const data = buildSeed(NOW);
+    const pets = buildPetStatuses(data, NOW).pets;
+    expect(pets.map((p) => p.deadline)).toEqual(data.projects.map((p) => p.deadline));
+  });
+});

@@ -20,6 +20,14 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
     screen.getByRole("heading", { name: "Your Projects" });
   });
 
+  it("the gear button opens User Settings", async () => {
+    renderWithStudium(<StudiumApp />);
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    screen.getByRole("heading", { name: "User Settings" });
+    await userEvent.click(screen.getAllByRole("button", { name: "All Projects" })[0]);
+    screen.getByRole("heading", { name: "Your Projects" });
+  });
+
   it("completes from Today, then reopens on the project page", async () => {
     const { storage } = renderWithStudium(<StudiumApp />);
     await userEvent.click(screen.getByRole("checkbox", { name: "Complete Write case study #3" }));

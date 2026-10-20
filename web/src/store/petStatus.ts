@@ -41,6 +41,7 @@ export type PetStatus = {
   suggestion: PetSuggestion | null; // what "What should I work on?" names
   celebration: PetCelebration | null; // the project's latest completion
   furniture: PetFurniture[]; // what the pet can use in its habitat
+  deadline: string; // the project's "YYYY-MM-DD" due date, for "Which pets show first"
 };
 
 export type PetFurniture = { use: FurnitureUse; slot: DecorSlot };
@@ -102,6 +103,7 @@ export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
         shortName: p.shortName,
         name: p.name,
         color: p.color,
+        deadline: p.deadline,
         petKind: p.petKind,
         mood: m.mood,
         recovering: m.health.recovering,

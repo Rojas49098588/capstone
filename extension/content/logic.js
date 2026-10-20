@@ -6,6 +6,9 @@
   const HOMEPAGE_URL = 'http://localhost:5173/';
   const PET_STATUS_KEY = 'studium-pets-v1';
   const PET_STATUS_EVENT = 'studium:pets-updated';
+  // User settings (Studium's web/src/store/settings.ts uses the same names).
+  const SETTINGS_KEY = 'studium-settings-v1';
+  const SETTINGS_EVENT = 'studium:settings-updated';
   const IDLE_MESSAGE_GAP_MS = 120000; // at most one "Haven't seen …" per pet every 2 minutes
 
   // Pet interactions (spec 2026-10-19-pet-interactions-design.md). Studium's store/petStatus.ts
@@ -62,6 +65,7 @@
   }
 
   const text = (v) => typeof v === 'string' && v.length > 0;
+  const isDateKey = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
   // The color goes into the pet's inline style, so only plain hex colors are allowed.
   const isHexColor = (v) => typeof v === 'string' && /^#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/i.test(v);
 
@@ -105,6 +109,7 @@
       suggestion: cleanSuggestion(p.suggestion),
       celebration: cleanCelebration(p.celebration),
       furniture: cleanFurniture(p.furniture),
+      deadline: isDateKey(p.deadline) ? p.deadline : null, // missing in statuses from older Studium builds
     };
   }
 
@@ -513,6 +518,53 @@
     return `${entry.kind}:${entry.until}`;
   }
 
+  // ---- Pets on screen (User Settings) ----
+  const PET_ORDERS = ['project', 'dueDate'];
+  const ALL_PETS = { limit: null, order: 'project' };
+
+  /**
+   * "Pets on screen at once" and "Which pets show first" from Studium's saved settings:
+   * { limit: a whole number or null for all, order: 'project' | 'dueDate' }.
+   */
+  function screenFromSettings(raw) {
+    let value = raw;
+    if (typeof raw === 'string') {
+      try {
+        value = JSON.parse(raw);
+      } catch {
+        return ALL_PETS;
+      }
+    }
+    return isObject(value) ? cleanScreen({ limit: value.petCount, order: value.petOrder }) : ALL_PETS;
+  }
+
+  /** Saved screen settings with anything invalid replaced: limit >= 1 or null, a known order. */
+  function cleanScreen(v) {
+    if (!isObject(v)) return ALL_PETS;
+    return {
+      limit: Number.isInteger(v.limit) && v.limit >= 1 ? v.limit : null,
+      order: PET_ORDERS.includes(v.order) ? v.order : 'project',
+    };
+  }
+
+  /**
+   * Which pets show around the page: away pets are skipped (they are hidden anyway, so a nap lets
+   * the next pet out), then the first `limit` in project order, or by due date (overdue and soonest
+   * first; ties and pets without one keep project order). `pets` are statuses in project order.
+   */
+  function petsOnScreen(pets, petAway, screen) {
+    const { limit, order } = cleanScreen(screen);
+    const awake = pets.filter((p) => !petAway?.[p.projectId]);
+    const ranked =
+      order === 'dueDate'
+        ? awake
+            .map((p, i) => ({ p, i }))
+            .sort((a, b) => (a.p.deadline ?? '9999').localeCompare(b.p.deadline ?? '9999') || a.i - b.i)
+            .map(({ p }) => p)
+        : awake;
+    return new Set((limit === null ? ranked : ranked.slice(0, limit)).map((p) => p.projectId));
+  }
+
   /** While any pet naps, the others go quiet. */
   function isQuiet(petAway) {
     return isNapping(petAway);
@@ -555,6 +607,11 @@
     HOMEPAGE_URL,
     PET_STATUS_KEY,
     PET_STATUS_EVENT,
+    SETTINGS_KEY,
+    SETTINGS_EVENT,
+    screenFromSettings,
+    cleanScreen,
+    petsOnScreen,
     IDLE_MESSAGE_GAP_MS,
     MOOD_EFFECTS,
     isStudiumUrl,
