@@ -15,6 +15,7 @@ describe("Settings", () => {
     screen.getByText("Nickname");
     screen.getByRole("heading", { name: "Settings" });
     expect((screen.getByRole("radio", { name: "Easy" }) as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByRole("radio", { name: "Project order" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("radio", { name: "Bar" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("radio", { name: "Very" }) as HTMLInputElement).checked).toBe(true);
     const count = screen.getByRole("combobox", { name: "Pets on screen at once" }) as HTMLSelectElement;
@@ -27,12 +28,14 @@ describe("Settings", () => {
     const storage = memoryStorage();
     renderWithStudium(<Settings storage={storage} />);
     await userEvent.click(screen.getByRole("radio", { name: "Hard" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Closest due date" }));
     await userEvent.click(screen.getByRole("radio", { name: "Circle" }));
     await userEvent.click(screen.getByRole("radio", { name: "Not much" }));
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Pets on screen at once" }), "2");
     expect(JSON.parse(storage.getItem(SETTINGS_KEY) as string)).toEqual({
       difficulty: "hard",
       petCount: 2,
+      petOrder: "dueDate",
       progressStyle: "circle",
       petInvolvement: "notMuch",
     });

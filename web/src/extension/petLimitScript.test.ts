@@ -8,13 +8,13 @@ import { DEFAULT_SETTINGS, saveSettings } from "../store/settings";
 
 type Listener = (changes: Record<string, { newValue: unknown }>, area: string) => void;
 
-const pet = (projectId: string) => ({
-  projectId, shortName: projectId, name: projectId, color: "#2d3a8c", petKind: "cat", mood: "Happy",
+const pet = (projectId: string, deadline: string) => ({
+  projectId, deadline, shortName: projectId, name: projectId, color: "#2d3a8c", petKind: "cat", mood: "Happy",
   recovering: false, idleRequirement: null, suggestion: null, celebration: null, furniture: [],
 });
 
-it("shows at most the chosen number of pets, and all of them again for All pets", async () => {
-  const statuses = { updatedAt: new Date().toISOString(), pets: [pet("a"), pet("b"), pet("c")] };
+it("shows at most the chosen number of pets, in the chosen order, and all of them for All pets", async () => {
+  const statuses = { updatedAt: new Date().toISOString(), pets: [pet("a", "2026-12-01"), pet("b", "2026-11-01"), pet("c", "2026-10-01")] };
   const store: Record<string, unknown> = { petStatuses: statuses };
   const listeners: Listener[] = [];
   (globalThis as unknown as { chrome: unknown }).chrome = {
@@ -39,11 +39,18 @@ it("shows at most the chosen number of pets, and all of them again for All pets"
   // @ts-expect-error pet.js is a plain browser script with no type declarations.
   await import("../../../extension/content/pet.js");
   await new Promise((r) => setTimeout(r, 0));
-  const shown = () =>
-    [...(document.getElementById("capstone-pet-host")?.shadowRoot?.querySelectorAll<HTMLElement>(".pet") ?? [])].filter(
-      (el) => el.style.display !== "none",
-    ).length;
-  expect(shown()).toBe(1);
+  // Which pets show, by index in project order (a, b, c).
+  const shownPets = () =>
+    [...(document.getElementById("capstone-pet-host")?.shadowRoot?.querySelectorAll<HTMLElement>(".pet") ?? [])]
+      .map((el, i) => (el.style.display !== "none" ? i : -1))
+      .filter((i) => i >= 0);
+  const shown = () => shownPets().length;
+  expect(shownPets()).toEqual([0]);
+
+  // Closest due date first: c (Oct 1) shows instead of a.
+  saveSettings(localStorage, { ...DEFAULT_SETTINGS, petCount: 1, petOrder: "dueDate" });
+  await new Promise((r) => setTimeout(r, 0));
+  expect(shownPets()).toEqual([2]);
 
   // Changing the setting in Studium updates the pets right away.
   saveSettings(localStorage, { ...DEFAULT_SETTINGS, petCount: 2 });

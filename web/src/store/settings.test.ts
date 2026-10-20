@@ -3,20 +3,21 @@ import { memoryStorage } from "../test/render";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings, parseSettings, saveSettings } from "./settings";
 
 describe("settings", () => {
-  it("defaults to Easy, all pets, bar progress and a very involved pet", () => {
-    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", progressStyle: "bar", petInvolvement: "very" });
+  it("defaults to Easy, all pets in project order, bar progress and a very involved pet", () => {
+    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "bar", petInvolvement: "very" });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
   });
 
   it("keeps valid values and replaces invalid ones with defaults", () => {
-    expect(parseSettings(JSON.stringify({ difficulty: "hard", petCount: 2, progressStyle: "circle", petInvolvement: "notMuch" }))).toEqual({
+    expect(parseSettings(JSON.stringify({ difficulty: "hard", petCount: 2, petOrder: "dueDate", progressStyle: "circle", petInvolvement: "notMuch" }))).toEqual({
       difficulty: "hard",
       petCount: 2,
+      petOrder: "dueDate",
       progressStyle: "circle",
       petInvolvement: "notMuch",
     });
-    expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
+    expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, petOrder: "random", progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ petCount: 1.5 })).petCount).toBe("all");
   });
 

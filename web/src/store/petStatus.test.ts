@@ -149,3 +149,11 @@ describe("pet furniture", () => {
     expect(buildPetStatuses(buildSeed(NOW), NOW).pets.every((p) => p.furniture.length === 0)).toBe(true);
   });
 });
+
+describe("pet due dates", () => {
+  it("publishes each project's due date, for Which pets show first", () => {
+    const data = buildSeed(NOW);
+    const pets = buildPetStatuses(data, NOW).pets;
+    expect(pets.map((p) => p.deadline)).toEqual(data.projects.map((p) => p.deadline));
+  });
+});

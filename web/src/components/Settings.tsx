@@ -3,6 +3,7 @@ import { browserStorage } from "../store/storage";
 import {
   DIFFICULTIES,
   PET_INVOLVEMENTS,
+  PET_ORDERS,
   PROGRESS_STYLES,
   loadSettings,
   saveSettings,
@@ -32,7 +33,14 @@ export default function Settings({ storage }: Props) {
   // One choice per pet that exists, plus every pet.
   const petCounts = Array.from({ length: Math.max(1, s.data.projects.length) }, (_, i) => i + 1);
 
-  function choices<T extends string>(name: string, legend: string, options: { value: T; label: string }[], value: T, onPick: (v: T) => void) {
+  function choices<T extends string>(
+    name: string,
+    legend: string,
+    options: { value: T; label: string }[],
+    value: T,
+    onPick: (v: T) => void,
+    note: string = LATER,
+  ) {
     return (
       <fieldset>
         <legend className="text-sm font-semibold mb-2">{legend}</legend>
@@ -51,7 +59,7 @@ export default function Settings({ storage }: Props) {
             </label>
           ))}
         </div>
-        <p className={`text-xs mt-2 ${MUTED}`}>{LATER}</p>
+        <p className={`text-xs mt-2 ${MUTED}`}>{note}</p>
       </fieldset>
     );
   }
@@ -105,6 +113,14 @@ export default function Settings({ storage }: Props) {
             How many pets walk around your pages, first projects first. A napping pet makes room for the next one. A project page always shows its own pet.
           </p>
         </div>
+        {choices(
+          "pet-order",
+          "Which pets show first",
+          PET_ORDERS,
+          settings.petOrder,
+          (petOrder) => change({ petOrder }),
+          "When not every pet fits: in the order of your projects, or the project due soonest first (overdue ones before that).",
+        )}
         {choices("progress", "Progress style", PROGRESS_STYLES, settings.progressStyle, (progressStyle) => change({ progressStyle }))}
         {choices("involvement", "How involved your pet is", PET_INVOLVEMENTS, settings.petInvolvement, (petInvolvement) => change({ petInvolvement }))}
       </section>
