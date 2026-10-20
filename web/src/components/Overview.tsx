@@ -69,37 +69,69 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
             </p>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row items-center gap-8 border-t border-[var(--color-border)] pt-6">
-          <div className="relative w-44 h-44 flex-shrink-0">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label={`${total}% total progress`}>
-              {dash.summaries.map((sum, i) => (
-                <Ring
-                  key={sum.project.id}
-                  value={percent(sum.progress)}
-                  color={sum.project.color}
-                  radius={44 - i * (30 / Math.max(count - 1, 1))}
-                  strokeWidth={Math.min(5, 26 / Math.max(count, 1))}
-                />
+        {s.settings.progressStyle === "bar" ? (
+          // Bar style (User Settings): one bar per project.
+          <ul aria-label="Progress by project" className="space-y-3 border-t border-[var(--color-border)] pt-6">
+            {dash.summaries.map((sum) => (
+              <li key={sum.project.id}>
+                <button type="button" onClick={() => onSelect(sum.project.id)} className="w-full text-left group">
+                  <span className="flex items-center justify-between gap-3 mb-1">
+                    <span className="flex items-center gap-2 text-xs font-mono text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]">
+                      <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: sum.project.color }} />
+                      {sum.project.shortName}
+                    </span>
+                    <span className="text-xs font-mono">{percent(sum.progress)}%</span>
+                  </span>
+                  <span
+                    role="progressbar"
+                    aria-label={`${sum.project.shortName} progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent(sum.progress)}
+                    className="block h-2 bg-[var(--color-muted)] overflow-hidden"
+                  >
+                    <span
+                      className="block h-full transition-all duration-700"
+                      style={{ width: `${percent(sum.progress)}%`, backgroundColor: sum.project.color }}
+                    />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex flex-col md:flex-row items-center gap-8 border-t border-[var(--color-border)] pt-6">
+            <div className="relative w-44 h-44 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label={`${total}% total progress`}>
+                {dash.summaries.map((sum, i) => (
+                  <Ring
+                    key={sum.project.id}
+                    value={percent(sum.progress)}
+                    color={sum.project.color}
+                    radius={44 - i * (30 / Math.max(count - 1, 1))}
+                    strokeWidth={Math.min(5, 26 / Math.max(count, 1))}
+                  />
+                ))}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span style={SERIF} className="text-xl leading-none">
+                  {total}
+                </span>
+                <span className="text-xs font-mono text-[var(--color-muted-foreground)]">%</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 flex-1 w-full">
+              {dash.summaries.map((sum) => (
+                <button key={sum.project.id} type="button" onClick={() => onSelect(sum.project.id)} className="flex items-center gap-3 text-left group">
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: sum.project.color }} />
+                  <span className="text-xs font-mono text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]">
+                    {sum.project.shortName} · {percent(sum.progress)}%
+                  </span>
+                </button>
               ))}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span style={SERIF} className="text-xl leading-none">
-                {total}
-              </span>
-              <span className="text-xs font-mono text-[var(--color-muted-foreground)]">%</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 flex-1 w-full">
-            {dash.summaries.map((sum) => (
-              <button key={sum.project.id} type="button" onClick={() => onSelect(sum.project.id)} className="flex items-center gap-3 text-left group">
-                <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: sum.project.color }} />
-                <span className="text-xs font-mono text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]">
-                  {sum.project.shortName} · {percent(sum.progress)}%
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Priority focus */}

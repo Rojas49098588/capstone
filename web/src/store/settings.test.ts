@@ -3,8 +3,8 @@ import { memoryStorage } from "../test/render";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings, parseSettings, saveSettings } from "./settings";
 
 describe("settings", () => {
-  it("defaults to Easy, all pets in project order, bar progress and a very involved pet", () => {
-    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "bar", petInvolvement: "very" });
+  it("defaults to Easy, all pets in project order, circle progress and a very involved pet", () => {
+    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "circle", petInvolvement: "very" });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
   });

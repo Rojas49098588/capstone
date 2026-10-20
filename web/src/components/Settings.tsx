@@ -1,34 +1,21 @@
-import { useState } from "react";
-import { browserStorage } from "../store/storage";
 import {
   DIFFICULTIES,
   PET_INVOLVEMENTS,
   PET_ORDERS,
   PROGRESS_STYLES,
-  loadSettings,
-  saveSettings,
   type PetCount,
   type Settings as SettingsValues,
 } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
 import { CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 
-type Props = { storage?: Storage | null };
-
 const LATER = "Saved now; what it changes comes in a later update.";
 
 /** The User Settings page: account details (once accounts exist) and preferences. */
-export default function Settings({ storage }: Props) {
+export default function Settings() {
   const s = useStudiumContext();
-  const [store] = useState(() => (storage === undefined ? browserStorage() : storage));
-  const [settings, setSettings] = useState<SettingsValues>(() => loadSettings(store));
-  const [saved, setSaved] = useState(true);
-
-  function change(next: Partial<SettingsValues>) {
-    const value = { ...settings, ...next };
-    setSettings(value);
-    setSaved(saveSettings(store, value));
-  }
+  const { settings, settingsSaved: saved } = s;
+  const change = (next: Partial<SettingsValues>) => s.updateSettings(next);
 
   // One choice per pet that exists, plus every pet.
   const petCounts = Array.from({ length: Math.max(1, s.data.projects.length) }, (_, i) => i + 1);
@@ -121,7 +108,14 @@ export default function Settings({ storage }: Props) {
           (petOrder) => change({ petOrder }),
           "When not every pet fits: in the order of your projects, or the project due soonest first (overdue ones before that).",
         )}
-        {choices("progress", "Progress style", PROGRESS_STYLES, settings.progressStyle, (progressStyle) => change({ progressStyle }))}
+        {choices(
+          "progress",
+          "Progress style",
+          PROGRESS_STYLES,
+          settings.progressStyle,
+          (progressStyle) => change({ progressStyle }),
+          "How Total Progress on the Overview shows each project: rings in a circle, or one bar per project.",
+        )}
         {choices("involvement", "How involved your pet is", PET_INVOLVEMENTS, settings.petInvolvement, (petInvolvement) => change({ petInvolvement }))}
       </section>
     </div>
