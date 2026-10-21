@@ -27,9 +27,10 @@ export const SHOP_PRODUCTS: ShopProduct[] = [
   },
 ];
 
-/** The price of anything the Shop sells: supplies and habitat decor. */
+/** The price of anything the Shop sells: supplies and habitat decor (not the built-in bed). */
 export function priceOf(id: string): number | undefined {
-  return (findProduct(id) ?? findDecor(id))?.price;
+  const decor = findDecor(id);
+  return (findProduct(id) ?? (decor?.builtIn ? undefined : decor))?.price;
 }
 
 export function findProduct(id: string): ShopProduct | undefined {

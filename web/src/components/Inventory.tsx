@@ -3,12 +3,13 @@ import { inventory } from "../planner/history";
 import { projectHealth } from "../planner/mood";
 import { MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import type { DecorSlot } from "../planner/types";
-import { DECOR_GROUPS, DECOR_ITEMS, freeCopies, placements, type DecorItem } from "../store/decor";
+import { ALL_DECOR, DECOR_GROUPS, freeCopies, ownedDecor, placements, type DecorItem } from "../store/decor";
 import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
 import { useStudiumContext } from "../store/useStudium";
 import { SLOT_NAMES, type SpotSlot } from "../ui/decorLayout";
 import { copiesLabel } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
+import DecorArt from "./DecorArt";
 import type { Placing } from "./HabitatDecor";
 
 type Props = {
@@ -29,9 +30,11 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
   const s = useStudiumContext();
   const [tab, setTab] = useState<Tab>("items");
   const owned = inventory(s.data.events);
+  const ownedFurniture = ownedDecor(s.data);
+  const color = s.data.projects.find((p) => p.id === projectId)?.color ?? "currentColor";
   const habitat = s.data.decor?.[projectId] ?? {};
   const shortName = (id: string) => s.data.projects.find((p) => p.id === id)?.shortName ?? id;
-  const placingItem = placing ? DECOR_ITEMS.find((i) => i.id === placing.itemId) : undefined;
+  const placingItem = placing ? ALL_DECOR.find((i) => i.id === placing.itemId) : undefined;
 
   const supplies = SUPPLY_GROUPS.map((category) => ({
     label: category,
@@ -39,7 +42,7 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
   })).filter((g) => g.products.length > 0);
   const decor = DECOR_GROUPS.map((g) => ({
     ...g,
-    items: DECOR_ITEMS.filter((i) => i.type === g.type && (owned[i.id] ?? 0) > 0),
+    items: ALL_DECOR.filter((i) => i.type === g.type && (ownedFurniture[i.id] ?? 0) > 0),
   })).filter((g) => g.items.length > 0);
 
   const medicine = owned[MEDICINE_PRODUCT_ID] ?? 0;
@@ -68,7 +71,7 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
       [...byProject].map(([id, count]) => ({ shortName: shortName(id), count })),
       free,
     );
-    const total = owned[item.id] ?? 0;
+    const total = ownedFurniture[item.id] ?? 0;
 
     const actions: ReactElement[] = [];
     if (isSurface(item)) {
@@ -119,7 +122,7 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
 
     return (
       <li key={item.id} className="flex items-center gap-3 border border-[var(--color-border)] px-3 py-2">
-        <img src={`${import.meta.env.BASE_URL}${item.image}`} alt="" className="w-10 h-10 object-contain flex-shrink-0" />
+        <DecorArt item={item} color={color} alt="" className="w-10 h-10 object-contain flex-shrink-0" />
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium">{`${item.name} ×${total}`}</p>
           <p className="text-xs text-[var(--color-muted-foreground)]">{label}</p>

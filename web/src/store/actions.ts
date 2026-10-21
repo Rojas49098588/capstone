@@ -16,7 +16,7 @@ import type {
   Task,
 } from "../planner/types";
 import { computeCompletionPayout, type Payout } from "../planner/value";
-import { allowedIn, freeCopies } from "./decor";
+import { allowedIn, freeCopies, withDefaultBed } from "./decor";
 import { priceOf } from "./products";
 
 const newId = () => crypto.randomUUID();
@@ -81,7 +81,9 @@ export function createProject(data: StudiumData, input: ProjectInput, now: Date)
   if (!isDateKey(input.deadline)) throw new Error(`Invalid deadline ${input.deadline}`);
   const createdAt = stamp(now);
   const project: Project = { ...input, name: input.name.trim(), id: newId(), createdAt, hatchedAt: createdAt };
-  return { data: { ...data, projects: [...data.projects, project] }, project };
+  // Every habitat comes with its built-in bed.
+  const decor = { ...(data.decor ?? {}), [project.id]: withDefaultBed({}) };
+  return { data: { ...data, projects: [...data.projects, project], decor }, project };
 }
 
 export function updateProject(

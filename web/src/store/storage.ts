@@ -1,7 +1,7 @@
 // Loading and saving Studium's data in localStorage, with validation and backups.
 import { isDateKey } from "../planner/time";
 import { PET_KINDS, type FocusSession, type StudiumData } from "../planner/types";
-import { cleanDecor } from "./decor";
+import { cleanDecor, giveDefaultBeds } from "./decor";
 import { buildSeed } from "./seed";
 
 export const STORAGE_KEY = "studium-data-v1";
@@ -38,9 +38,13 @@ export function parseFocusSessions(json: string): FocusSession[] {
   return Array.isArray(value) ? value.filter(isValidFocusSession) : [];
 }
 
-/** Valid data with its decor cleaned: damaged decor is dropped, never a reason to reject the data. */
+/**
+ * Valid data with its decor cleaned (damaged decor is dropped, never a reason to reject the data),
+ * and each habitat given its built-in bed if older data never had one.
+ */
 export function normalizeData(data: StudiumData): StudiumData {
-  return data.decor === undefined ? data : { ...data, decor: cleanDecor(data) };
+  const withBeds = giveDefaultBeds(data);
+  return withBeds.decor === undefined ? withBeds : { ...withBeds, decor: cleanDecor(withBeds) };
 }
 
 export function isValidData(value: unknown): value is StudiumData {

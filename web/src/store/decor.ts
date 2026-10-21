@@ -17,6 +17,7 @@ export type DecorItem = {
   slots: DecorSlot[]; // where it may go
   use?: FurnitureUse;
   forKind?: PetKind; // pet furniture: the kind of pet that uses it
+  builtIn?: boolean; // comes with every project instead of being sold; drawn in the project's color
 };
 
 export const DECOR_SLOTS: DecorSlot[] = ["wallpaper", "flooring", "floorLeft", "floorMiddle", "floorRight", "wallLeft", "wallRight"];
@@ -61,15 +62,34 @@ export const DECOR_ITEMS: DecorItem[] = [
   item("log", "Log", "A mossy log to lie on.", "petFurniture", 200, FLOOR, { use: "lounge", forKind: "frog" }),
 ];
 
+/**
+ * The bed every habitat comes with (not sold in the Shop). Each project brings one copy, and a copy
+ * is drawn in the color of the project whose habitat it is in.
+ */
+export const DEFAULT_BED: DecorItem = {
+  ...item("default-bed", "Cozy Bed", "The bed your habitat came with, in your project's color.", "bed", 0, FLOOR, { use: "bed" }),
+  builtIn: true,
+};
+/** Where a new habitat's bed goes, then the other floor spots if that one is taken. */
+const BED_SLOTS: DecorSlot[] = ["floorLeft", "floorRight", "floorMiddle"];
+
+/** Everything that can be in a habitat: the Shop's decor and the built-in bed. */
+export const ALL_DECOR: DecorItem[] = [...DECOR_ITEMS, DEFAULT_BED];
+
 export function findDecor(id: string): DecorItem | undefined {
-  return DECOR_ITEMS.find((i) => i.id === id);
+  return ALL_DECOR.find((i) => i.id === id);
 }
 
 // ---- Copies and placements ----
 // Invariant: for every item, the copies placed across all habitats <= the copies owned.
 
+/** Copies owned of every decor item: what was bought, plus one built-in bed per project. */
+export function ownedDecor(data: StudiumData): Record<string, number> {
+  return { ...inventory(data.events), [DEFAULT_BED.id]: data.projects.length };
+}
+
 export function ownedCopies(data: StudiumData, itemId: string): number {
-  return inventory(data.events)[itemId] ?? 0;
+  return ownedDecor(data)[itemId] ?? 0;
 }
 
 /** Where the copies of an item are, in project order and then slot order. */
@@ -104,7 +124,7 @@ export function allowedIn(habitat: HabitatDecor, slot: DecorSlot, itemId: string
 export function cleanDecor(data: StudiumData): Record<string, HabitatDecor> {
   const raw: unknown = data.decor;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
-  const owned = inventory(data.events);
+  const owned = ownedDecor(data);
   const used: Record<string, number> = {};
   const out: Record<string, HabitatDecor> = {};
   for (const p of data.projects) {
@@ -121,4 +141,22 @@ export function cleanDecor(data: StudiumData): Record<string, HabitatDecor> {
     if (Object.keys(habitat).length > 0) out[p.id] = habitat;
   }
   return out;
+}
+
+/** A habitat with its built-in bed added, unless it already has a bed or no floor spot is free. */
+export function withDefaultBed(habitat: HabitatDecor): HabitatDecor {
+  if (DECOR_SLOTS.some((s) => isBed(habitat[s]))) return habitat;
+  const slot = BED_SLOTS.find((s) => !habitat[s]);
+  return slot ? { ...habitat, [slot]: DEFAULT_BED.id } : habitat;
+}
+
+/**
+ * Gives every habitat its built-in bed, once (data saved before built-in beds). After that a removed
+ * bed stays removed; new projects get theirs when they are created.
+ */
+export function giveDefaultBeds(data: StudiumData): StudiumData {
+  if (data.defaultBeds) return data;
+  const decor: Record<string, HabitatDecor> = { ...(data.decor ?? {}) };
+  for (const p of data.projects) decor[p.id] = withDefaultBed(decor[p.id] ?? {});
+  return { ...data, decor, defaultBeds: true };
 }

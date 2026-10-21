@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NOW, dayKey } from "../planner/testData";
 import { createProject, placeDecor, removeDecor } from "../store/actions";
+import type { StudiumData } from "../planner/types";
 import { buildSeed } from "../store/seed";
 import { STORAGE_KEY } from "../store/storage";
 import { renderWithStudium, savedData, withFocus } from "../test/render";
@@ -71,7 +72,7 @@ describe("ProjectDetail focus time", () => {
 
 describe("ProjectDetail decor", () => {
   const owningBed = () => {
-    const data = buildSeed(NOW);
+    const data: StudiumData = { ...buildSeed(NOW), decor: {} };
     data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "pet-bed", price: 0 });
     return data;
   };
@@ -109,7 +110,7 @@ describe("ProjectDetail decor", () => {
 
 describe("ProjectDetail Move here", () => {
   const owning = (...ids: string[]) => {
-    const data = buildSeed(NOW);
+    const data: StudiumData = { ...buildSeed(NOW), decor: {} };
     for (const productId of ids) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
     return data;
   };
