@@ -40,7 +40,6 @@ export function StudiumApp() {
   const [modal, setModal] = useState<Modal>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [justHatchedId, setJustHatchedId] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   // The tutorials: which one, which step is showing (null: none), and the project its
   // project-page steps use.
@@ -71,7 +70,6 @@ export function StudiumApp() {
   }
 
   function openProject(id: string) {
-    if (id !== justHatchedId) setJustHatchedId(null);
     setSelectedId(id);
     setPage("projects");
   }
@@ -242,7 +240,7 @@ export function StudiumApp() {
             <ProjectDetail
               key={selected.id}
               projectId={selected.id}
-              justHatched={selected.id === justHatchedId}
+              onToast={setToast}
               onRequestComplete={setCompletingId}
               onEditProject={() => setModal({ mode: "edit", projectId: selected.id })}
               onOpenShop={() => setPage("shop")}
@@ -258,7 +256,6 @@ export function StudiumApp() {
           project={editing}
           onClose={closeModal}
           onCreated={(p) => {
-            setJustHatchedId(p.id);
             setSelectedId(p.id);
             setPage("projects");
           }}

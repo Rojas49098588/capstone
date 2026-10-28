@@ -87,6 +87,19 @@ export function percent(fraction: number): number {
   return Math.round(fraction * 100);
 }
 
+// ---- Pet lifecycle ----
+
+/** Shown where the mood goes while the pet is still an egg. */
+export const EGG_LABEL = "Egg";
+
+export function hatchHint(remaining: number): string {
+  return `Add ${remaining} more ${remaining === 1 ? "requirement" : "requirements"} to hatch`;
+}
+
+export function hatchingMessage(shortName: string): string {
+  return `${shortName} is hatching!`;
+}
+
 export function gapLabel(gap: number): string {
   const n = Math.round(Math.abs(gap));
   if (n === 0) return "On plan";
