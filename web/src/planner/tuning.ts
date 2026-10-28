@@ -1,4 +1,5 @@
 // Every tunable number in the planner. See the spec, sections 2 and 3.
+import type { Difficulty } from "./types";
 
 export const STARTING_TOKENS = 650;
 
@@ -27,6 +28,14 @@ export const RECOVERY_DAYS = 3;
 export const DELIGHTED_GAP = 10; // gap >= this
 export const WORRIED_GAP = -10; // gap <= this is Worried or worse
 export const UPSET_GAP = -25; // gap <= this is Upset
+
+// Pet difficulty (each project has one): its Worried and Upset lines and how soon it's neglected or
+// sick. Steady is the values above.
+export const DIFFICULTY_RULES: Record<Difficulty, { worriedGap: number; upsetGap: number; neglectDays: number; sickDays: number }> = {
+  gentle: { worriedGap: -20, upsetGap: -40, neglectDays: 14, sickDays: 28 },
+  steady: { worriedGap: WORRIED_GAP, upsetGap: UPSET_GAP, neglectDays: NEGLECT_DAYS, sickDays: SICK_DAYS },
+  strict: { worriedGap: -5, upsetGap: -15, neglectDays: 4, sickDays: 7 },
+};
 
 // Learning
 export const LEARNING_MAX_SAMPLES = 20;

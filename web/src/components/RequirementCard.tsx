@@ -1,8 +1,7 @@
 import { useState } from "react";
 import { estimateMultipliers, multiplierFor } from "../planner/learning";
-import { requirementIdleDays } from "../planner/mood";
+import { neglectDays, requirementIdleDays } from "../planner/mood";
 import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "../planner/progress";
-import { NEGLECT_DAYS } from "../planner/tuning";
 import { useStudiumContext } from "../store/useStudium";
 import { formatDate, percent } from "../ui/format";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD } from "../ui/styles";
@@ -30,7 +29,7 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
   const planned = plannedProgress(requirement, project, s.now);
   const done = isRequirementDone(requirement.id, s.data.tasks);
   const idle = requirementIdleDays(requirement, s.data, s.now);
-  const neglected = !done && planned > 0 && idle >= NEGLECT_DAYS;
+  const neglected = !done && planned > 0 && idle >= neglectDays(project);
   const dates = `${requirement.startDate ? `${formatDate(requirement.startDate)} – ` : ""}Due ${formatDate(requirement.dueDate ?? project.deadline)}`;
 
   return (
