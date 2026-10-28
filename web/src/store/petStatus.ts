@@ -2,6 +2,7 @@
 // The extension's content script reads this key on the Studium page and on PET_STATUS_EVENT.
 import { isBlocked } from "../planner/blocking";
 import { estimateMultipliers } from "../planner/learning";
+import { petStage } from "../planner/lifecycle";
 import { projectMood } from "../planner/mood";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
 import type { DecorSlot, Mood, PetKind, Project, StudiumData } from "../planner/types";
@@ -42,6 +43,7 @@ export type PetStatus = {
   celebration: PetCelebration | null; // the project's latest completion
   furniture: PetFurniture[]; // what the pet can use in its habitat
   deadline: string; // the project's "YYYY-MM-DD" due date, for "Which pets show first"
+  stage: "juvenile" | "adult"; // eggs aren't sent at all: they stay in Studium's habitat
 };
 
 export type PetFurniture = { use: FurnitureUse; slot: DecorSlot };
@@ -95,7 +97,7 @@ export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
   const celebrations = celebrationsByProject(data);
   return {
     updatedAt: now.toISOString(),
-    pets: data.projects.map((p) => {
+    pets: data.projects.filter((p) => petStage(p) !== "egg").map((p) => {
       const m = projectMood(p.id, data, now, multipliers);
       const idlest = m.neglected[0];
       return {
@@ -111,6 +113,7 @@ export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
         suggestion: suggestions.get(p.id) ?? null,
         celebration: celebrations.get(p.id) ?? null,
         furniture: furnitureFor(p, data),
+        stage: petStage(p) === "juvenile" ? "juvenile" : "adult",
       };
     }),
   };

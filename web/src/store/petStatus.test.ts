@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, dayKey, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { memoryStorage } from "../test/render";
 import { completeTask, giveMedicine, placeDecor, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
@@ -159,5 +159,22 @@ describe("pet due dates", () => {
     const data = buildSeed(NOW);
     const pets = buildPetStatuses(data, NOW).pets;
     expect(pets.map((p) => p.deadline)).toEqual(data.projects.map((p) => p.deadline));
+  });
+});
+
+describe("pet stages", () => {
+  it("leaves eggs out and tells the extension which pets are juveniles", () => {
+    const data = makeData({
+      projects: [
+        makeProject({ id: "egg", stage: "egg", hatchedAt: null }),
+        makeProject({ id: "young", stage: "juvenile" }),
+        makeProject({ id: "old" }),
+      ],
+    });
+    const pets = buildPetStatuses(data, NOW).pets;
+    expect(pets.map((p) => [p.projectId, p.stage])).toEqual([
+      ["young", "juvenile"],
+      ["old", "adult"],
+    ]);
   });
 });

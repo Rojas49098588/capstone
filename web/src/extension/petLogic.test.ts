@@ -174,3 +174,22 @@ describe("parsePositions", () => {
     expect(L.parsePositions([1, 2])).toEqual({});
   });
 });
+
+describe("pet stages", () => {
+  it("draws juveniles at 75% of the adult height", () => {
+    expect(L.petHeight(56, "juvenile")).toBe(42);
+    expect(L.petHeight(56, "adult")).toBe(56);
+  });
+
+  it("treats statuses without a stage, or with an unknown one, as adults", () => {
+    expect(L.parseStatuses({ pets: [pet()] }).pets[0].stage).toBe("adult");
+    expect(L.parseStatuses({ pets: [pet({ stage: "egg" })] }).pets[0].stage).toBe("adult");
+    expect(L.parseStatuses({ pets: [pet({ stage: "juvenile" })] }).pets[0].stage).toBe("juvenile");
+  });
+
+  it("rebuilds the pets when only the stage changes", () => {
+    const young = L.parseStatuses({ updatedAt: "1", pets: [pet({ stage: "juvenile" })] });
+    const old = L.parseStatuses({ updatedAt: "1", pets: [pet()] });
+    expect(L.statusesEqual(young, old)).toBe(false);
+  });
+});
