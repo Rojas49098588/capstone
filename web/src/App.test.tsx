@@ -47,6 +47,30 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
     expect(screen.queryByRole("dialog", { name: "Create your first project" })).toBeNull();
   });
 
+  it("shows setup first for someone who hasn't done it", () => {
+    renderWithStudium(<StudiumApp />, { settings: { setupDone: false } });
+    screen.getByRole("heading", { name: "What do you make?" });
+    expect(screen.queryByRole("heading", { name: "Your Projects" })).toBeNull();
+  });
+
+  it("an existing user with projects sees setup once, then their Overview, with no tutorial", async () => {
+    const { storage } = renderWithStudium(<StudiumApp />, { settings: { setupDone: false } });
+    for (let i = 0; i < 3; i++) await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await userEvent.click(screen.getByRole("button", { name: "Start using Studium" }));
+    screen.getByRole("heading", { name: "Your Projects" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(JSON.parse(storage?.getItem("studium-settings-v1") as string)).toMatchObject({ setupDone: true, tutorialDone: true });
+  });
+
+  it("reloading mid-setup starts setup again", async () => {
+    const { storage, unmount } = renderWithStudium(<StudiumApp />, { settings: { setupDone: false } });
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    screen.getByText("Step 2 of 4");
+    unmount();
+    renderWithStudium(<StudiumApp />, { storage });
+    screen.getByText("Step 1 of 4");
+  });
+
   it("the gear button opens User Settings", async () => {
     renderWithStudium(<StudiumApp />);
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));

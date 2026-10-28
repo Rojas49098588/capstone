@@ -8,6 +8,7 @@ import Overview from "./components/Overview";
 import ProjectDetail from "./components/ProjectDetail";
 import ProjectModal from "./components/ProjectModal";
 import Settings from "./components/Settings";
+import Setup from "./components/Setup";
 import Shop from "./components/Shop";
 import Toast from "./components/Toast";
 import Tour from "./components/Tour";
@@ -172,6 +173,18 @@ export function StudiumApp() {
     ...s.data.projects.map((p) => navButton(p.shortName, onProjects && selected?.id === p.id, () => openProject(p.id), p.color, small)),
     navButton("Shop", page === "shop", () => setPage("shop"), undefined, small),
   ];
+
+
+  // First run (and once for people who used Studium before setup existed): setup comes before anything else.
+  // The storage warning still shows above it.
+  if (!s.settings.setupDone) {
+    return (
+      <>
+        <NoticeBanner notice={s.notice} onDismiss={s.dismissNotice} />
+        <Setup theme={theme} onTheme={setTheme} onFinish={openProjects} />
+      </>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--color-background)" }}>

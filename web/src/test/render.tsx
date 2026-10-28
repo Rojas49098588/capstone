@@ -39,8 +39,9 @@ export function renderWithStudium(
   const now = o.now ?? NOW;
   const storage = o.storage === null ? null : (o.storage ?? memoryStorage());
   if (storage) saveData(storage, o.data ?? buildSeed(now));
-  if (storage && !o.tutorial && storage.getItem(SETTINGS_KEY) === null) {
-    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, setupDone: true, tutorialDone: true, shopTutorialDone: true, ...o.settings }));
+  if (storage && storage.getItem(SETTINGS_KEY) === null) {
+    const tours = o.tutorial ? {} : { tutorialDone: true, shopTutorialDone: true };
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, setupDone: true, ...tours, ...o.settings }));
   }
   const result = render(<StudiumProvider options={{ storage, clock: () => now }}>{ui}</StudiumProvider>);
   return { ...result, storage };

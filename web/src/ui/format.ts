@@ -207,3 +207,26 @@ export const NO_PROJECTS_TEXT = "Start a project and its pet hatches once you've
 export const FIRST_PROJECT_TITLE = "Create your first project";
 export const FIRST_PROJECT_TEXT =
   "Each project gets its own egg. Add a few requirements and it hatches into a pet that follows how the work is going.";
+
+export const SETUP_COPY = {
+  welcome: "Welcome to Studium",
+  makeTitle: "What do you make?",
+  makeHint: "This sets the words your new projects use, like chapters for writing. You can pick a different type for each project.",
+  nameTitle: "What should we call you?",
+  namePlaceholder: "Optional",
+  nameHint: "Shown on your Overview and in your pets' notes. Leave it blank to go without.",
+  petsTitle: "Your pets",
+  difficultyLegend: "Difficulty",
+  involvementLegend: "How much they interact",
+  lookTitle: "Your look",
+  progressLegend: "How should Total Progress look?",
+  themeLegend: "Light or dark?",
+  changeLater: "You can change all of this later in Settings.",
+} as const;
+
+/** Made-up projects for setup's progress previews. */
+export const SETUP_SAMPLE_PROJECTS = [
+  { name: "portraits", color: "#2d3a8c", percent: 57 },
+  { name: "novel", color: "#c9501a", percent: 49 },
+  { name: "history", color: "#3a7c4f", percent: 24 },
+] as const;
