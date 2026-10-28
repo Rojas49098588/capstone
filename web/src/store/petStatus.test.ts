@@ -135,12 +135,12 @@ describe("pet furniture", () => {
   it("lists the bed and the pet's own furniture", () => {
     let data = buildSeed(NOW);
     for (const productId of ["pet-bed", "scratching-post", "perch"]) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
-    data = placeDecor(data, "seniorCap", "floorLeft", "pet-bed");
+    data = placeDecor(data, "seniorCap", "floorMiddle", "pet-bed");
     data = placeDecor(data, "seniorCap", "floorRight", "scratching-post");
     data = placeDecor(data, "seniorCap", "wallLeft", "perch"); // the pigeon's, so the cat ignores it
     const cap = buildPetStatuses(data, NOW).pets.find((p) => p.projectId === "seniorCap");
     expect(cap?.furniture).toEqual([
-      { use: "bed", slot: "floorLeft" },
+      { use: "bed", slot: "floorMiddle" },
       { use: "scratch", slot: "floorRight" },
     ]);
   });
@@ -150,7 +150,7 @@ describe("pet furniture", () => {
   });
 
   it("every pet can use its habitat's built-in bed", () => {
-    for (const p of buildPetStatuses(buildSeed(NOW), NOW).pets) expect(p.furniture).toEqual([{ use: "bed", slot: "floorLeft" }]);
+    for (const p of buildPetStatuses(buildSeed(NOW), NOW).pets) expect(p.furniture).toEqual([{ use: "bed", slot: "floorMiddle" }]);
   });
 });
 

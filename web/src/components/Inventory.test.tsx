@@ -44,8 +44,8 @@ describe("Inventory", () => {
 
   it("Furniture lists owned decor by type with where the copies are", async () => {
     let data = owning("pet-bed", "pet-bed", "pet-bed");
-    data = placeDecor(data, "webDev", "floorLeft", "pet-bed");
-    data = placeDecor(data, "appDev", "floorLeft", "pet-bed");
+    data = placeDecor(data, "webDev", "floorMiddle", "pet-bed");
+    data = placeDecor(data, "appDev", "floorMiddle", "pet-bed");
     renderWithStudium(<Inventory projectId="webDev" {...props} />, { data });
     await furnitureTab();
     const beds = screen.getByRole("region", { name: "Beds" });
@@ -68,7 +68,7 @@ describe("Inventory", () => {
     screen.getByText("Cozy Bed ×5");
     const row = screen.getByText("Cozy Bed ×5").closest("li") as HTMLElement;
     expect(row.querySelector("ellipse")?.getAttribute("fill")).toBe("#2d3a8c");
-    await userEvent.click(screen.getByRole("button", { name: "Remove Cozy Bed from the left floor spot" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove Cozy Bed from the middle floor spot" }));
     expect(savedData(storage).decor?.webDev).toBeUndefined();
     screen.getByRole("button", { name: "Place Cozy Bed" });
   });
@@ -93,13 +93,13 @@ describe("Inventory", () => {
 
   it("Place and Move here start placing a spot item", async () => {
     const onPlace = vi.fn();
-    const data = placeDecor(owning("pet-bed", "clock"), "appDev", "floorLeft", "pet-bed");
+    const data = placeDecor(owning("pet-bed", "clock"), "appDev", "floorMiddle", "pet-bed");
     renderWithStudium(<Inventory projectId="webDev" {...props} onPlace={onPlace} />, { data });
     await furnitureTab();
     await userEvent.click(screen.getByRole("button", { name: "Place Clock" }));
     expect(onPlace).toHaveBeenLastCalledWith({ itemId: "clock" });
     await userEvent.click(screen.getByRole("button", { name: "Move Pet Bed here" }));
-    expect(onPlace).toHaveBeenLastCalledWith({ itemId: "pet-bed", from: { projectId: "appDev", slot: "floorLeft" } });
+    expect(onPlace).toHaveBeenLastCalledWith({ itemId: "pet-bed", from: { projectId: "appDev", slot: "floorMiddle" } });
   });
 
   it("Remove sends it back", async () => {

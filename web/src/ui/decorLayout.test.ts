@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SLOT_LAYOUT } from "./decorLayout";
+import { SLOT_LAYOUT, itemBox } from "./decorLayout";
 
 describe("SLOT_LAYOUT", () => {
   it("keeps every slot inside the box", () => {
@@ -25,5 +25,21 @@ describe("SLOT_LAYOUT", () => {
       wallLeft: { x: 0.14, y: 0.5, w: 0.14, h: 0.28 },
       wallRight: { x: 0.86, y: 0.5, w: 0.14, h: 0.28 },
     });
+  });
+});
+
+describe("itemBox", () => {
+  it("draws a bed in the middle spot as big as in a side spot", () => {
+    const side = itemBox("floorLeft", "bed");
+    const middle = itemBox("floorMiddle", "bed");
+    expect({ w: middle.w, h: middle.h, y: middle.y }).toEqual({ w: side.w, h: side.h, y: side.y });
+    expect(middle.x).toBe(SLOT_LAYOUT.floorMiddle.x);
+    expect(itemBox("floorMiddle", "petFurniture").h).toBe(side.h);
+  });
+
+  it("keeps rugs and other spots in their own box", () => {
+    expect(itemBox("floorMiddle", "rug")).toEqual(SLOT_LAYOUT.floorMiddle);
+    expect(itemBox("floorRight", "bed")).toEqual(SLOT_LAYOUT.floorRight);
+    expect(itemBox("wallLeft", "wallDecor")).toEqual(SLOT_LAYOUT.wallLeft);
   });
 });

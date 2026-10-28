@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { DecorSlot } from "../planner/types";
 import { allowedIn, findDecor } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
-import { SLOT_LAYOUT, SLOT_NAMES, SPOT_SLOTS, type SlotBox } from "../ui/decorLayout";
+import { SLOT_NAMES, SPOT_SLOTS, itemBox, type SlotBox } from "../ui/decorLayout";
 import DecorArt from "./DecorArt";
 
 /** What the user is placing from the inventory. `from` is set for "Move here" (a copy in another slot). */
@@ -58,7 +58,7 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
             alt={item.name}
             onError={() => setBroken((b) => new Set(b).add(item.id))}
             className="absolute object-contain object-bottom"
-            style={place(SLOT_LAYOUT[slot])}
+            style={place(itemBox(slot, item.type))}
           />
         );
       })}
@@ -70,7 +70,7 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
             aria-label={`Put ${placingItem.name} in ${SLOT_NAMES[slot]}`}
             onClick={() => onPickSlot?.(slot)}
             className="absolute border-2 border-dashed border-[var(--color-accent)] bg-[var(--color-accent)]/10 hover:bg-[var(--color-accent)]/20"
-            style={place(SLOT_LAYOUT[slot])}
+            style={place(itemBox(slot, placingItem.type))}
           />
         ))}
     </div>

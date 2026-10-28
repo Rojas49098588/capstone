@@ -137,7 +137,7 @@ describe("Habitat decor", () => {
 
   it("draws placed decor", () => {
     let data = placeDecor(owning("oak-planks", "pet-bed"), "webDev", "flooring", "oak-planks");
-    data = placeDecor(data, "webDev", "floorLeft", "pet-bed");
+    data = placeDecor(data, "webDev", "floorMiddle", "pet-bed");
     renderWithStudium(<Habitat projectId="webDev" onOpenShop={vi.fn()} />, { data });
     screen.getByRole("img", { name: "Pet Bed" });
     const floor = document.querySelector('[data-decor-layer="flooring"]') as HTMLElement;
@@ -171,7 +171,7 @@ describe("Habitat decor", () => {
   });
 
   it("hides an item whose image fails to load", () => {
-    const data = placeDecor(owning("pet-bed"), "webDev", "floorLeft", "pet-bed");
+    const data = placeDecor(owning("pet-bed"), "webDev", "floorMiddle", "pet-bed");
     renderWithStudium(<Habitat projectId="webDev" onOpenShop={vi.fn()} />, { data });
     fireEvent.error(screen.getByRole("img", { name: "Pet Bed" }));
     expect(screen.queryByRole("img", { name: "Pet Bed" })).toBeNull();

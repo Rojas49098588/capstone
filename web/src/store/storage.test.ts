@@ -115,7 +115,7 @@ describe("saved decor", () => {
     expect(result.notice).toBeNull();
     // Unchanged except that each habitat is given its built-in bed.
     const id = valid().projects[0].id;
-    expect(result.data).toEqual({ ...valid(), decor: { [id]: { floorLeft: "default-bed" } }, defaultBeds: true });
+    expect(result.data).toEqual({ ...valid(), decor: { [id]: { floorMiddle: "default-bed" } }, defaultBeds: true });
   });
 
   it("cleans damaged decor instead of resetting the data", () => {
