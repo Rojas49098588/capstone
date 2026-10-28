@@ -2,6 +2,7 @@
 // because the extension has no build step or node_modules of its own.
 import { describe, expect, it } from "vitest";
 import "../../../extension/content/logic.js";
+import { NICKNAME_MAX } from "../planner/tuning";
 
 // logic.js is a plain browser script that sets globalThis.PetLogic.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -191,5 +192,29 @@ describe("pet stages", () => {
     const young = L.parseStatuses({ updatedAt: "1", pets: [pet({ stage: "juvenile" })] });
     const old = L.parseStatuses({ updatedAt: "1", pets: [pet()] });
     expect(L.statusesEqual(young, old)).toBe(false);
+  });
+});
+
+describe("interaction level and nickname", () => {
+  it("prefsFromSettings reads the interaction level and nickname", () => {
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate", nickname: " Abby " }))).toEqual({ involvement: "moderate", nickname: "Abby" });
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "notMuch" }))).toEqual({ involvement: "minimal", nickname: "" });
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "very" })).involvement).toBe("mild");
+    expect(L.prefsFromSettings(JSON.stringify({ nickname: "A".repeat(25) })).nickname).toBe("A".repeat(20));
+    expect(L.prefsFromSettings("{broken")).toEqual({ involvement: "mild", nickname: "" });
+    expect(L.prefsFromSettings(null)).toEqual({ involvement: "mild", nickname: "" });
+    expect(L.cleanPrefs({ involvement: "wild", nickname: 3 })).toEqual({ involvement: "mild", nickname: "" });
+  });
+
+  it("keeps the nickname limit equal to Studium's", () => {
+    expect(L.NICKNAME_MAX).toBe(NICKNAME_MAX);
+  });
+
+  it("a Minimal pet stays put on web pages but not in its habitat; Mild and Moderate move", () => {
+    expect(L.staysPut({ involvement: "minimal", nickname: "" }, false)).toBe(true);
+    expect(L.staysPut({ involvement: "minimal", nickname: "" }, true)).toBe(false);
+    expect(L.staysPut({ involvement: "mild", nickname: "" }, false)).toBe(false);
+    expect(L.staysPut({ involvement: "moderate", nickname: "" }, false)).toBe(false);
+    expect(L.staysPut(undefined, false)).toBe(false); // older storage: Mild
   });
 });

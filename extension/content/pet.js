@@ -356,6 +356,9 @@
       }
     }
 
+    // Minimal pets stay put and quiet on web pages (User Settings: How much pets interact).
+    const keepsQuiet = () => L.staysPut(env.prefs?.(), Boolean(box));
+
     function goIdle(now) {
       state.mode = 'idle';
       state.idleUntil = now + between(kind.idleMs);
@@ -369,6 +372,11 @@
 
     // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind and mood.
     function act(now) {
+      // Minimal, on a web page: stay in place.
+      if (keepsQuiet()) {
+        goIdle(now);
+        return;
+      }
       // In its habitat: sometimes use its own furniture, and nap in the bed.
       const own = box ? L.ownFurniture(status.petKind, furniture) : null;
       if (own && Math.random() < (kind.furnitureChance ?? 0)) {
@@ -424,7 +432,7 @@
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
-      if (kind.sound && !busy && now > state.nextSoundAt) {
+      if (kind.sound && !busy && !keepsQuiet() && now > state.nextSoundAt) {
         if (state.nextSoundAt) chatter(kind.sound);
         state.nextSoundAt = now + between(kind.soundMs);
       }
@@ -432,7 +440,7 @@
         if (state.nextLickAt) lick();
         state.nextLickAt = now + between(kind.tongueMs);
       }
-      if (idleText && !busy && now > state.nextIdleMessageAt) {
+      if (idleText && !busy && !keepsQuiet() && now > state.nextIdleMessageAt) {
         if (state.nextIdleMessageAt) chatter(idleText, 4000);
         state.nextIdleMessageAt = L.nextIdleMessageAt(now);
       }
@@ -737,7 +745,7 @@
       isTalking: () => talkEl.classList.contains('show'),
       // A task was completed in Studium: hop (twice, higher, for a first task or a finished requirement).
       celebrate(celebrationKind) {
-        if (state.mode === 'away') return;
+        if (state.mode === 'away' || keepsQuiet()) return;
         say(L.celebrationText(celebrationKind), 2500);
         if (state.mode === 'drag') return;
         const hops = L.celebrationHops(celebrationKind);
@@ -759,6 +767,7 @@
   let positions = {};  // saved x positions: { [projectId]: { xRatio } }
   let hidden = false;
   let dirty = false;
+  let prefs = L.cleanPrefs(null); // { involvement, nickname } (User Settings)
   let petScreen = L.cleanScreen(null); // petScreen: { limit, order } for the pets around the page (User Settings)
   let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
   let checkIn = null; // petCheckIn: the question a returning pet asks
@@ -769,7 +778,7 @@
     if (!stale()) chrome.runtime.sendMessage(msg).catch(() => {});
   };
   const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
-  const env = { quiet: () => L.isQuiet(away), onMenu: openMenu };
+  const env = { quiet: () => L.isQuiet(away), onMenu: openMenu, prefs: () => prefs };
 
   // ---- Storage ----
   // After the extension is reloaded, old content scripts lose access to chrome.*.
@@ -796,11 +805,12 @@
 
   async function load() {
     if (stale()) return;
-    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen']);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
     away = L.parseAway(stored.petAway, Date.now());
     petScreen = L.cleanScreen(stored.petScreen);
+    prefs = L.cleanPrefs(stored.petPrefs);
     checkIn = L.parseCheckIn(stored.petCheckIn);
     const next = L.parseStatuses(stored.petStatuses ?? null);
     if (!L.statusesEqual(statuses, next)) {
@@ -843,6 +853,7 @@
       noteCelebrations();
     }
     if (changes.petScreen) petScreen = L.cleanScreen(changes.petScreen.newValue);
+    if (changes.petPrefs) prefs = L.cleanPrefs(changes.petPrefs.newValue);
     if (changes.petAway || changes.petCheckIn || changes.petScreen) applyHabitat();
   });
 
@@ -906,7 +917,8 @@
     if (parsed) chrome.storage.local.set({ petStatuses: parsed }).catch(() => {});
   }
 
-  // The same for the "Pets on screen at once" and "Which pets show first" settings.
+  // The same for the "Pets on screen at once", "Which pets show first" and "How much pets interact"
+  // settings, and the nickname.
   function copySettingsFromStudium() {
     if (stale()) return;
     let raw = null;
@@ -915,7 +927,7 @@
     } catch {
       return;
     }
-    chrome.storage.local.set({ petScreen: L.screenFromSettings(raw) }).catch(() => {});
+    chrome.storage.local.set({ petScreen: L.screenFromSettings(raw), petPrefs: L.prefsFromSettings(raw) }).catch(() => {});
   }
 
   if (onStudium) {

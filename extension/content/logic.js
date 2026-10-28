@@ -548,6 +548,45 @@
     return isObject(value) ? cleanScreen({ limit: value.petCount, order: value.petOrder }) : ALL_PETS;
   }
 
+  // "How much pets interact" and the nickname (User Settings). Missing means Mild with no nickname.
+  const INVOLVEMENTS = ['minimal', 'mild', 'moderate'];
+  const OLD_INVOLVEMENT = { notMuch: 'minimal', very: 'mild' }; // saved before setup existed
+  // Same value as Studium's NICKNAME_MAX (web/src/planner/tuning.ts), checked by petLogic.test.ts.
+  const NICKNAME_MAX = 20;
+  const DEFAULT_PREFS = { involvement: 'mild', nickname: '' };
+
+  function cleanNickname(v) {
+    return typeof v === 'string' ? v.trim().slice(0, NICKNAME_MAX).trim() : '';
+  }
+
+  /** Saved pet preferences with anything invalid replaced. */
+  function cleanPrefs(v) {
+    if (!isObject(v)) return { ...DEFAULT_PREFS };
+    return {
+      involvement: INVOLVEMENTS.includes(v.involvement) ? v.involvement : DEFAULT_PREFS.involvement,
+      nickname: cleanNickname(v.nickname),
+    };
+  }
+
+  /** The pet preferences in Studium's saved settings (a JSON string or an object). */
+  function prefsFromSettings(raw) {
+    let value = raw;
+    if (typeof raw === 'string') {
+      try {
+        value = JSON.parse(raw);
+      } catch {
+        return { ...DEFAULT_PREFS };
+      }
+    }
+    if (!isObject(value)) return { ...DEFAULT_PREFS };
+    return cleanPrefs({ involvement: OLD_INVOLVEMENT[value.petInvolvement] ?? value.petInvolvement, nickname: value.nickname });
+  }
+
+  /** A Minimal pet stays in its spot and keeps quiet on web pages. In its own habitat it behaves as usual. */
+  function staysPut(prefs, inHabitat) {
+    return cleanPrefs(prefs).involvement === 'minimal' && !inHabitat;
+  }
+
   /** Saved screen settings with anything invalid replaced: limit >= 1 or null, a known order. */
   function cleanScreen(v) {
     if (!isObject(v)) return ALL_PETS;
@@ -622,6 +661,11 @@
     screenFromSettings,
     cleanScreen,
     petsOnScreen,
+    INVOLVEMENTS,
+    NICKNAME_MAX,
+    cleanPrefs,
+    prefsFromSettings,
+    staysPut,
     IDLE_MESSAGE_GAP_MS,
     MOOD_EFFECTS,
     isStudiumUrl,
