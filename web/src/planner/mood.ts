@@ -2,17 +2,31 @@
 // replaced by Sick after long neglect, capped while Recovering from medicine.
 import { lastCompletionAt, lastMedicineGiven } from "./history";
 import { estimateMultipliers, type Multipliers } from "./learning";
+import { petStage } from "./lifecycle";
 import { isRequirementDone, plannedProgress, requirementStart, scheduleGap, tasksOfRequirement } from "./progress";
 import { DAY_MS, wholeDaysBetween } from "./time";
 import { DELIGHTED_GAP, NEGLECT_DAYS, RECOVERY_DAYS, SICK_DAYS, UPSET_GAP, WORRIED_GAP } from "./tuning";
 import type { Mood, Requirement, StudiumData } from "./types";
 
 export function requirementIdleDays(req: Requirement, data: StudiumData, now: Date): number {
-  const start = requirementStart(req);
+  const start = idleClockStart(req, data);
   if (now < start) return 0;
   const taskIds = tasksOfRequirement(req.id, data.tasks).map((t) => t.id);
   const last = lastCompletionAt(data.events, taskIds, now);
   return wholeDaysBetween(last && last > start ? last : start, now);
+}
+
+/**
+ * When a requirement's idle clock starts: its start, or the pet's hatch if that's later, so a pet
+ * that just hatched isn't neglected straight away. Only for projects with a stage: adults saved
+ * before the lifecycle keep the old rules.
+ */
+function idleClockStart(req: Requirement, data: StudiumData): Date {
+  const start = requirementStart(req);
+  const project = data.projects.find((p) => p.id === req.projectId);
+  if (!project || project.stage === undefined || !project.hatchedAt) return start;
+  const hatched = new Date(project.hatchedAt);
+  return hatched > start ? hatched : start;
 }
 
 export type NeglectedRequirement = { requirement: Requirement; idleDays: number };
@@ -37,6 +51,9 @@ export function neglectedRequirements(
 export type ProjectHealth = { sick: boolean; recovering: boolean; recoveringFor: string[] };
 
 export function projectHealth(projectId: string, data: StudiumData, now: Date): ProjectHealth {
+  // An egg has no mood yet, so it can never be sick or recovering.
+  const project = data.projects.find((p) => p.id === projectId);
+  if (project && petStage(project) === "egg") return { sick: false, recovering: false, recoveringFor: [] };
   let recovering = false;
   let recoveringFor: string[] = [];
   const medAt = lastMedicineGiven(data.events, projectId, now);

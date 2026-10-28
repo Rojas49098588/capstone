@@ -165,6 +165,12 @@ describe("shop and medicine", () => {
     expect(purchase(poor, "medicine", NOW).ok).toBe(false);
   });
 
+  it("doesn't give medicine to an egg", () => {
+    const egg = { ...sick(), projects: [{ ...sick().projects[0], stage: "egg" as const, hatchedAt: null }] };
+    const stocked = purchase(egg, "medicine", NOW).data;
+    expect(giveMedicine(stocked, "p1", NOW).ok).toBe(false);
+  });
+
   it("only gives medicine to a sick pet, and only if you have some", () => {
     expect(giveMedicine(sick(), "p1", NOW).ok).toBe(false); // none in inventory
     const stocked = purchase(sick(), "medicine", NOW).data;
