@@ -26,6 +26,9 @@ After editing extension files, click the reload icon on the extension's card, th
 
 **Using it:**
 - Open Studium (click the toolbar icon) once: that's where the pets come from. Until then there are none, and the icon's tooltip says so.
+- **First open shows a short setup**: what you make, a nickname, how strict and how chatty your pets are, and rings or bars, light or dark. A new user then starts with no projects; Studium asks you to create the first one, and the tutorial starts on it.
+- **Each project has a type and a difficulty.** The type sets its words (a Writing project has chapters and scenes instead of requirements and tasks). The difficulty sets how soon its pet gets worried, upset or sick: Gentle, Steady or Strict.
+- **How much pets interact** (Settings): Minimal pets stay put and quiet on web pages, Mild is the usual behavior, and Moderate pets also leave a sticky note about your work now and then (at most every 30 minutes).
 - **A new project starts as an egg** that stays in its habitat. Adding the project's 3rd requirement hatches it: a pop-up says "<short name> is hatching!" and a juvenile (the adult art at 75% size, for now) appears. Pets that existed before eggs are adults.
 - One pet per Studium project wanders along the bottom of every normal web page (eggs don't). Its mood follows the project: happy pets are quicker and chattier, worried and upset ones slow down, and a sick pet looks green and sneezes. Drag it to move it, or click it to make it hop.
 - On a Studium project page, only that project's pet shows, living inside the page's habitat box.
@@ -67,6 +70,10 @@ After editing extension files, click the reload icon on the extension's card, th
 | Studium screens | `web/src/components/` (one file per piece; `App.tsx` is just the shell) |
 | Wording shown in Studium (labels, token messages) | `web/src/ui/format.ts` |
 | Egg looks and descriptions | `web/src/pets/eggs.ts` |
+| Each difficulty's thresholds | `DIFFICULTY_RULES` in `web/src/planner/tuning.ts` |
+| Each project type's words | `projectWords` in `web/src/ui/format.ts` |
+| Setup's questions and wording | `web/src/components/Setup.tsx`, `SETUP_COPY` in `web/src/ui/format.ts` |
+| Sticky notes: how often, what they say | `NOTE_GAP_MS`, `noteText` and `chooseNote` in `extension/content/logic.js` |
 | How many requirements hatch an egg, and the juvenile size | `HATCH_REQUIREMENTS` and `JUVENILE_SCALE` in `web/src/planner/tuning.ts` (and `JUVENILE_SCALE` in `extension/content/logic.js`; a test keeps them equal) |
 | The egg shown in the habitat | `web/public/pets/egg.png` |
 | Studium colors, fonts, dark mode | `web/src/index.css` |
