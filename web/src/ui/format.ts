@@ -2,7 +2,8 @@
 import type { NeglectedRequirement } from "../planner/mood";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
-import type { Mood, Task } from "../planner/types";
+import type { Difficulty, Mood, ProjectType, Task } from "../planner/types";
+import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
 
 export const ESTIMATE_CHOICES: readonly number[] = [15, 30, 60, 120, 240, 480];
@@ -138,4 +139,35 @@ export function payoutMessage(payout: Payout, task: Task): string {
   if (b.dailyCurve < 1) parts.push(`busy day ×${b.dailyCurve.toFixed(2)}`);
   if (b.sickMultiplier < 1) parts.push(`sick pet ×${b.sickMultiplier}`);
   return `+${payout.tokens} tokens${parts.length > 0 ? `: ${parts.join(", ")}` : ""}`;
+}
+
+// ---- Setup and settings ----
+
+export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
+  school: "School",
+  writing: "Writing",
+  art: "Art & design",
+  code: "Code",
+  music: "Music",
+  other: "Something else",
+};
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = { gentle: "Gentle", steady: "Steady", strict: "Strict" };
+export const DIFFICULTY_HINTS: Record<Difficulty, string> = {
+  gentle: "Forgiving. Worried only when you're well behind, and slow to get sick.",
+  steady: "Balanced. Worried when you fall a little behind, sick after two idle weeks.",
+  strict: "Notices quickly when you fall behind or leave work idle.",
+};
+
+export const INVOLVEMENT_LABELS: Record<PetInvolvement, string> = { minimal: "Minimal", mild: "Mild", moderate: "Moderate" };
+export const INVOLVEMENT_HINTS: Record<PetInvolvement, string> = {
+  minimal: "Stays put and keeps quiet on your pages. Focus naps still work.",
+  mild: "Walks around, celebrates finished tasks and checks in after naps.",
+  moderate: "Mild, plus it leaves sticky notes about your work. More mischief coming in a future update.",
+};
+
+/** The Overview's heading: "Abby's Projects", or "Your Projects" with no nickname. */
+export function projectsHeading(nickname: string): string {
+  const name = nickname.trim();
+  return name ? `${name}'s Projects` : "Your Projects";
 }

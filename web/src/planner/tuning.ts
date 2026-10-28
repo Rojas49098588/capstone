@@ -53,3 +53,6 @@ export const SUGGESTED_COUNT = 6;
 export const MEDICINE_PRODUCT_ID = "medicine";
 export const MEDICINE_PRICE = 80;
 export const DEFAULT_ESTIMATE_MIN = 60;
+
+// User settings
+export const NICKNAME_MAX = 20; // characters

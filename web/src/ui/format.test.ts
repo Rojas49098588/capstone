@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
 import {
+  projectsHeading,
   EGG_LABEL,
   hatchHint,
   hatchingMessage,
@@ -115,5 +116,14 @@ describe("pet lifecycle wording", () => {
   it("announces the hatch with the project's short name", () => {
     expect(hatchingMessage("webDev")).toBe("webDev is hatching!");
     expect(EGG_LABEL).toBe("Egg");
+  });
+});
+
+describe("projectsHeading", () => {
+  it("uses the nickname when there is one", () => {
+    expect(projectsHeading("")).toBe("Your Projects");
+    expect(projectsHeading("   ")).toBe("Your Projects");
+    expect(projectsHeading("Abby")).toBe("Abby's Projects");
+    expect(projectsHeading("Chris")).toBe("Chris's Projects");
   });
 });
