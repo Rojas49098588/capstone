@@ -2,7 +2,8 @@
 import type { NeglectedRequirement } from "../planner/mood";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
-import type { Difficulty, Mood, ProjectType, Task } from "../planner/types";
+import { projectType } from "../planner/projectKind";
+import type { Difficulty, Mood, Project, ProjectType, Task } from "../planner/types";
 import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
 
@@ -93,13 +94,42 @@ export function percent(fraction: number): number {
 /** Shown where the mood goes while the pet is still an egg. */
 export const EGG_LABEL = "Egg";
 
-export function hatchHint(remaining: number): string {
-  return `Add ${remaining} more ${remaining === 1 ? "requirement" : "requirements"} to hatch`;
+export function hatchHint(remaining: number, words: ProjectWords = SCHOOL_WORDS): string {
+  return `Add ${remaining} more ${remaining === 1 ? words.requirement : words.requirements} to hatch`;
 }
 
 /** The edit dialog's companion line while the pet is an egg: it doesn't give the animal away. */
-export function eggCompanionLabel(): string {
-  return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} requirements).`;
+export function eggCompanionLabel(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} ${words.requirements}).`;
+}
+
+// ---- Project types ----
+
+/** What one project calls its requirements and tasks (lower case). Screens that mix projects keep the school words. */
+export type ProjectWords = { requirement: string; requirements: string; task: string; tasks: string };
+
+const words = (requirement: string, task: string): ProjectWords => ({ requirement, requirements: `${requirement}s`, task, tasks: `${task}s` });
+const SCHOOL_WORDS = words("requirement", "task");
+const PROJECT_WORDS: Record<ProjectType, ProjectWords> = {
+  school: SCHOOL_WORDS,
+  writing: words("chapter", "scene"),
+  art: words("piece", "step"),
+  code: words("feature", "task"),
+  music: words("track", "task"),
+  other: words("milestone", "task"),
+};
+
+export function projectWords(type: ProjectType): ProjectWords {
+  return PROJECT_WORDS[type];
+}
+
+/** The words for a project (missing type = school). */
+export function wordsFor(project: Project | undefined): ProjectWords {
+  return project ? PROJECT_WORDS[projectType(project)] : SCHOOL_WORDS;
+}
+
+export function capitalize(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 export function hatchingMessage(shortName: string): string {

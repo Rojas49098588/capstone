@@ -179,6 +179,13 @@ describe("Habitat decor", () => {
 });
 
 describe("Habitat pet stages", () => {
+  it("an Art egg asks for more pieces", () => {
+    const { data, id } = withEgg(1);
+    data.projects = data.projects.map((p) => (p.id === id ? { ...p, type: "art" as const } : p));
+    renderWithStudium(<Habitat projectId={id} onOpenShop={vi.fn()} />, { data });
+    screen.getByText("Add 2 more pieces to hatch");
+  });
+
   it("shows the egg straight away, with how many requirements it needs to hatch", () => {
     vi.useFakeTimers();
     const { data, id } = withEgg(1);

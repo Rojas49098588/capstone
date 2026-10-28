@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { blockerOptions } from "../planner/blocking";
 import { DEFAULT_ESTIMATE_MIN } from "../planner/tuning";
 import type { Requirement, Task } from "../planner/types";
+import { capitalize, wordsFor, type ProjectWords } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, INPUT, LABEL } from "../ui/styles";
 import EstimatePicker from "./EstimatePicker";
 
@@ -15,9 +16,10 @@ type Props = {
   submitLabel: string;
   onSubmit: (values: TaskFormValues) => void;
   onCancel?: () => void;
+  words?: ProjectWords; // the project's words (school by default)
 };
 
-export default function TaskForm({ requirements, projectTasks, taskId, initial, submitLabel, onSubmit, onCancel }: Props) {
+export default function TaskForm({ requirements, projectTasks, taskId, initial, submitLabel, onSubmit, onCancel, words = wordsFor(undefined) }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [requirementId, setRequirementId] = useState<string | null>(
     initial?.requirementId !== undefined ? initial.requirementId : (requirements[0]?.id ?? null),
@@ -34,7 +36,7 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
   function submit(e: FormEvent) {
     e.preventDefault();
     if (!title.trim()) {
-      setError("Give the task a title.");
+      setError(`Give the ${words.task} a title.`);
       return;
     }
     onSubmit({ title: title.trim(), requirementId, estimateMin, blockedBy });
@@ -44,11 +46,11 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
     <form onSubmit={submit} className="space-y-3 py-2">
       <div>
         <label className={LABEL} htmlFor={`${taskId ?? "new"}-title`}>
-          Task
+          {capitalize(words.task)}
         </label>
         <input
           id={`${taskId ?? "new"}-title`}
-          aria-label="Task title"
+          aria-label={`${capitalize(words.task)} title`}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           placeholder="What needs doing?"
@@ -58,11 +60,11 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
       </div>
       <div>
         <label className={LABEL} htmlFor={`${taskId ?? "new"}-req`}>
-          Requirement
+          {capitalize(words.requirement)}
         </label>
         <select
           id={`${taskId ?? "new"}-req`}
-          aria-label="Requirement"
+          aria-label={capitalize(words.requirement)}
           value={requirementId ?? ""}
           onChange={(e) => setRequirementId(e.target.value || null)}
           className={INPUT}

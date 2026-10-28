@@ -3,7 +3,7 @@ import { estimateMultipliers, multiplierFor } from "../planner/learning";
 import { neglectDays, requirementIdleDays } from "../planner/mood";
 import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "../planner/progress";
 import { useStudiumContext } from "../store/useStudium";
-import { formatDate, percent } from "../ui/format";
+import { formatDate, percent, wordsFor } from "../ui/format";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD } from "../ui/styles";
 import RequirementForm from "./RequirementForm";
 import TaskForm from "./TaskForm";
@@ -30,6 +30,7 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
   const done = isRequirementDone(requirement.id, s.data.tasks);
   const idle = requirementIdleDays(requirement, s.data, s.now);
   const neglected = !done && planned > 0 && idle >= neglectDays(project);
+  const words = wordsFor(project);
   const dates = `${requirement.startDate ? `${formatDate(requirement.startDate)} – ` : ""}Due ${formatDate(requirement.dueDate ?? project.deadline)}`;
 
   return (
@@ -37,7 +38,8 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
       {mode === "edit" ? (
         <RequirementForm
           initial={requirement}
-          submitLabel="Save requirement"
+          submitLabel={`Save ${words.requirement}`}
+          words={words}
           onSubmit={(values) => {
             s.updateRequirement(requirement.id, values);
             setMode("view");
@@ -92,14 +94,14 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
       {mode === "confirmDelete" && (
         <div role="alert" className="border border-[var(--color-accent)] p-3 space-y-2 text-sm">
           <p>
-            Delete “{requirement.title}”? What should happen to its {tasks.length} {tasks.length === 1 ? "task" : "tasks"}?
+            Delete “{requirement.title}”? What should happen to its {tasks.length} {tasks.length === 1 ? words.task : words.tasks}?
           </p>
           <div className="flex flex-wrap gap-2">
             <button type="button" onClick={() => s.deleteRequirement(requirement.id, "unlinkTasks")} className={BUTTON_SECONDARY}>
-              Move tasks to Unlinked
+              Move {words.tasks} to Unlinked
             </button>
             <button type="button" onClick={() => s.deleteRequirement(requirement.id, "deleteTasks")} className={BUTTON_SECONDARY}>
-              Delete tasks too
+              Delete {words.tasks} too
             </button>
             <button type="button" onClick={() => setMode("view")} className={BUTTON_SECONDARY}>
               Cancel
@@ -110,7 +112,7 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
 
       <div>
         {tasks.length === 0 ? (
-          <p className="text-sm italic text-[var(--color-muted-foreground)]">No tasks yet.</p>
+          <p className="text-sm italic text-[var(--color-muted-foreground)]">No {words.tasks} yet.</p>
         ) : (
           tasks.map((t) => <TaskRow key={t.id} taskId={t.id} onRequestComplete={onRequestComplete} />)
         )}
@@ -121,7 +123,8 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
           requirements={requirements}
           projectTasks={projectTasks}
           initial={{ requirementId: requirement.id }}
-          submitLabel="Add task"
+          submitLabel={`Add ${words.task}`}
+          words={words}
           onSubmit={(values) => {
             s.createTask({ projectId: project.id, ...values });
             setMode("view");
@@ -130,7 +133,7 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
         />
       ) : (
         <button type="button" onClick={() => setMode("addTask")} className={BUTTON_SMALL}>
-          + Add task
+          + Add {words.task}
         </button>
       )}
     </article>

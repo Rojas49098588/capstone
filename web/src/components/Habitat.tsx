@@ -6,7 +6,7 @@ import { JUVENILE_SCALE, MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import { PET_AWAY_ATTR, WAKE_PET_EVENT } from "../store/petStatus";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { EGG_LABEL, MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, hatchHint, parsePetAway, type PetAway } from "../ui/format";
+import { EGG_LABEL, MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, hatchHint, parsePetAway, wordsFor, type PetAway } from "../ui/format";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 import HabitatDecor, { type Placing } from "./HabitatDecor";
 
@@ -125,7 +125,7 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
           {egg ? (
             <div>
               <p className={LABEL}>Hatching</p>
-              <p>{hatchHint(requirementsToHatch(project, s.data))}</p>
+              <p>{hatchHint(requirementsToHatch(project, s.data), wordsFor(project))}</p>
             </div>
           ) : (
             <>

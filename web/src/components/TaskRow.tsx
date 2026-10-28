@@ -3,7 +3,7 @@ import { openBlockers } from "../planner/blocking";
 import { taskFocusMinutes } from "../planner/focus";
 import { todayTaskIds } from "../planner/suggest";
 import { useStudiumContext } from "../store/useStudium";
-import { focusedLabel, formatMinutes } from "../ui/format";
+import { focusedLabel, formatMinutes, wordsFor } from "../ui/format";
 import { BUTTON_SMALL } from "../ui/styles";
 import TaskForm from "./TaskForm";
 
@@ -22,6 +22,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
   const blockers = task.done ? [] : openBlockers(task, projectTasks);
   const color = project?.color ?? "var(--color-foreground)";
   const focused = taskFocusMinutes(task, s.data.events);
+  const words = wordsFor(project);
 
   if (editing) {
     return (
@@ -30,7 +31,8 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         projectTasks={projectTasks}
         taskId={task.id}
         initial={task}
-        submitLabel="Save task"
+        submitLabel={`Save ${words.task}`}
+        words={words}
         onSubmit={(values) => {
           s.updateTask(task.id, values);
           setEditing(false);
@@ -76,12 +78,12 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         </p>
         {task.requirementId === null && requirements.length > 0 && (
           <select
-            aria-label={`Link ${task.title} to a requirement`}
+            aria-label={`Link ${task.title} to a ${words.requirement}`}
             value=""
             onChange={(e) => e.target.value && s.updateTask(task.id, { requirementId: e.target.value })}
             className="mt-1 text-xs border border-[var(--color-border)] px-2 py-1"
           >
-            <option value="">Link to a requirement…</option>
+            <option value="">Link to a {words.requirement}…</option>
             {requirements.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.title}

@@ -21,6 +21,27 @@ describe("ProjectDetail", () => {
     screen.getByRole("region", { name: "webDev habitat" });
   });
 
+  it("a Writing project says chapters and scenes", async () => {
+    const data = buildSeed(NOW);
+    data.projects = data.projects.map((p) => (p.id === "webDev" ? { ...p, type: "writing" as const } : p));
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data });
+    screen.getByRole("heading", { name: "Chapters" });
+    await userEvent.click(screen.getByRole("button", { name: "+ Add chapter" }));
+    await userEvent.type(screen.getByLabelText("Chapter title"), "Opening");
+    await userEvent.click(screen.getByRole("button", { name: "Add chapter" }));
+    const card = screen.getByRole("article", { name: "Opening" });
+    screen.getAllByRole("button", { name: "+ Add scene" });
+    expect(card.textContent).toMatch(/No scenes yet/);
+    expect(screen.queryByRole("button", { name: "+ Add requirement" })).toBeNull();
+  });
+
+  it("a School project keeps today's words", () => {
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />);
+    screen.getByRole("heading", { name: "Requirements" });
+    screen.getByRole("button", { name: "+ Add requirement" });
+    screen.getAllByRole("button", { name: "+ Add task" });
+  });
+
   it("adds a requirement", async () => {
     const { storage } = renderWithStudium(<ProjectDetail projectId="webDev" {...props} />);
     await userEvent.click(screen.getByRole("button", { name: "+ Add requirement" }));

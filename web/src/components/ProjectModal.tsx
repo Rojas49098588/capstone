@@ -4,7 +4,7 @@ import { isDateKey } from "../planner/time";
 import { projectDifficulty, projectType } from "../planner/projectKind";
 import { DIFFICULTY_LEVELS, PROJECT_TYPES, type Difficulty, type PetKind, type Project, type ProjectType } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
-import { DIFFICULTY_HINTS, DIFFICULTY_LABELS, PROJECT_TYPE_LABELS, eggCompanionLabel } from "../ui/format";
+import { DIFFICULTY_HINTS, DIFFICULTY_LABELS, PROJECT_TYPE_LABELS, eggCompanionLabel, wordsFor } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, PROJECT_COLORS, SERIF } from "../ui/styles";
 import EggPicker from "./EggPicker";
 import { useReturnFocus } from "./useReturnFocus";
@@ -145,7 +145,7 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
           {radioGroup("Difficulty", DIFFICULTY_LEVELS, DIFFICULTY_LABELS, difficulty, setDifficulty)}
           <p className="text-xs text-[var(--color-muted-foreground)] -mt-2">{DIFFICULTY_HINTS[difficulty]}</p>
           {project && petStage(project) === "egg" ? (
-            <p className="text-sm text-[var(--color-muted-foreground)]">{eggCompanionLabel()}</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">{eggCompanionLabel(wordsFor(project))}</p>
           ) : project ? (
             <p className="text-sm text-[var(--color-muted-foreground)]">
               Companion: {project.petKind} (it has hatched, so it can't be changed).

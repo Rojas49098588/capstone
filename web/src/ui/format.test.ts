@@ -3,6 +3,8 @@ import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
 import {
   projectsHeading,
+  projectWords,
+  hatchHint as hatchHintFor,
   EGG_LABEL,
   hatchHint,
   hatchingMessage,
@@ -125,5 +127,22 @@ describe("projectsHeading", () => {
     expect(projectsHeading("   ")).toBe("Your Projects");
     expect(projectsHeading("Abby")).toBe("Abby's Projects");
     expect(projectsHeading("Chris")).toBe("Chris's Projects");
+  });
+});
+
+describe("projectWords", () => {
+  it("every type has its words", () => {
+    expect(projectWords("school")).toEqual({ requirement: "requirement", requirements: "requirements", task: "task", tasks: "tasks" });
+    expect(projectWords("writing")).toEqual({ requirement: "chapter", requirements: "chapters", task: "scene", tasks: "scenes" });
+    expect(projectWords("art")).toEqual({ requirement: "piece", requirements: "pieces", task: "step", tasks: "steps" });
+    expect(projectWords("code")).toEqual({ requirement: "feature", requirements: "features", task: "task", tasks: "tasks" });
+    expect(projectWords("music")).toEqual({ requirement: "track", requirements: "tracks", task: "task", tasks: "tasks" });
+    expect(projectWords("other")).toEqual({ requirement: "milestone", requirements: "milestones", task: "task", tasks: "tasks" });
+  });
+
+  it("the hatch hint uses the project's words", () => {
+    expect(hatchHintFor(2, projectWords("writing"))).toBe("Add 2 more chapters to hatch");
+    expect(hatchHintFor(1, projectWords("writing"))).toBe("Add 1 more chapter to hatch");
+    expect(hatchHintFor(2)).toBe("Add 2 more requirements to hatch");
   });
 });
