@@ -15,6 +15,17 @@ export const SLOT_LAYOUT: Record<SpotSlot, SlotBox> = {
   wallRight: { x: 0.86, y: 0.5, w: 0.14, h: 0.28 },
 };
 
+/**
+ * The box an item is drawn in. The middle floor spot is a low box sized for rugs; anything else put
+ * there (a bed, pet furniture) gets a side spot's size so it doesn't shrink.
+ */
+export function itemBox(slot: SpotSlot, type: string): SlotBox {
+  const box = SLOT_LAYOUT[slot];
+  if (slot !== "floorMiddle" || type === "rug") return box;
+  const side = SLOT_LAYOUT.floorLeft;
+  return { x: box.x, y: side.y, w: side.w, h: side.h };
+}
+
 export const SPOT_SLOTS = Object.keys(SLOT_LAYOUT) as SpotSlot[];
 
 /** How a spot is named on screen ("the left floor spot"). */

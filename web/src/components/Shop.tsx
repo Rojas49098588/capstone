@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { inventory, tokenBalance } from "../planner/history";
 import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
 import { useStudiumContext } from "../store/useStudium";
@@ -52,12 +52,17 @@ function ProductIcon({ category }: { category: ShopCategory }) {
   );
 }
 
-export default function Shop() {
+type Props = { openTab?: ShopTab }; // the tutorial opens a tab to show it
+
+export default function Shop({ openTab }: Props) {
   const s = useStudiumContext();
   const balance = tokenBalance(s.data.events);
   const owned = inventory(s.data.events);
   const ownedCount = Object.values(owned).reduce((n, c) => n + c, 0);
-  const [tab, setTab] = useState<ShopTab>("supplies");
+  const [tab, setTab] = useState<ShopTab>(openTab ?? "supplies");
+  useEffect(() => {
+    if (openTab) setTab(openTab);
+  }, [openTab]);
 
   return (
     <div className="space-y-10">
@@ -71,7 +76,7 @@ export default function Shop() {
             Spend study tokens on care, treats, outfits and toys for your project companions.
           </p>
         </div>
-        <div className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] px-5 py-3 min-w-44">
+        <div data-tour="shop-balance" className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] px-5 py-3 min-w-44">
           <p className="text-xs font-mono uppercase tracking-widest text-white/55">Your Balance</p>
           <div className="flex items-baseline gap-2 mt-1">
             <span style={SERIF} className="text-3xl">
@@ -82,7 +87,7 @@ export default function Shop() {
         </div>
       </div>
 
-      <div role="tablist" aria-label="Shop sections" className="flex gap-1">
+      <div role="tablist" aria-label="Shop sections" data-tour="shop-tabs" className="flex gap-1">
         {TABS.map((t) => (
           <button
             key={t.id}

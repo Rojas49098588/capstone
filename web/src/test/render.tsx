@@ -2,10 +2,11 @@
 import { cleanup, render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, dayKey } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
-import { recordFocusSessions } from "../store/actions";
+import { createProject, createRequirement, recordFocusSessions } from "../store/actions";
 import { buildSeed } from "../store/seed";
+import { DEFAULT_SETTINGS, SETTINGS_KEY, type Settings } from "../store/settings";
 import { STORAGE_KEY, saveData } from "../store/storage";
 import { StudiumProvider } from "../store/useStudium";
 
@@ -26,14 +27,21 @@ export function memoryStorage(): Storage {
   } as Storage;
 }
 
-/** Renders `ui` inside a StudiumProvider with saved data (the example data by default) and a fixed clock. */
+/**
+ * Renders `ui` inside a StudiumProvider with saved data (the example data by default) and a fixed
+ * clock. Both tutorials count as already seen unless `tutorial` is true or `settings` says otherwise
+ * (or the storage already has settings).
+ */
 export function renderWithStudium(
   ui: ReactElement,
-  o: { data?: StudiumData; now?: Date; storage?: Storage | null } = {},
+  o: { data?: StudiumData; now?: Date; storage?: Storage | null; tutorial?: boolean; settings?: Partial<Settings> } = {},
 ) {
   const now = o.now ?? NOW;
   const storage = o.storage === null ? null : (o.storage ?? memoryStorage());
   if (storage) saveData(storage, o.data ?? buildSeed(now));
+  if (storage && !o.tutorial && storage.getItem(SETTINGS_KEY) === null) {
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, tutorialDone: true, shopTutorialDone: true, ...o.settings }));
+  }
   const result = render(<StudiumProvider options={{ storage, clock: () => now }}>{ui}</StudiumProvider>);
   return { ...result, storage };
 }
@@ -54,4 +62,16 @@ export function withFocus(minutes: number, taskId: string | null = "webDev-t5", 
     minutes,
   };
   return recordFocusSessions(buildSeed(NOW), [session], NOW).data;
+}
+
+/** The example data plus a new "Novel" project (a cat egg) with `requirements` requirements; hatches at 3. */
+export function withEgg(requirements: number): { data: StudiumData; id: string } {
+  const made = createProject(
+    buildSeed(NOW),
+    { name: "Novel", shortName: "novel", color: "#7b4fa6", deadline: dayKey(40), description: "", petKind: "cat" },
+    NOW,
+  );
+  let data = made.data;
+  for (let i = 0; i < requirements; i++) data = createRequirement(data, { projectId: made.project.id, title: `Part ${i + 1}`, weight: 3 }, NOW).data;
+  return { data, id: made.project.id };
 }

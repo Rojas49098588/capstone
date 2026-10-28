@@ -71,7 +71,7 @@ export const DEFAULT_BED: DecorItem = {
   builtIn: true,
 };
 /** Where a new habitat's bed goes, then the other floor spots if that one is taken. */
-const BED_SLOTS: DecorSlot[] = ["floorLeft", "floorRight", "floorMiddle"];
+const BED_SLOTS: DecorSlot[] = ["floorMiddle", "floorLeft", "floorRight"];
 
 /** Everything that can be in a habitat: the Shop's decor and the built-in bed. */
 export const ALL_DECOR: DecorItem[] = [...DECOR_ITEMS, DEFAULT_BED];

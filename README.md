@@ -26,7 +26,8 @@ After editing extension files, click the reload icon on the extension's card, th
 
 **Using it:**
 - Open Studium (click the toolbar icon) once: that's where the pets come from. Until then there are none, and the icon's tooltip says so.
-- One pet per Studium project wanders along the bottom of every normal web page. Its mood follows the project: happy pets are quicker and chattier, worried and upset ones slow down, and a sick pet looks green and sneezes. Drag it to move it, or click it to make it hop.
+- **A new project starts as an egg** that stays in its habitat. Adding the project's 3rd requirement hatches it: a pop-up says "<short name> is hatching!" and a juvenile (the adult art at 75% size, for now) appears. Pets that existed before eggs are adults.
+- One pet per Studium project wanders along the bottom of every normal web page (eggs don't). Its mood follows the project: happy pets are quicker and chattier, worried and upset ones slow down, and a sick pet looks green and sneezes. Drag it to move it, or click it to make it hop.
 - On a Studium project page, only that project's pet shows, living inside the page's habitat box.
 - Click the toolbar icon to open or focus the homepage.
 - **Decorate habitats.** Studium's Shop has a **Habitat** tab (next to **Supplies**). It sells:
@@ -66,6 +67,8 @@ After editing extension files, click the reload icon on the extension's card, th
 | Studium screens | `web/src/components/` (one file per piece; `App.tsx` is just the shell) |
 | Wording shown in Studium (labels, token messages) | `web/src/ui/format.ts` |
 | Egg looks and descriptions | `web/src/pets/eggs.ts` |
+| How many requirements hatch an egg, and the juvenile size | `HATCH_REQUIREMENTS` and `JUVENILE_SCALE` in `web/src/planner/tuning.ts` (and `JUVENILE_SCALE` in `extension/content/logic.js`; a test keeps them equal) |
+| The egg shown in the habitat | `web/public/pets/egg.png` |
 | Studium colors, fonts, dark mode | `web/src/index.css` |
 
 ## Planner core (Studium logic)

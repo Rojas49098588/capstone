@@ -1,6 +1,7 @@
 // User settings: preferences saved in this browser, apart from the project data (like the theme).
 // "Pets on screen at once" and "Which pets show first" are read by the browser extension (content/pet.js copies it on the Studium
-// page, on SETTINGS_EVENT). Difficulty, progress style and pet involvement do nothing yet.
+// page, on SETTINGS_EVENT). Progress style switches the Overview's Total Progress between rings and
+// bars. Difficulty and pet involvement do nothing yet.
 
 export const SETTINGS_KEY = "studium-settings-v1";
 /** Sent after settings are saved, so the extension picks them up. extension/content/logic.js uses the same names. */
@@ -20,14 +21,18 @@ export type Settings = {
   petOrder: PetOrder;
   progressStyle: ProgressStyle;
   petInvolvement: PetInvolvement;
+  tutorialDone: boolean; // the project tutorial has been finished or skipped (Settings can replay it)
+  shopTutorialDone: boolean; // the same for the Shop tutorial
 };
 
 export const DEFAULT_SETTINGS: Settings = {
   difficulty: "easy",
   petCount: "all",
   petOrder: "project",
-  progressStyle: "bar",
+  progressStyle: "circle",
   petInvolvement: "very",
+  tutorialDone: false,
+  shopTutorialDone: false,
 };
 
 export const DIFFICULTIES: { value: Difficulty; label: string }[] = [
@@ -40,8 +45,8 @@ export const PET_ORDERS: { value: PetOrder; label: string }[] = [
   { value: "dueDate", label: "Closest due date" },
 ];
 export const PROGRESS_STYLES: { value: ProgressStyle; label: string }[] = [
-  { value: "bar", label: "Bar" },
   { value: "circle", label: "Circle" },
+  { value: "bar", label: "Bar" },
 ];
 export const PET_INVOLVEMENTS: { value: PetInvolvement; label: string }[] = [
   { value: "notMuch", label: "Not much" },
@@ -68,6 +73,9 @@ export function parseSettings(raw: string | null): Settings {
     petOrder: oneOf(PET_ORDERS, o.petOrder, DEFAULT_SETTINGS.petOrder),
     progressStyle: oneOf(PROGRESS_STYLES, o.progressStyle, DEFAULT_SETTINGS.progressStyle),
     petInvolvement: oneOf(PET_INVOLVEMENTS, o.petInvolvement, DEFAULT_SETTINGS.petInvolvement),
+    tutorialDone: o.tutorialDone === true,
+    // Saved before the tour was split in two: finishing the old tour covered the Shop too.
+    shopTutorialDone: o.shopTutorialDone === undefined ? o.tutorialDone === true : o.shopTutorialDone === true,
   };
 }
 

@@ -133,7 +133,7 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
   }
 
   return (
-    <section aria-label="Inventory" className={`${CARD} p-5 space-y-4`}>
+    <section aria-label="Inventory" data-tour="inventory" className={`${CARD} p-5 space-y-4`}>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className={LABEL}>Your things</p>

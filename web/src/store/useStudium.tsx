@@ -20,6 +20,7 @@ import {
   STUDIUM_READY_EVENT,
   publishPetStatuses,
 } from "./petStatus";
+import { SETTINGS_KEY, loadSettings, parseSettings, saveSettings, type Settings } from "./settings";
 
 export const NOW_REFRESH_MS = 60_000;
 
@@ -35,6 +36,9 @@ export function useStudium(options: StudiumOptions = {}) {
   const [data, setData] = useState<StudiumData>(initial.data);
   const [notice, setNotice] = useState<Notice>(initial.notice);
   const [now, setNow] = useState(() => env.clock());
+  const [settings, setSettings] = useState<Settings>(() => loadSettings(env.storage));
+  const [settingsSaved, setSettingsSaved] = useState(true);
+  const settingsRef = useRef(settings);
   const dataRef = useRef(data);
   const persistent = initial.persistent;
 
@@ -64,6 +68,28 @@ export function useStudium(options: StudiumOptions = {}) {
     window.addEventListener("storage", onStorage);
     return () => window.removeEventListener("storage", onStorage);
   }, [env, persistent]);
+
+  // Settings changed in another Studium tab.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key !== SETTINGS_KEY) return;
+      settingsRef.current = parseSettings(e.newValue);
+      setSettings(settingsRef.current);
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  /** Changes and saves settings (they still apply for this visit if they can't be saved). */
+  const updateSettings = useCallback(
+    (changes: Partial<Settings>) => {
+      const next = { ...settingsRef.current, ...changes };
+      settingsRef.current = next;
+      setSettings(next);
+      setSettingsSaved(saveSettings(env.storage, next));
+    },
+    [env],
+  );
 
   // Tell the browser extension how each pet is doing: on load and after every change...
   useEffect(() => {
@@ -134,7 +160,7 @@ export function useStudium(options: StudiumOptions = {}) {
       createRequirement: (input: A.RequirementInput) =>
         apply((d, at) => {
           const r = A.createRequirement(d, input, at);
-          return { data: r.data, result: r.requirement };
+          return { data: r.data, result: { requirement: r.requirement, hatched: r.hatched } };
         }),
       updateRequirement: (id: string, changes: Parameters<typeof A.updateRequirement>[2]) =>
         change((d, at) => A.updateRequirement(d, id, changes, at)),
@@ -176,7 +202,7 @@ export function useStudium(options: StudiumOptions = {}) {
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
-  return { data, now, notice, persistent, dismissNotice, ...actions };
+  return { data, now, notice, persistent, dismissNotice, settings, settingsSaved, updateSettings, ...actions };
 }
 
 export type Studium = ReturnType<typeof useStudium>;

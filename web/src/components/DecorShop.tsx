@@ -10,9 +10,9 @@ export default function DecorShop() {
   const owned = inventory(s.data.events);
 
   return (
-    <div className="space-y-10">
+    <div data-tour="decor-shop" className="space-y-10">
       {DECOR_GROUPS.map(({ type, label }) => (
-        <section key={type} aria-labelledby={`decor-${type}`}>
+        <section key={type} aria-labelledby={`decor-${type}`} data-tour={`decor-${type}`}>
           <h2 id={`decor-${type}`} style={SERIF} className="text-2xl mb-4">
             {label}
           </h2>

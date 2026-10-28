@@ -3,8 +3,8 @@ import { memoryStorage } from "../test/render";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, loadSettings, parseSettings, saveSettings } from "./settings";
 
 describe("settings", () => {
-  it("defaults to Easy, all pets in project order, bar progress and a very involved pet", () => {
-    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "bar", petInvolvement: "very" });
+  it("defaults to Easy, all pets in project order, circle progress and a very involved pet", () => {
+    expect(DEFAULT_SETTINGS).toEqual({ difficulty: "easy", petCount: "all", petOrder: "project", progressStyle: "circle", petInvolvement: "very", tutorialDone: false, shopTutorialDone: false });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
   });
@@ -16,9 +16,18 @@ describe("settings", () => {
       petOrder: "dueDate",
       progressStyle: "circle",
       petInvolvement: "notMuch",
+      tutorialDone: false,
+      shopTutorialDone: false,
     });
     expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, petOrder: "random", progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ petCount: 1.5 })).petCount).toBe("all");
+  });
+
+  it("counts the Shop tutorial as seen for someone who finished the old one-part tour", () => {
+    expect(parseSettings(JSON.stringify({ tutorialDone: true })).shopTutorialDone).toBe(true);
+    expect(parseSettings(JSON.stringify({ tutorialDone: true, shopTutorialDone: false })).shopTutorialDone).toBe(false);
+    expect(parseSettings(JSON.stringify({ tutorialDone: false })).shopTutorialDone).toBe(false);
+    expect(parseSettings(JSON.stringify({ shopTutorialDone: true })).tutorialDone).toBe(false);
   });
 
   it("saves and loads", () => {

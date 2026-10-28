@@ -1,9 +1,10 @@
 import { isBlocked } from "../planner/blocking";
+import { petStage } from "../planner/lifecycle";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
 import type { Task } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeAll } from "../ui/derive";
-import { MOOD_COLORS, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import { EGG_LABEL, MOOD_COLORS, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
 import { CARD, LABEL, SERIF } from "../ui/styles";
 
 type Props = { onSelect: (projectId: string) => void; onRequestComplete: (taskId: string) => void };
@@ -52,7 +53,7 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
       </div>
 
       {/* Total progress */}
-      <div className={`${CARD} p-6`}>
+      <div data-tour="total-progress" className={`${CARD} p-6`}>
         <div className="flex flex-wrap items-end justify-between gap-4 mb-4">
           <div>
             <p className={LABEL}>Total Progress — All Projects</p>
@@ -69,42 +70,75 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
             </p>
           </div>
         </div>
-        <div className="flex flex-col md:flex-row items-center gap-8 border-t border-[var(--color-border)] pt-6">
-          <div className="relative w-44 h-44 flex-shrink-0">
-            <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label={`${total}% total progress`}>
-              {dash.summaries.map((sum, i) => (
-                <Ring
-                  key={sum.project.id}
-                  value={percent(sum.progress)}
-                  color={sum.project.color}
-                  radius={44 - i * (30 / Math.max(count - 1, 1))}
-                  strokeWidth={Math.min(5, 26 / Math.max(count, 1))}
-                />
+        {s.settings.progressStyle === "bar" ? (
+          // Bar style (User Settings): one bar per project.
+          <ul aria-label="Progress by project" className="space-y-3 border-t border-[var(--color-border)] pt-6">
+            {dash.summaries.map((sum) => (
+              <li key={sum.project.id}>
+                <button type="button" onClick={() => onSelect(sum.project.id)} className="w-full text-left group">
+                  <span className="flex items-center justify-between gap-3 mb-1">
+                    <span className="flex items-center gap-2 text-xs font-mono text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]">
+                      <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: sum.project.color }} />
+                      {sum.project.shortName}
+                    </span>
+                    <span className="text-xs font-mono">{percent(sum.progress)}%</span>
+                  </span>
+                  <span
+                    role="progressbar"
+                    aria-label={`${sum.project.shortName} progress`}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    aria-valuenow={percent(sum.progress)}
+                    className="block h-2 bg-[var(--color-muted)] overflow-hidden"
+                  >
+                    <span
+                      className="block h-full transition-all duration-700"
+                      style={{ width: `${percent(sum.progress)}%`, backgroundColor: sum.project.color }}
+                    />
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex flex-col md:flex-row items-center gap-8 border-t border-[var(--color-border)] pt-6">
+            <div className="relative w-44 h-44 flex-shrink-0">
+              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100" aria-label={`${total}% total progress`}>
+                {dash.summaries.map((sum, i) => (
+                  <Ring
+                    key={sum.project.id}
+                    value={percent(sum.progress)}
+                    color={sum.project.color}
+                    radius={44 - i * (30 / Math.max(count - 1, 1))}
+                    strokeWidth={Math.min(5, 26 / Math.max(count, 1))}
+                  />
+                ))}
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span style={SERIF} className="text-xl leading-none">
+                  {total}
+                </span>
+                <span className="text-xs font-mono text-[var(--color-muted-foreground)]">%</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-x-8 gap-y-3 flex-1 w-full">
+              {dash.summaries.map((sum) => (
+                <button key={sum.project.id} type="button" onClick={() => onSelect(sum.project.id)} className="flex items-center gap-3 text-left group">
+                  <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: sum.project.color }} />
+                  <span className="text-xs font-mono text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]">
+                    {sum.project.shortName} · {percent(sum.progress)}%
+                  </span>
+                </button>
               ))}
-            </svg>
-            <div className="absolute inset-0 flex flex-col items-center justify-center">
-              <span style={SERIF} className="text-xl leading-none">
-                {total}
-              </span>
-              <span className="text-xs font-mono text-[var(--color-muted-foreground)]">%</span>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-x-8 gap-y-3 flex-1 w-full">
-            {dash.summaries.map((sum) => (
-              <button key={sum.project.id} type="button" onClick={() => onSelect(sum.project.id)} className="flex items-center gap-3 text-left group">
-                <span className="w-2.5 h-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: sum.project.color }} />
-                <span className="text-xs font-mono text-[var(--color-muted-foreground)] group-hover:text-[var(--color-foreground)]">
-                  {sum.project.shortName} · {percent(sum.progress)}%
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
       {/* Priority focus */}
       <section
         aria-labelledby="priority-focus"
+        data-tour="priority-focus"
         className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] border-l-4 border-[var(--color-accent)] p-6 space-y-6"
       >
         <div>
@@ -210,14 +244,20 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
                     <p className="font-semibold text-[var(--color-foreground)] leading-tight mt-0.5 break-words">{p.name}</p>
                   </div>
                 </div>
-                <span className="text-xs font-mono uppercase tracking-widest flex-shrink-0" style={{ color: MOOD_COLORS[sum.mood] }}>
-                  {sum.mood}
-                </span>
+                {petStage(p) === "egg" ? (
+                  <span className="text-xs font-mono uppercase tracking-widest flex-shrink-0 text-[var(--color-muted-foreground)]">
+                    {EGG_LABEL}
+                  </span>
+                ) : (
+                  <span className="text-xs font-mono uppercase tracking-widest flex-shrink-0" style={{ color: MOOD_COLORS[sum.mood] }}>
+                    {sum.mood}
+                  </span>
+                )}
               </div>
               <div className="mb-3">
                 <div className="flex justify-between items-baseline mb-1.5 text-xs">
                   <span className="text-[var(--color-muted-foreground)]">
-                    {sum.tasksDone} / {sum.tasksTotal} tasks · {gapLabel(sum.gap)}
+                    {sum.tasksDone} / {sum.tasksTotal} tasks{petStage(p) === "egg" ? "" : ` · ${gapLabel(sum.gap)}`}
                   </span>
                   <span className="font-mono font-medium">{percent(sum.progress)}%</span>
                 </div>

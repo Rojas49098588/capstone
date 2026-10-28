@@ -9,11 +9,13 @@ import ProjectModal from "./components/ProjectModal";
 import Settings from "./components/Settings";
 import Shop from "./components/Shop";
 import Toast from "./components/Toast";
+import Tour from "./components/Tour";
 import { isBlocked } from "./planner/blocking";
 import { tokenBalance } from "./planner/history";
 import { StudiumProvider, useStudiumContext } from "./store/useStudium";
 import { parseHashLink } from "./ui/hashLinks";
 import { SERIF } from "./ui/styles";
+import { type TourId, tourSteps } from "./ui/tourSteps";
 
 type Theme = "light" | "dark";
 type Modal = null | { mode: "create" } | { mode: "edit"; projectId: string };
@@ -38,8 +40,12 @@ export function StudiumApp() {
   const [modal, setModal] = useState<Modal>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [justHatchedId, setJustHatchedId] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  // The tutorials: which one, which step is showing (null: none), and the project its
+  // project-page steps use.
+  const [tour, setTour] = useState<TourId>("project");
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  const [tourProjectId, setTourProjectId] = useState<string | null>(null);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -64,10 +70,59 @@ export function StudiumApp() {
   }
 
   function openProject(id: string) {
-    if (id !== justHatchedId) setJustHatchedId(null);
     setSelectedId(id);
     setPage("projects");
   }
+
+  // ---- Tutorial ----
+  const tourProject = s.data.projects.find((p) => p.id === tourProjectId) ?? null;
+  const steps = tourSteps(tour, tourProject !== null);
+  const tourShopTab = tourStep !== null ? steps[tourStep]?.shopTab : undefined;
+  // The project a tutorial uses: the one being looked at last, or the first one.
+  const defaultTourProjectId = selectedId ?? s.data.projects[0]?.id ?? null;
+
+  function showTourStep(index: number, projectId = tourProjectId, which = tour) {
+    const step = tourSteps(which, s.data.projects.some((p) => p.id === projectId))[index];
+    if (!step) return;
+    if (step.page === "project" && projectId) openProject(projectId);
+    else if (step.page === "overview") openProjects();
+    else if (step.page === "shop") setPage("shop");
+    else if (step.page === "settings") setPage("settings");
+    setTour(which);
+    setTourStep(index);
+  }
+
+  function endTour() {
+    setTourStep(null);
+    const done = tour === "project" ? "tutorialDone" : "shopTutorialDone";
+    if (!s.settings[done]) s.updateSettings({ [done]: true });
+  }
+
+  /** From Settings: one of the tutorials again. */
+  function replayTour(which: TourId) {
+    setTourProjectId(defaultTourProjectId);
+    showTourStep(0, defaultTourProjectId, which);
+  }
+
+  // The first time a project page opens (right after creating the first project, once Studium
+  // starts with none), the project tutorial begins on that project. It runs once; Settings can
+  // replay it.
+  const startTour = !s.settings.tutorialDone && tourStep === null && page === "projects" && selected !== null && !modal;
+  useEffect(() => {
+    if (!startTour || !selected) return;
+    setTourProjectId(selected.id);
+    setTour("project");
+    setTourStep(0);
+  }, [startTour, selected]);
+
+  // The Shop tutorial, the same way: the first time the Shop opens.
+  const startShopTour = !s.settings.shopTutorialDone && tourStep === null && page === "shop" && !modal;
+  useEffect(() => {
+    if (!startShopTour) return;
+    setTourProjectId(defaultTourProjectId);
+    setTour("shop");
+    setTourStep(0);
+  }, [startShopTour, defaultTourProjectId]);
 
   // Links from the browser pets (Open project, Done after a nap). Read through a ref, so the
   // hashchange listener is added once and still sees the latest data.
@@ -138,6 +193,7 @@ export function StudiumApp() {
             <button
               type="button"
               onClick={() => setModal({ mode: "create" })}
+              data-tour="new-project"
               className="text-sm px-4 py-1.5 bg-[var(--color-primary)] text-[var(--color-primary-foreground)] hover:bg-[var(--color-primary-hover)] transition-colors whitespace-nowrap"
             >
               + New Project
@@ -152,6 +208,7 @@ export function StudiumApp() {
                   : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] hover:border-[var(--color-foreground)]"
               }`}
               aria-label="Settings"
+              data-tour="settings"
               title="Settings"
             >
               {"⚙︎"}
@@ -168,9 +225,9 @@ export function StudiumApp() {
 
       <main className="max-w-6xl mx-auto w-full px-6 py-10">
         {page === "shop" ? (
-          <Shop />
+          <Shop openTab={tourShopTab} />
         ) : page === "settings" ? (
-          <Settings />
+          <Settings onReplayTutorial={replayTour} />
         ) : selected ? (
           <>
             <button
@@ -183,7 +240,7 @@ export function StudiumApp() {
             <ProjectDetail
               key={selected.id}
               projectId={selected.id}
-              justHatched={selected.id === justHatchedId}
+              onToast={setToast}
               onRequestComplete={setCompletingId}
               onEditProject={() => setModal({ mode: "edit", projectId: selected.id })}
               onOpenShop={() => setPage("shop")}
@@ -199,7 +256,6 @@ export function StudiumApp() {
           project={editing}
           onClose={closeModal}
           onCreated={(p) => {
-            setJustHatchedId(p.id);
             setSelectedId(p.id);
             setPage("projects");
           }}
@@ -208,6 +264,16 @@ export function StudiumApp() {
       )}
       {completingId && <CompletionPrompt taskId={completingId} onClose={closePrompt} onDone={setToast} />}
       <Toast message={toast} onDismiss={dismissToast} />
+      {tourStep !== null && steps[tourStep] && (
+        <Tour
+          step={steps[tourStep]}
+          index={tourStep}
+          count={steps.length}
+          onNext={() => (tourStep + 1 < steps.length ? showTourStep(tourStep + 1) : endTour())}
+          onBack={() => showTourStep(Math.max(0, tourStep - 1))}
+          onSkip={endTour}
+        />
+      )}
     </div>
   );
 }

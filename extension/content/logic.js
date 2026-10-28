@@ -110,7 +110,17 @@
       celebration: cleanCelebration(p.celebration),
       furniture: cleanFurniture(p.furniture),
       deadline: isDateKey(p.deadline) ? p.deadline : null, // missing in statuses from older Studium builds
+      stage: p.stage === 'juvenile' ? 'juvenile' : 'adult', // missing in statuses from older Studium builds
     };
+  }
+
+  // Juveniles are drawn smaller until they get their own art. Same value as Studium's JUVENILE_SCALE
+  // (web/src/planner/tuning.ts), checked by web/src/extension/lifecycleScale.test.ts.
+  const JUVENILE_SCALE = 0.75;
+
+  /** A pet's display height in px: its kind's adult height, scaled down for a juvenile. */
+  function petHeight(height, stage) {
+    return stage === 'juvenile' ? Math.round(height * JUVENILE_SCALE) : height;
   }
 
   /** Reads Studium's pet statuses (JSON text or an object). Null if they can't be used at all. */
@@ -618,6 +628,8 @@
     parseStatuses,
     parsePositions,
     statusesEqual,
+    JUVENILE_SCALE,
+    petHeight,
     applyMood,
     idleMessage,
     nextIdleMessageAt,

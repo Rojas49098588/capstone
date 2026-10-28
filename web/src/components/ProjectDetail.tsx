@@ -14,13 +14,13 @@ import RequirementsSection from "./RequirementsSection";
 
 type Props = {
   projectId: string;
-  justHatched: boolean;
+  onToast: (message: string) => void;
   onRequestComplete: (taskId: string) => void;
   onEditProject: () => void;
   onOpenShop: () => void;
 };
 
-export default function ProjectDetail({ projectId, justHatched, onRequestComplete, onEditProject, onOpenShop }: Props) {
+export default function ProjectDetail({ projectId, onToast, onRequestComplete, onEditProject, onOpenShop }: Props) {
   const s = useStudiumContext();
   // Placing decor: the inventory starts it, the habitat box finishes it.
   const [placing, setPlacing] = useState<Placing>(null);
@@ -74,7 +74,7 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
             </p>
           </div>
         </div>
-        <div className="mt-5">
+        <div className="mt-5" data-tour="project-progress">
           <div className="flex justify-between items-baseline mb-2">
             <span className={LABEL}>Overall Progress</span>
             <span className="font-mono text-sm font-medium">{percent(summary.progress)}%</span>
@@ -98,8 +98,8 @@ export default function ProjectDetail({ projectId, justHatched, onRequestComplet
         </div>
       </div>
 
-      <RequirementsSection projectId={project.id} onRequestComplete={onRequestComplete} />
-      <Habitat projectId={project.id} justHatched={justHatched} onOpenShop={onOpenShop} placing={placing} onPickSlot={pickSlot} />
+      <RequirementsSection projectId={project.id} onRequestComplete={onRequestComplete} onHatch={onToast} />
+      <Habitat projectId={project.id} onOpenShop={onOpenShop} placing={placing} onPickSlot={pickSlot} />
       <Inventory projectId={project.id} placing={placing} onPlace={setPlacing} onCancel={() => setPlacing(null)} onOpenShop={onOpenShop} />
     </div>
   );

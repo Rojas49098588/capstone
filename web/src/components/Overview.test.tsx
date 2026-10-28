@@ -2,7 +2,9 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { renderWithStudium, savedData } from "../test/render";
+import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../store/settings";
+import { memoryStorage, renderWithStudium, savedData, withEgg } from "../test/render";
+import Settings from "./Settings";
 import Overview from "./Overview";
 
 describe("Overview", () => {
@@ -45,5 +47,46 @@ describe("Overview", () => {
     renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />);
     screen.getByText("Total Progress — All Projects");
     screen.getByRole("heading", { name: "Your Projects" });
+  });
+
+  it("shows progress as rings by default (Circle)", () => {
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />);
+    screen.getByLabelText(/% total progress/);
+    expect(screen.queryByRole("list", { name: "Progress by project" })).toBeNull();
+  });
+
+  it("shows one bar per project with the Bar style, and opens a project from its bar", async () => {
+    const storage = memoryStorage();
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, progressStyle: "bar" }));
+    const onSelect = vi.fn();
+    renderWithStudium(<Overview onSelect={onSelect} onRequestComplete={vi.fn()} />, { storage });
+    const bars = screen.getByRole("list", { name: "Progress by project" });
+    expect(within(bars).getAllByRole("progressbar")).toHaveLength(5);
+    expect(screen.queryByLabelText(/% total progress/)).toBeNull();
+    await userEvent.click(within(bars).getByRole("progressbar", { name: "webDev progress" }));
+    expect(onSelect).toHaveBeenCalledWith("webDev");
+  });
+
+  it("switches style as soon as the setting changes", async () => {
+    renderWithStudium(
+      <>
+        <Settings />
+        <Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />
+      </>,
+    );
+    await userEvent.click(screen.getByRole("radio", { name: "Bar" }));
+    screen.getByRole("list", { name: "Progress by project" });
+    await userEvent.click(screen.getByRole("radio", { name: "Circle" }));
+    screen.getByLabelText(/% total progress/);
+  });
+});
+
+describe("Overview egg cards", () => {
+  it("shows Egg instead of a mood for a project that hasn't hatched", () => {
+    const { data } = withEgg(1);
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { data });
+    const card = screen.getByRole("button", { name: /Novel/ });
+    within(card).getByText("Egg");
+    expect(within(card).queryByText(/ahead of plan|behind plan|On plan/)).toBeNull();
   });
 });

@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
 import {
+  EGG_LABEL,
+  hatchHint,
+  hatchingMessage,
   accuracyLabel,
   attentionLabel,
   awayLabel,
@@ -100,5 +103,17 @@ describe("copiesLabel", () => {
     expect(copiesLabel(2, [], 0)).toBe("2 here");
     expect(copiesLabel(0, [{ shortName: "a", count: 1 }, { shortName: "b", count: 2 }], 0)).toBe("1 in a · 2 in b");
     expect(copiesLabel(0, [], 0)).toBe("none");
+  });
+});
+
+describe("pet lifecycle wording", () => {
+  it("counts down the requirements an egg needs", () => {
+    expect(hatchHint(1)).toBe("Add 1 more requirement to hatch");
+    expect(hatchHint(2)).toBe("Add 2 more requirements to hatch");
+  });
+
+  it("announces the hatch with the project's short name", () => {
+    expect(hatchingMessage("webDev")).toBe("webDev is hatching!");
+    expect(EGG_LABEL).toBe("Egg");
   });
 });

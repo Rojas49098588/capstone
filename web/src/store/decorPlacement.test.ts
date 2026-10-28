@@ -122,29 +122,33 @@ describe("the built-in bed", () => {
   it("every example habitat starts with one", () => {
     const data = buildSeed(NOW);
     expect(data.defaultBeds).toBe(true);
-    for (const p of data.projects) expect(data.decor?.[p.id]).toEqual({ floorLeft: bed });
+    for (const p of data.projects) expect(data.decor?.[p.id]).toEqual({ floorMiddle: bed });
     expect(ownedCopies(data, bed)).toBe(data.projects.length);
     expect(freeCopies(data, bed)).toBe(0);
   });
 
   it("a new project comes with one", () => {
     const { data, project } = createProject(buildSeed(NOW), input, NOW);
-    expect(data.decor?.[project.id]).toEqual({ floorLeft: bed });
+    expect(data.decor?.[project.id]).toEqual({ floorMiddle: bed });
     expect(freeCopies(data, bed)).toBe(0);
-    expect(cleanDecor(data)[project.id]).toEqual({ floorLeft: bed });
+    expect(cleanDecor(data)[project.id]).toEqual({ floorMiddle: bed });
   });
 
   it("older data gets one per habitat, once, next to what is already there", () => {
-    const { defaultBeds: _, ...old } = { ...buildSeed(NOW), decor: { webDev: { floorLeft: "pet-bed" }, appDev: { floorLeft: "mini-sofa" } } };
+    const { defaultBeds: _, ...old } = {
+      ...buildSeed(NOW),
+      decor: { webDev: { floorLeft: "pet-bed" }, appDev: { floorLeft: "mini-sofa" }, Animation: { floorMiddle: "round-rug" } },
+    };
     const data = giveDefaultBeds(old);
     expect(data.decor?.webDev).toEqual({ floorLeft: "pet-bed" }); // already has a bed
-    expect(data.decor?.appDev).toEqual({ floorLeft: "mini-sofa", floorRight: bed });
-    const removed = removeDecor(data, "appDev", "floorRight");
+    expect(data.decor?.appDev).toEqual({ floorLeft: "mini-sofa", floorMiddle: bed });
+    expect(data.decor?.Animation).toEqual({ floorMiddle: "round-rug", floorLeft: bed }); // a rug keeps the middle
+    const removed = removeDecor(data, "appDev", "floorMiddle");
     expect(giveDefaultBeds(removed)).toBe(removed); // a removed bed stays removed
   });
 
   it("can be removed and placed again, but not bought", () => {
-    const data = removeDecor(buildSeed(NOW), "webDev", "floorLeft");
+    const data = removeDecor(buildSeed(NOW), "webDev", "floorMiddle");
     expect(freeCopies(data, bed)).toBe(1);
     expect(placeDecor(data, "webDev", "floorRight", bed).decor?.webDev).toEqual({ floorRight: bed });
     expect(purchase(data, bed, NOW).ok).toBe(false);

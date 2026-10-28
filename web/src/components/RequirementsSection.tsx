@@ -1,20 +1,25 @@
 import { useState } from "react";
 import { useStudiumContext } from "../store/useStudium";
+import { hatchingMessage } from "../ui/format";
 import { BUTTON_SMALL, CARD, SERIF } from "../ui/styles";
 import RequirementCard from "./RequirementCard";
 import RequirementForm from "./RequirementForm";
 import TaskRow from "./TaskRow";
 
-type Props = { projectId: string; onRequestComplete: (taskId: string) => void };
+type Props = {
+  projectId: string;
+  onRequestComplete: (taskId: string) => void;
+  onHatch: (message: string) => void; // the 3rd requirement just hatched the project's egg
+};
 
-export default function RequirementsSection({ projectId, onRequestComplete }: Props) {
+export default function RequirementsSection({ projectId, onRequestComplete, onHatch }: Props) {
   const s = useStudiumContext();
   const [adding, setAdding] = useState(false);
   const requirements = s.data.requirements.filter((r) => r.projectId === projectId);
   const unlinked = s.data.tasks.filter((t) => t.projectId === projectId && t.requirementId === null);
 
   return (
-    <section aria-labelledby="requirements-heading" className="space-y-4">
+    <section aria-labelledby="requirements-heading" data-tour="requirements" className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <h2 id="requirements-heading" style={SERIF} className="text-2xl">
           Requirements
@@ -30,7 +35,9 @@ export default function RequirementsSection({ projectId, onRequestComplete }: Pr
           <RequirementForm
             submitLabel="Add requirement"
             onSubmit={(values) => {
-              s.createRequirement({ projectId, ...values });
+              const { hatched } = s.createRequirement({ projectId, ...values });
+              const project = s.data.projects.find((p) => p.id === projectId);
+              if (hatched && project) onHatch(hatchingMessage(project.shortName));
               setAdding(false);
             }}
             onCancel={() => setAdding(false)}

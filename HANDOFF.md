@@ -2,11 +2,11 @@
 
 Briefing for the next Claude session working in this repo. Read this first, then the files it points to.
 
-## Start here: Plans 1–3 and pet interactions are done; ask the user what's next
+## Start here: Plans 1–3, pet interactions and the pet lifecycle are done; ask the user what's next
 
 All three plans from the planner spec are built, and so is the pet interactions round (spec `docs/superpowers/specs/2026-10-19-pet-interactions-design.md`, plan `docs/superpowers/plans/2026-10-19-pet-interactions.md`, branch `feature/pet-interactions`). Its planned next round is **work limiters**, built on the focus sessions it records. Ask the user to choose the next step, for example:
 - **Deploy Studium** somewhere other than `localhost` (Vercel, Netlify), so testers don't need Node. Then change `HOMEPAGE_URL` in `extension/content/logic.js`; the toolbar icon and the pets' Studium detection both use it.
-- **Deferred ideas** (spec "Out of scope"): the pet lifecycle (hatching later, growing), using food, clothes and toys, and sprite animation frames.
+- **Deferred ideas** (spec "Out of scope"): growing juveniles into adults and juvenile art (the lifecycle's next round), using food, clothes and toys, and sprite animation frames.
 - **Deferred minors** listed under "Known small issues" below.
 
 New work still goes through `superpowers:brainstorming` / `superpowers:writing-plans`, with the user's approval before any code. Plans 1–3 were built with **inline execution** (`superpowers:executing-plans`) at the user's request ("a native approach"): test-first, with one whole-branch review at the end.
@@ -37,6 +37,7 @@ The user is a student building this as their capstone. They make the product dec
 | Plan 3: extension link (pet statuses, habitat mode, mood behavior) | **Done**, reviewed (2 fixes after review), 208 tests + a 27-step Playwright check with the real extension | branch `feature/extension-link`; plan `docs/superpowers/plans/2026-10-15-extension-link.md` |
 | Habitat decor: Shop Habitat tab, inventory under the habitat, fixed spots, pets use their furniture | **Done**, 362 tests + a 14-step Playwright check (and the 40-step pet-interactions check still passes) | branch `feature/habitat-decor` (from `feature/pet-interactions`); plan `docs/superpowers/plans/2026-10-19-habitat-decor.md` |
 | Pet interactions: pet menu, naps as focus sessions, sleep, check-ins, celebrations | **Done**, 309 tests + a 39-step Playwright check with the real extension | branch `feature/pet-interactions`; plan `docs/superpowers/plans/2026-10-19-pet-interactions.md` |
+| Pet lifecycle: new projects start as eggs, the 3rd requirement hatches a 75%-size juvenile, existing pets stay adults | **Done**, 431 tests + a 16-step Playwright check with the real extension | branch `feature/pet-lifecycle` (from `feature/tutorial`); spec `docs/superpowers/specs/2026-10-28-pet-lifecycle-design.md`, plan `docs/superpowers/plans/2026-10-28-pet-lifecycle.md` |
 
 ## Code map
 
@@ -75,12 +76,14 @@ web/
   src/extension/           tests for extension/content/logic.js (the extension has no node_modules of its own)
   src/ui/                  format.ts (ALL wording), derive.ts (per-project summaries), styles.ts (shared classes)
   src/pets/eggs.ts         egg looks + vague descriptions, shuffle
+  src/planner/lifecycle.ts pet stages: petStage (missing = adult), requirementsToHatch, hatchIfReady
   src/components/          one file per screen piece (Overview, ProjectDetail, RequirementCard, TaskRow,
                            CompletionPrompt, Habitat, Shop, ProjectModal, EggPicker, ...) + tests next to each
   src/test/render.tsx      renderWithStudium, memoryStorage, savedData; importing it registers RTL cleanup
   src/App.tsx              shell only: StudiumApp (needs a provider) and default App (provider + browser storage)
   src/index.css            Tailwind v4 setup, fonts, light/dark theme tokens
-  public/pets/*.png        copies of the extension art, shown in the habitat when the extension isn't attached
+  public/pets/*.png        copies of the extension art, shown in the habitat when the extension isn't attached;
+                           egg.png is the user's egg art, cleaned (transparent, cropped, 96 px tall)
 docs/superpowers/          spec and plans
 ```
 
@@ -135,7 +138,17 @@ From pet interactions:
 - **Right-button presses don't start a drag**, and a background tab plays celebrations when you come back to it.
 - `petTimingOverride: { napMinutes }` in chrome.storage shortens naps for browser checks (at most 15). `handleMenuClick` and `menuIds` are on the worker's `globalThis` because Playwright can't open the toolbar menu.
 
+From the pet lifecycle:
+- **`Project.stage` missing means adult**, so data saved before the lifecycle and the example projects are adults. New projects get `stage: "egg"`, `hatchedAt: null`. `version` is still 1.
+- **Hatching is saved**, never recalculated: `createRequirement` hatches the egg when the project reaches `HATCH_REQUIREMENTS` (3). Deleting requirements afterwards keeps it hatched.
+- **Eggs are left out of the pet statuses**, so the extension never sees them: no walking pet, no menu, no pet-limit slot. Studium draws `pets/egg.png` in the habitat itself.
+- **Eggs are never sick** (`projectHealth`), so there's no sick penalty and no medicine.
+- **Neglect counts from the hatch only for projects with a `stage` field**: a just-hatched pet can't be neglected or sick straight away. Adults saved before the lifecycle keep the old rule.
+- **Juveniles are drawn at `JUVENILE_SCALE` (0.75)**: `PetLogic.petHeight` in the extension, the still picture in Studium. `lifecycleScale.test.ts` keeps the two values equal.
+- Full-suite runs on this machine use `npx vitest run --maxWorkers=4`: with default parallelism, test workers sometimes time out while starting (no test fails; files just don't run).
+
 Known small issues, deferred on purpose:
+- Juveniles and furniture: in the lifecycle's browser check, a juvenile frog hopped around its habitat normally but didn't use its bed during a one-minute watch, so how a 75%-size pet sits on the bed and each kind's furniture hasn't been seen yet.
 - A task checked off while unlinked never pays its own share, even after it's linked.
 - Hand-edited saved data with weight ≤ 0 or negative estimates passes validation.
 - Plan 2 review minors: a first completion that earns 0 tokens (pool used up) still says "already paid"; "It hatched" repeats on each return until another project is opened; blocked tasks have no lock icon; TaskForm uses fixed element ids; `estimateMultipliers` is recomputed per card and render.
