@@ -33,6 +33,8 @@ describe("ProjectDetail", () => {
     screen.getAllByRole("button", { name: "+ Add scene" });
     expect(card.textContent).toMatch(/No scenes yet/);
     expect(screen.queryByRole("button", { name: "+ Add requirement" })).toBeNull();
+    expect(document.body.textContent).toMatch(/\d+ of \d+ scenes complete/);
+    expect(document.body.textContent).not.toMatch(/tasks complete|requirements active|few tasks|tasks take/);
   });
 
   it("a School project keeps today's words", () => {

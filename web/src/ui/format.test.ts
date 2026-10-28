@@ -130,6 +130,13 @@ describe("projectsHeading", () => {
   });
 });
 
+describe("project words in the habitat", () => {
+  it("attention and accuracy use the project's words", () => {
+    expect(attentionLabel([], projectWords("writing"))).toBe("All chapters active");
+    expect(accuracyLabel("novel", 1.42, 3, projectWords("writing"))).toBe("Your novel scenes take about 1.4× your estimates");
+  });
+});
+
 describe("projectWords", () => {
   it("every type has its words", () => {
     expect(projectWords("school")).toEqual({ requirement: "requirement", requirements: "requirements", task: "task", tasks: "tasks" });

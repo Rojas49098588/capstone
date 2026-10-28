@@ -128,6 +128,16 @@ export function wordsFor(project: Project | undefined): ProjectWords {
   return project ? PROJECT_WORDS[projectType(project)] : SCHOOL_WORDS;
 }
 
+/** The habitat's line before there's enough data for estimate accuracy. */
+export function accuracyPending(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Finish a few ${words.tasks} with a time to see how your estimates compare.`;
+}
+
+/** The habitat's note while a pet recovers from medicine. */
+export function recoveringNote(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Recovering: mood stays at Worried or below until the neglected ${words.requirements} move again.`;
+}
+
 export function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
 }
@@ -142,15 +152,15 @@ export function gapLabel(gap: number): string {
   return `${n} ${n === 1 ? "point" : "points"} ${gap > 0 ? "ahead of" : "behind"} plan`;
 }
 
-export function attentionLabel(neglected: NeglectedRequirement[]): string {
-  if (neglected.length === 0) return "All requirements active";
+export function attentionLabel(neglected: NeglectedRequirement[], words: ProjectWords = SCHOOL_WORDS): string {
+  if (neglected.length === 0) return `All ${words.requirements} active`;
   const top = neglected[0];
   return `${top.requirement.title}: ${top.idleDays} days idle`;
 }
 
-export function accuracyLabel(shortName: string, multiplier: number, samples: number): string | null {
+export function accuracyLabel(shortName: string, multiplier: number, samples: number, words: ProjectWords = SCHOOL_WORDS): string | null {
   if (samples < LEARNING_MIN_SAMPLES_SHOWN) return null;
-  return `Your ${shortName} tasks take about ${multiplier.toFixed(1)}× your estimates`;
+  return `Your ${shortName} ${words.tasks} take about ${multiplier.toFixed(1)}× your estimates`;
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;

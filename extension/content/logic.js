@@ -616,12 +616,13 @@
 
   /**
    * The note to leave now, as { projectId, text }, or null. Only Moderate pets leave notes, never on
-   * Studium, during a nap, while a note is open, or within NOTE_GAP_MS of the last one. The first shown
+   * Studium, in a background tab, during a nap, while a note is open, or within NOTE_GAP_MS of the last one. The first shown
    * pet (project order) with something to say leaves it.
    */
-  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen }) {
+  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen, pageVisible = true }) {
     const p = cleanPrefs(prefs);
-    if (p.involvement !== 'moderate' || onStudium || noteOpen || isQuiet(petAway ?? {})) return null;
+    // Only the tab you're looking at leaves one, so notes don't pile up unseen in background tabs.
+    if (p.involvement !== 'moderate' || onStudium || noteOpen || !pageVisible || isQuiet(petAway ?? {})) return null;
     if (Number.isFinite(lastNoteAt) && now - lastNoteAt < NOTE_GAP_MS) return null;
     for (const status of statuses ?? []) {
       if (!shown.has(status.projectId)) continue;

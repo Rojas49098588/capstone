@@ -254,6 +254,8 @@ describe("sticky notes (Moderate)", () => {
     expect(L.chooseNote({ ...ctx, prefs: undefined })).toBeNull();
     expect(L.chooseNote({ ...ctx, onStudium: true })).toBeNull();
     expect(L.chooseNote({ ...ctx, noteOpen: true })).toBeNull();
+    expect(L.chooseNote({ ...ctx, pageVisible: false })).toBeNull(); // a background tab leaves no note
+    expect(L.chooseNote({ ...ctx, pageVisible: true })).not.toBeNull();
     expect(L.chooseNote({ ...ctx, petAway: { p: { kind: "nap", until: now + 60_000, startedAt: now } } })).toBeNull();
     expect(L.chooseNote({ ...ctx, lastNoteAt: now - 29 * 60_000 })).toBeNull();
     expect(L.chooseNote({ ...ctx, lastNoteAt: now - L.NOTE_GAP_MS })).not.toBeNull();

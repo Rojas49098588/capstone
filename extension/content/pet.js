@@ -894,7 +894,7 @@
     const shown = new Set(pets.filter((pet) => pet.isShown() && !pet.isAway()).map((pet) => pet.id));
     const choice = L.chooseNote({
       statuses: statuses?.pets ?? [], shown, prefs, petAway: away, lastNoteAt, now,
-      today: L.todayKey(new Date(now)), onStudium, noteOpen: note !== null,
+      today: L.todayKey(new Date(now)), onStudium, noteOpen: note !== null, pageVisible: document.visibilityState === 'visible',
     });
     if (!choice) return;
     lastNoteAt = now;
@@ -919,6 +919,10 @@
   }
 
   setInterval(checkNote, L.NOTE_CHECK_MS);
+  // A note belongs to the moment it was left: it goes when you leave the tab.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') closeNote();
+  });
 
   // ---- The pet menu ----
   function openMenu(pet, point) {
