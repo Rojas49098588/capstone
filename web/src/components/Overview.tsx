@@ -1,9 +1,10 @@
 import { isBlocked } from "../planner/blocking";
+import { petStage } from "../planner/lifecycle";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
 import type { Task } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeAll } from "../ui/derive";
-import { MOOD_COLORS, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import { EGG_LABEL, MOOD_COLORS, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
 import { CARD, LABEL, SERIF } from "../ui/styles";
 
 type Props = { onSelect: (projectId: string) => void; onRequestComplete: (taskId: string) => void };
@@ -243,14 +244,20 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
                     <p className="font-semibold text-[var(--color-foreground)] leading-tight mt-0.5 break-words">{p.name}</p>
                   </div>
                 </div>
-                <span className="text-xs font-mono uppercase tracking-widest flex-shrink-0" style={{ color: MOOD_COLORS[sum.mood] }}>
-                  {sum.mood}
-                </span>
+                {petStage(p) === "egg" ? (
+                  <span className="text-xs font-mono uppercase tracking-widest flex-shrink-0 text-[var(--color-muted-foreground)]">
+                    {EGG_LABEL}
+                  </span>
+                ) : (
+                  <span className="text-xs font-mono uppercase tracking-widest flex-shrink-0" style={{ color: MOOD_COLORS[sum.mood] }}>
+                    {sum.mood}
+                  </span>
+                )}
               </div>
               <div className="mb-3">
                 <div className="flex justify-between items-baseline mb-1.5 text-xs">
                   <span className="text-[var(--color-muted-foreground)]">
-                    {sum.tasksDone} / {sum.tasksTotal} tasks · {gapLabel(sum.gap)}
+                    {sum.tasksDone} / {sum.tasksTotal} tasks{petStage(p) === "egg" ? "" : ` · ${gapLabel(sum.gap)}`}
                   </span>
                   <span className="font-mono font-medium">{percent(sum.progress)}%</span>
                 </div>

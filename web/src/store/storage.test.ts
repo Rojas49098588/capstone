@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOW, makeData, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
 
 function memoryStorage(failWrites = false): Storage {
@@ -115,7 +115,7 @@ describe("saved decor", () => {
     expect(result.notice).toBeNull();
     // Unchanged except that each habitat is given its built-in bed.
     const id = valid().projects[0].id;
-    expect(result.data).toEqual({ ...valid(), decor: { [id]: { floorLeft: "default-bed" } }, defaultBeds: true });
+    expect(result.data).toEqual({ ...valid(), decor: { [id]: { floorMiddle: "default-bed" } }, defaultBeds: true });
   });
 
   it("cleans damaged decor instead of resetting the data", () => {
@@ -126,5 +126,29 @@ describe("saved decor", () => {
     expect(result.notice).toBeNull();
     expect(result.data.tasks).toHaveLength(1);
     expect(result.data.decor).toEqual({}); // the bed was never bought
+  });
+});
+
+describe("pet stages in saved data", () => {
+  it("loads projects saved before stages existed unchanged", () => {
+    const storage = memoryStorage();
+    const data = valid();
+    storage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const loaded = loadData(storage, NOW).data;
+    expect(loaded.projects[0]).toEqual(data.projects[0]);
+    expect("stage" in loaded.projects[0]).toBe(false);
+  });
+
+  it("round-trips an egg that hasn't hatched", () => {
+    const egg = makeData({ projects: [makeProject({ stage: "egg", hatchedAt: null })] });
+    expect(isValidData(egg)).toBe(true);
+    const storage = memoryStorage();
+    saveData(storage, egg);
+    expect(loadData(storage, NOW).data.projects[0]).toEqual(egg.projects[0]);
+  });
+
+  it("rejects an unknown stage or a non-string hatch time", () => {
+    expect(isValidData(makeData({ projects: [{ ...makeProject(), stage: "chick" } as never] }))).toBe(false);
+    expect(isValidData(makeData({ projects: [{ ...makeProject(), hatchedAt: 5 } as never] }))).toBe(false);
   });
 });

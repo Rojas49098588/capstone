@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, dayKey, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { memoryStorage } from "../test/render";
 import { completeTask, giveMedicine, placeDecor, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
@@ -135,12 +135,12 @@ describe("pet furniture", () => {
   it("lists the bed and the pet's own furniture", () => {
     let data = buildSeed(NOW);
     for (const productId of ["pet-bed", "scratching-post", "perch"]) data.events.push({ type: "purchase", at: NOW.toISOString(), productId, price: 0 });
-    data = placeDecor(data, "seniorCap", "floorLeft", "pet-bed");
+    data = placeDecor(data, "seniorCap", "floorMiddle", "pet-bed");
     data = placeDecor(data, "seniorCap", "floorRight", "scratching-post");
     data = placeDecor(data, "seniorCap", "wallLeft", "perch"); // the pigeon's, so the cat ignores it
     const cap = buildPetStatuses(data, NOW).pets.find((p) => p.projectId === "seniorCap");
     expect(cap?.furniture).toEqual([
-      { use: "bed", slot: "floorLeft" },
+      { use: "bed", slot: "floorMiddle" },
       { use: "scratch", slot: "floorRight" },
     ]);
   });
@@ -150,7 +150,7 @@ describe("pet furniture", () => {
   });
 
   it("every pet can use its habitat's built-in bed", () => {
-    for (const p of buildPetStatuses(buildSeed(NOW), NOW).pets) expect(p.furniture).toEqual([{ use: "bed", slot: "floorLeft" }]);
+    for (const p of buildPetStatuses(buildSeed(NOW), NOW).pets) expect(p.furniture).toEqual([{ use: "bed", slot: "floorMiddle" }]);
   });
 });
 
@@ -159,5 +159,22 @@ describe("pet due dates", () => {
     const data = buildSeed(NOW);
     const pets = buildPetStatuses(data, NOW).pets;
     expect(pets.map((p) => p.deadline)).toEqual(data.projects.map((p) => p.deadline));
+  });
+});
+
+describe("pet stages", () => {
+  it("leaves eggs out and tells the extension which pets are juveniles", () => {
+    const data = makeData({
+      projects: [
+        makeProject({ id: "egg", stage: "egg", hatchedAt: null }),
+        makeProject({ id: "young", stage: "juvenile" }),
+        makeProject({ id: "old" }),
+      ],
+    });
+    const pets = buildPetStatuses(data, NOW).pets;
+    expect(pets.map((p) => [p.projectId, p.stage])).toEqual([
+      ["young", "juvenile"],
+      ["old", "adult"],
+    ]);
   });
 });

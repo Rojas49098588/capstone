@@ -2,9 +2,9 @@
 import { cleanup, render } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { afterEach } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, dayKey } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
-import { recordFocusSessions } from "../store/actions";
+import { createProject, createRequirement, recordFocusSessions } from "../store/actions";
 import { buildSeed } from "../store/seed";
 import { DEFAULT_SETTINGS, SETTINGS_KEY, type Settings } from "../store/settings";
 import { STORAGE_KEY, saveData } from "../store/storage";
@@ -62,4 +62,16 @@ export function withFocus(minutes: number, taskId: string | null = "webDev-t5", 
     minutes,
   };
   return recordFocusSessions(buildSeed(NOW), [session], NOW).data;
+}
+
+/** The example data plus a new "Novel" project (a cat egg) with `requirements` requirements; hatches at 3. */
+export function withEgg(requirements: number): { data: StudiumData; id: string } {
+  const made = createProject(
+    buildSeed(NOW),
+    { name: "Novel", shortName: "novel", color: "#7b4fa6", deadline: dayKey(40), description: "", petKind: "cat" },
+    NOW,
+  );
+  let data = made.data;
+  for (let i = 0; i < requirements; i++) data = createRequirement(data, { projectId: made.project.id, title: `Part ${i + 1}`, weight: 3 }, NOW).data;
+  return { data, id: made.project.id };
 }

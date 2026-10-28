@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { moodFromGap, neglectedRequirements, projectHealth, projectMood, requirementIdleDays } from "./mood";
-import { NOW, completed, dayKey, daysAgo, makeData, makeRequirement, makeTask } from "./testData";
+import { NOW, completed, dayKey, daysAgo, makeData, makeProject, makeRequirement, makeTask } from "./testData";
 import type { StudiumData, StudiumEvent } from "./types";
 
 /** One weight-5 requirement with 8 one-hour tasks; `done` of them finished `lastDoneDaysAgo` days ago. */
@@ -121,5 +121,34 @@ describe("sick, medicine and recovery", () => {
   it("gets sick again when recovery runs out without progress", () => {
     const data = moodData({ ...base, done: 4, lastDoneDaysAgo: 15, extraEvents: [medicine(4)] });
     expect(projectHealth("p1", data, NOW)).toEqual({ sick: true, recovering: false, recoveringFor: [] });
+  });
+});
+
+describe("pet lifecycle and health", () => {
+  // Requirement started 20 days ago, due in 19; nothing completed since.
+  const idle = { startDate: dayKey(-20), dueDate: dayKey(19), done: 0 };
+  const withProject = (o: Parameters<typeof makeProject>[0]) => ({ ...moodData(idle), projects: [makeProject(o)] });
+
+  it("never makes an egg sick", () => {
+    const data = withProject({ stage: "egg", hatchedAt: null });
+    expect(projectHealth("p1", data, NOW).sick).toBe(false);
+    expect(projectMood("p1", data, NOW).mood).not.toBe("Sick");
+  });
+
+  it("counts a just-hatched pet's idle days from the hatch", () => {
+    const data = withProject({ stage: "juvenile", hatchedAt: daysAgo(2) });
+    expect(requirementIdleDays(data.requirements[0], data, NOW)).toBe(2);
+    expect(neglectedRequirements("p1", data, NOW)).toHaveLength(0);
+    expect(projectHealth("p1", data, NOW).sick).toBe(false);
+  });
+
+  it("lets a juvenile get sick once it has been idle 14 days since hatching", () => {
+    const data = withProject({ stage: "juvenile", hatchedAt: daysAgo(15) });
+    expect(projectHealth("p1", data, NOW).sick).toBe(true);
+  });
+
+  it("keeps the old rules for adults saved before the lifecycle", () => {
+    const data = withProject({ hatchedAt: daysAgo(1) });
+    expect(projectHealth("p1", data, NOW).sick).toBe(true);
   });
 });

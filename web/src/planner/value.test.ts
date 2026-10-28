@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOW, completed, daysAgo, makeData, makeRequirement, makeTask } from "./testData";
+import { NOW, completed, daysAgo, makeData, makeProject, makeRequirement, makeTask } from "./testData";
 import { ZERO_BREAKDOWN, type StudiumEvent } from "./types";
 import { computeCompletionPayout, dailyCurve, expectedTokens, neglectBonus, unblockBonus } from "./value";
 
@@ -147,5 +147,16 @@ describe("expectedTokens", () => {
     const data = makeData({ tasks: [makeTask({ id: "u", requirementId: null })] });
     expect(expectedTokens(data.tasks[0], data, NOW)).toBe(0);
     expect(expectedTokens(makeTask({ done: true }), specExample(), NOW)).toBe(0);
+  });
+});
+
+describe("eggs", () => {
+  it("pay no sick penalty, however long a requirement sat idle", () => {
+    const data = makeData({
+      projects: [makeProject({ stage: "egg", hatchedAt: null })],
+      requirements: [makeRequirement({ weight: 6, createdAt: daysAgo(20) })],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "b" })],
+    });
+    expect(computeCompletionPayout(data, "a", 60, NOW).breakdown.sickMultiplier).toBe(1);
   });
 });

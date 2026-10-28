@@ -3,6 +3,8 @@
 // screen. `page` is where the app goes for the step; "project" steps use the project the tour began
 // on. `shopTab` opens that tab of the Shop for the step.
 
+import { HATCH_REQUIREMENTS } from "../planner/tuning";
+
 export type TourId = "project" | "shop";
 export type TourPage = "project" | "overview" | "shop" | "settings";
 export type TourStep = { id: string; page: TourPage; target?: string; shopTab?: "habitat"; title: string; text: string };
@@ -43,7 +45,7 @@ export const PROJECT_TOUR_STEPS: TourStep[] = [
     page: "project",
     target: "habitat",
     title: "Your companion",
-    text: "Every project hatches a pet. Its mood follows your work: it gets worried when a requirement sits untouched for a while. With the browser extension it walks around your other pages too; right-click it to nap while you focus.",
+    text: `Every project starts as an egg and hatches once it has ${HATCH_REQUIREMENTS} requirements. Its mood follows your work: it gets worried when a requirement sits untouched for a while. With the browser extension it walks around your other pages too; right-click it to nap while you focus.`,
   },
   {
     id: "inventory",
@@ -71,7 +73,7 @@ export const PROJECT_TOUR_STEPS: TourStep[] = [
     page: "overview",
     target: "new-project",
     title: "New projects",
-    text: "Start another project here. Each one hatches its own pet.",
+    text: "Start another project here. Each one starts as an egg.",
   },
   replayStep("Replay this tutorial here any time. The Shop has its own tutorial, which starts the first time you open the Shop. That's it: have fun studying!"),
 ];

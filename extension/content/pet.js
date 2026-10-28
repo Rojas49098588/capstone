@@ -207,7 +207,7 @@
     const gravity = kind.gravity ?? GRAVITY;
     const bounce = kind.bounce ?? BOUNCE;
     const airDrag = kind.airDrag ?? AIR_DRAG;
-    const h = kind.height;
+    const h = L.petHeight(kind.height, status.stage);
     const w = Math.round(h * kind.aspect);
     const idleText = L.idleMessage(status.idleRequirement);
 

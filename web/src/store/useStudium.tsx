@@ -160,7 +160,7 @@ export function useStudium(options: StudiumOptions = {}) {
       createRequirement: (input: A.RequirementInput) =>
         apply((d, at) => {
           const r = A.createRequirement(d, input, at);
-          return { data: r.data, result: r.requirement };
+          return { data: r.data, result: { requirement: r.requirement, hatched: r.hatched } };
         }),
       updateRequirement: (id: string, changes: Parameters<typeof A.updateRequirement>[2]) =>
         change((d, at) => A.updateRequirement(d, id, changes, at)),

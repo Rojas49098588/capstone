@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { tokenBalance } from "../planner/history";
+import { petStage } from "../planner/lifecycle";
 import { projectMood } from "../planner/mood";
 import { NOW } from "../planner/testData";
 import { buildSeed } from "./seed";
@@ -40,5 +41,15 @@ describe.each([
     const open = new Set(seed.tasks.filter((t) => !t.done).map((t) => t.id));
     expect(seed.today.taskIds.length).toBeGreaterThan(0);
     expect(seed.today.taskIds.every((id) => open.has(id))).toBe(true);
+  });
+});
+
+describe("example projects' pets", () => {
+  it("are all adults", () => {
+    const seed = buildSeed(NOW);
+    for (const p of seed.projects) {
+      expect(p.stage).toBeUndefined();
+      expect(petStage(p)).toBe("adult");
+    }
   });
 });

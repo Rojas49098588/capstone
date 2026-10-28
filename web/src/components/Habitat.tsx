@@ -1,26 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { inventory } from "../planner/history";
+import { petStage, requirementsToHatch } from "../planner/lifecycle";
 import type { DecorSlot } from "../planner/types";
-import { MEDICINE_PRODUCT_ID } from "../planner/tuning";
+import { JUVENILE_SCALE, MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import { PET_AWAY_ATTR, WAKE_PET_EVENT } from "../store/petStatus";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, parsePetAway, type PetAway } from "../ui/format";
+import { EGG_LABEL, MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, hatchHint, parsePetAway, type PetAway } from "../ui/format";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 import HabitatDecor, { type Placing } from "./HabitatDecor";
 
 /** How long to wait for the extension to put a pet in the box before showing a still picture. */
 export const HABITAT_FALLBACK_MS = 1000;
+/** The still picture's height for an adult, in px; juveniles are JUVENILE_SCALE of it. */
+const STILL_HEIGHT_PX = 96;
 
 type Props = {
   projectId: string;
-  justHatched: boolean;
   onOpenShop: () => void;
   placing?: Placing;
   onPickSlot?: (slot: DecorSlot) => void;
 };
 
-export default function Habitat({ projectId, justHatched, onOpenShop, placing = null, onPickSlot }: Props) {
+export default function Habitat({ projectId, onOpenShop, placing = null, onPickSlot }: Props) {
   const s = useStudiumContext();
   const boxRef = useRef<HTMLDivElement>(null);
   const [showStill, setShowStill] = useState(false);
@@ -57,6 +59,8 @@ export default function Habitat({ projectId, justHatched, onOpenShop, placing = 
   const medicine = inventory(s.data.events)[MEDICINE_PRODUCT_ID] ?? 0;
   const accuracy = accuracyLabel(project.shortName, summary.multiplier, summary.samples);
   const sick = summary.mood === "Sick";
+  const stage = petStage(project);
+  const egg = stage === "egg";
 
   return (
     <section aria-label={`${project.shortName} habitat`} data-tour="habitat" className={CARD}>
@@ -67,9 +71,13 @@ export default function Habitat({ projectId, justHatched, onOpenShop, placing = 
             Habitat
           </h2>
         </div>
-        <span className="text-xs font-mono uppercase tracking-widest" style={{ color: MOOD_COLORS[summary.mood] }}>
-          {summary.mood}
-        </span>
+        {egg ? (
+          <span className="text-xs font-mono uppercase tracking-widest text-[var(--color-muted-foreground)]">{EGG_LABEL}</span>
+        ) : (
+          <span className="text-xs font-mono uppercase tracking-widest" style={{ color: MOOD_COLORS[summary.mood] }}>
+            {summary.mood}
+          </span>
+        )}
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-[1fr_20rem]">
@@ -90,48 +98,63 @@ export default function Habitat({ projectId, justHatched, onOpenShop, placing = 
                 Wake
               </button>
             </div>
-          ) : (
-            justHatched && (
-              <p className="absolute top-3 inset-x-0 text-center text-sm font-semibold" style={{ color: project.color }}>
-                It hatched: a {project.petKind}!
-              </p>
-            )
+          ) : null}
+          {/* Eggs aren't sent to the extension, so Studium draws the egg itself, straight away. */}
+          {egg && (
+            <img
+              src={`${import.meta.env.BASE_URL}pets/egg.png`}
+              alt={`${project.shortName}'s egg`}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 h-20 pointer-events-none"
+              style={{ imageRendering: "pixelated" }}
+            />
           )}
-          {showStill && (
+          {showStill && !egg && (
             <img
               src={`${import.meta.env.BASE_URL}pets/${project.petKind}.png`}
               alt={`${project.shortName}'s ${project.petKind}`}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 h-24"
-              style={{ filter: `drop-shadow(0 0 2px ${project.color})${sick ? " saturate(0.5) hue-rotate(40deg)" : ""}` }}
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none"
+              style={{
+                height: STILL_HEIGHT_PX * (stage === "juvenile" ? JUVENILE_SCALE : 1),
+                filter: `drop-shadow(0 0 2px ${project.color})${sick ? " saturate(0.5) hue-rotate(40deg)" : ""}`,
+              }}
             />
           )}
         </div>
 
         <div className="border-t sm:border-t-0 sm:border-l border-[var(--color-border)] p-5 space-y-4 text-sm">
-          <div>
-            <p className={LABEL}>Mood</p>
-            <p>
-              <span className="font-semibold" style={{ color: MOOD_COLORS[summary.mood] }}>
-                {summary.mood}
-              </span>{" "}
-              · {gapLabel(summary.gap)}
-            </p>
-            {summary.health.recovering && (
-              <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-                Recovering: mood stays at Worried or below until the neglected requirements move again.
-              </p>
-            )}
-          </div>
-          <div>
-            <p className={LABEL}>Attention</p>
-            <p className={summary.neglected.length > 0 ? "text-[var(--color-accent)]" : ""}>{attentionLabel(summary.neglected)}</p>
-          </div>
+          {egg ? (
+            <div>
+              <p className={LABEL}>Hatching</p>
+              <p>{hatchHint(requirementsToHatch(project, s.data))}</p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <p className={LABEL}>Mood</p>
+                <p>
+                  <span className="font-semibold" style={{ color: MOOD_COLORS[summary.mood] }}>
+                    {summary.mood}
+                  </span>{" "}
+                  · {gapLabel(summary.gap)}
+                </p>
+                {summary.health.recovering && (
+                  <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
+                    Recovering: mood stays at Worried or below until the neglected requirements move again.
+                  </p>
+                )}
+              </div>
+              <div>
+                <p className={LABEL}>Attention</p>
+                <p className={summary.neglected.length > 0 ? "text-[var(--color-accent)]" : ""}>{attentionLabel(summary.neglected)}</p>
+              </div>
+            </>
+          )}
           <div>
             <p className={LABEL}>Estimate accuracy</p>
             <p>{accuracy ?? "Finish a few tasks with a time to see how your estimates compare."}</p>
           </div>
           {/* Giving medicine is in the inventory below; here, only say where to get it. */}
-          {sick && medicine === 0 && (
+          {!egg && sick && medicine === 0 && (
             <button type="button" onClick={onOpenShop} className={BUTTON_SECONDARY}>
               Buy medicine in the Shop
             </button>

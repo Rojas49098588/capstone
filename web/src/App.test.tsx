@@ -40,7 +40,7 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
     expect(savedData(storage).events.filter((e) => e.type === "task_completed").length).toBe(balanceAfter);
   });
 
-  it("creates a project and shows it hatching", async () => {
+  it("creates a project that starts as an egg", async () => {
     renderWithStudium(<StudiumApp />);
     await userEvent.click(screen.getByRole("button", { name: "+ New Project" }));
     await userEvent.type(screen.getByLabelText("Project name"), "Thesis Website");
@@ -48,7 +48,7 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
     await userEvent.click(screen.getAllByRole("radio", { name: /^Egg / })[0]);
     await userEvent.click(screen.getByRole("button", { name: "Create project" }));
     screen.getByRole("heading", { name: "Thesis Website" });
-    screen.getByText(/^It hatched: a /);
+    screen.getByText("Add 3 more requirements to hatch");
   });
 
   it("returns to the overview when the open project is deleted", async () => {

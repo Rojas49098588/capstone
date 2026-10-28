@@ -127,19 +127,28 @@ describe("useStudium and the browser extension", () => {
     window.addEventListener(PET_STATUS_EVENT, onUpdate);
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     const before = onUpdate.mock.calls.length;
+    let projectId = "";
     act(() => {
-      result.current.createProject({
+      projectId = result.current.createProject({
         name: "Thesis",
         shortName: "thesis",
         color: "#2d3a8c",
         deadline: dayKey(30),
         description: "",
         petKind: "cat",
-      });
+      }).id;
     });
+    // The new project's pet is an egg, which isn't sent to the extension...
+    expect(onUpdate.mock.calls.length).toBeGreaterThan(before);
+    expect(published(storage).pets).toHaveLength(5);
+    // ...until its 3rd requirement hatches it.
+    for (const title of ["One", "Two", "Three"]) {
+      act(() => {
+        result.current.createRequirement({ projectId, title, weight: 3 });
+      });
+    }
     window.removeEventListener(PET_STATUS_EVENT, onUpdate);
     expect(published(storage).pets).toHaveLength(6);
-    expect(onUpdate.mock.calls.length).toBeGreaterThan(before);
   });
 
   it("republishes every hour because moods change with time", () => {

@@ -2,6 +2,7 @@
 // Every change that matters for history appends an event.
 import { isBlocked, wouldCreateCycle } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
+import { hatchIfReady } from "../planner/lifecycle";
 import { projectHealth } from "../planner/mood";
 import { isDateKey, localDateKey } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
@@ -80,7 +81,8 @@ export type ProjectInput = Pick<Project, "name" | "shortName" | "color" | "deadl
 export function createProject(data: StudiumData, input: ProjectInput, now: Date): { data: StudiumData; project: Project } {
   if (!isDateKey(input.deadline)) throw new Error(`Invalid deadline ${input.deadline}`);
   const createdAt = stamp(now);
-  const project: Project = { ...input, name: input.name.trim(), id: newId(), createdAt, hatchedAt: createdAt };
+  // The pet starts as an egg and hatches once the project has a few requirements (planner/lifecycle.ts).
+  const project: Project = { ...input, name: input.name.trim(), id: newId(), createdAt, stage: "egg", hatchedAt: null };
   // Every habitat comes with its built-in bed.
   const decor = { ...(data.decor ?? {}), [project.id]: withDefaultBed({}) };
   return { data: { ...data, projects: [...data.projects, project], decor }, project };
@@ -127,7 +129,7 @@ export function createRequirement(
   data: StudiumData,
   input: RequirementInput,
   now: Date,
-): { data: StudiumData; requirement: Requirement } {
+): { data: StudiumData; requirement: Requirement; hatched: boolean } {
   if (!data.projects.some((p) => p.id === input.projectId)) throw new Error(`Unknown project ${input.projectId}`);
   const requirement: Requirement = {
     id: newId(),
@@ -138,14 +140,13 @@ export function createRequirement(
     dueDate: cleanDate(input.dueDate),
     createdAt: stamp(now),
   };
-  return {
-    data: {
-      ...data,
-      requirements: [...data.requirements, requirement],
-      events: withEvent(data, { type: "requirement_created", at: stamp(now), requirementId: requirement.id }),
-    },
-    requirement,
+  const next: StudiumData = {
+    ...data,
+    requirements: [...data.requirements, requirement],
+    events: withEvent(data, { type: "requirement_created", at: stamp(now), requirementId: requirement.id }),
   };
+  const { data: hatchedData, hatched } = hatchIfReady(next, input.projectId, now);
+  return { data: hatchedData, requirement, hatched };
 }
 
 export function updateRequirement(

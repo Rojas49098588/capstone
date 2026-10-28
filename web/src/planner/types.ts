@@ -1,6 +1,10 @@
 export type PetKind = "cat" | "dog" | "frog" | "pigeon" | "turtle";
 export const PET_KINDS: readonly PetKind[] = ["cat", "dog", "frog", "pigeon", "turtle"];
 
+/** Egg until the project has its first few requirements, then juvenile. Missing on a project = adult. */
+export type PetStage = "egg" | "juvenile" | "adult";
+export const PET_STAGES: readonly PetStage[] = ["egg", "juvenile", "adult"];
+
 export type Project = {
   id: string;
   name: string;
@@ -9,7 +13,8 @@ export type Project = {
   deadline: string; // "YYYY-MM-DD", local
   description: string;
   petKind: PetKind;
-  hatchedAt: string; // ISO time
+  stage?: PetStage; // missing in projects saved before the lifecycle: they're adults
+  hatchedAt: string | null; // ISO time; null while it's still an egg
   createdAt: string; // ISO time
 };
 

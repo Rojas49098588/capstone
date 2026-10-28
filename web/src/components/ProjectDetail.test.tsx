@@ -7,10 +7,10 @@ import { createProject, placeDecor, removeDecor } from "../store/actions";
 import type { StudiumData } from "../planner/types";
 import { buildSeed } from "../store/seed";
 import { STORAGE_KEY } from "../store/storage";
-import { renderWithStudium, savedData, withFocus } from "../test/render";
+import { renderWithStudium, savedData, withEgg, withFocus } from "../test/render";
 import ProjectDetail from "./ProjectDetail";
 
-const props = { justHatched: false, onRequestComplete: vi.fn(), onEditProject: vi.fn(), onOpenShop: vi.fn() };
+const props = { onToast: vi.fn(), onRequestComplete: vi.fn(), onEditProject: vi.fn(), onOpenShop: vi.fn() };
 
 describe("ProjectDetail", () => {
   it("shows the project, its requirements and its habitat", () => {
@@ -137,5 +137,30 @@ describe("ProjectDetail Move here", () => {
     await userEvent.click(screen.getByRole("button", { name: "Put Clock in the right wall spot" }));
     // The free Clock is placed; the Poster stays where it is.
     expect(savedData(storage).decor).toEqual({ appDev: { wallLeft: "study-poster" }, webDev: { wallRight: "clock" } });
+  });
+});
+
+describe("ProjectDetail hatching", () => {
+  async function addRequirement(title: string) {
+    await userEvent.click(screen.getByRole("button", { name: "+ Add requirement" }));
+    await userEvent.type(screen.getByLabelText("Requirement title"), title);
+    await userEvent.click(screen.getByRole("button", { name: "Add requirement" }));
+  }
+
+  it("says the egg is hatching when the 3rd requirement is added", async () => {
+    const onToast = vi.fn();
+    const { data, id } = withEgg(2);
+    renderWithStudium(<ProjectDetail projectId={id} {...props} onToast={onToast} />, { data });
+    screen.getByRole("img", { name: "novel's egg" });
+    await addRequirement("Part 3");
+    expect(onToast).toHaveBeenCalledWith("novel is hatching!");
+    expect(screen.queryByRole("img", { name: "novel's egg" })).toBeNull();
+  });
+
+  it("says nothing when an adult project gets another requirement", async () => {
+    const onToast = vi.fn();
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} onToast={onToast} />);
+    await addRequirement("Another part");
+    expect(onToast).not.toHaveBeenCalled();
   });
 });
