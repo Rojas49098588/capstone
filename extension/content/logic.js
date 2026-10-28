@@ -587,6 +587,50 @@
     return cleanPrefs(prefs).involvement === 'minimal' && !inHabitat;
   }
 
+  // ---- Sticky notes (Moderate) ----
+  const NOTE_GAP_MS = 30 * 60 * 1000; // at most one note this often, across all pets and tabs
+  const NOTE_DUE_SOON_DAYS = 3;
+  const NOTE_CHECK_MS = 60 * 1000; // how often a page looks for a note to leave
+
+  /** A date's local "YYYY-MM-DD". */
+  function todayKey(date) {
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+  }
+
+  const keyDays = (key) => Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)) / 86400000;
+
+  /** What a pet's note says, or null if it has nothing to say: an idle requirement first, then a near deadline. */
+  function noteText(status, nickname, today) {
+    const who = nickname ? `${nickname}, ` : '';
+    const idle = status.idleRequirement;
+    if (idle) return `${who}${status.shortName} misses you: ${idle.days} ${idle.days === 1 ? 'day' : 'days'} since you worked on it.`;
+    if (status.deadline && isDateKey(today)) {
+      const days = keyDays(status.deadline) - keyDays(today);
+      if (days === 0) return `${who}${status.shortName} is due today.`;
+      if (days === 1) return `${who}${status.shortName} is due tomorrow.`;
+      if (days > 1 && days <= NOTE_DUE_SOON_DAYS) return `${who}${status.shortName} is due in ${days} days.`;
+    }
+    return null;
+  }
+
+  /**
+   * The note to leave now, as { projectId, text }, or null. Only Moderate pets leave notes, never on
+   * Studium, during a nap, while a note is open, or within NOTE_GAP_MS of the last one. The first shown
+   * pet (project order) with something to say leaves it.
+   */
+  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen }) {
+    const p = cleanPrefs(prefs);
+    if (p.involvement !== 'moderate' || onStudium || noteOpen || isQuiet(petAway ?? {})) return null;
+    if (Number.isFinite(lastNoteAt) && now - lastNoteAt < NOTE_GAP_MS) return null;
+    for (const status of statuses ?? []) {
+      if (!shown.has(status.projectId)) continue;
+      const text = noteText(status, p.nickname, today);
+      if (text) return { projectId: status.projectId, text };
+    }
+    return null;
+  }
+
   /** Saved screen settings with anything invalid replaced: limit >= 1 or null, a known order. */
   function cleanScreen(v) {
     if (!isObject(v)) return ALL_PETS;
@@ -666,6 +710,12 @@
     cleanPrefs,
     prefsFromSettings,
     staysPut,
+    NOTE_GAP_MS,
+    NOTE_DUE_SOON_DAYS,
+    NOTE_CHECK_MS,
+    todayKey,
+    noteText,
+    chooseNote,
     IDLE_MESSAGE_GAP_MS,
     MOOD_EFFECTS,
     isStudiumUrl,

@@ -218,3 +218,58 @@ describe("interaction level and nickname", () => {
     expect(L.staysPut(undefined, false)).toBe(false); // older storage: Mild
   });
 });
+
+describe("sticky notes (Moderate)", () => {
+  const status = (o: Record<string, unknown> = {}) => pet({ shortName: "portraits", projectId: "p", idleRequirement: null, deadline: null, ...o });
+  const today = "2026-10-28";
+
+  it("noteText prefers an idle requirement, then a near deadline", () => {
+    const idle = status({ idleRequirement: { title: "Base colors", days: 5 }, deadline: "2026-10-29" });
+    expect(L.noteText(idle, "Abby", today)).toBe("Abby, portraits misses you: 5 days since you worked on it.");
+    expect(L.noteText(idle, "", today)).toBe("portraits misses you: 5 days since you worked on it.");
+    expect(L.noteText(status({ idleRequirement: { title: "x", days: 1 } }), "", today)).toBe("portraits misses you: 1 day since you worked on it.");
+    expect(L.noteText(status({ deadline: "2026-10-31" }), "Abby", today)).toBe("Abby, portraits is due in 3 days.");
+    expect(L.noteText(status({ deadline: "2026-10-29" }), "", today)).toBe("portraits is due tomorrow.");
+    expect(L.noteText(status({ deadline: "2026-10-28" }), "", today)).toBe("portraits is due today.");
+    expect(L.noteText(status({ deadline: "2026-11-01" }), "", today)).toBeNull(); // 4 days away
+    expect(L.noteText(status({ deadline: "2026-10-20" }), "", today)).toBeNull(); // overdue
+    expect(L.noteText(status(), "Abby", today)).toBeNull();
+  });
+
+  it("chooseNote only for Moderate, off Studium, with no nap, no open note and 30 minutes since the last one", () => {
+    const now = Date.parse("2026-10-28T12:00:00Z");
+    const ctx = {
+      statuses: [status({ idleRequirement: { title: "x", days: 5 } })],
+      shown: new Set(["p"]),
+      prefs: { involvement: "moderate", nickname: "Abby" },
+      petAway: {},
+      lastNoteAt: 0,
+      now,
+      today,
+      onStudium: false,
+      noteOpen: false,
+    };
+    expect(L.chooseNote(ctx)).toEqual({ projectId: "p", text: "Abby, portraits misses you: 5 days since you worked on it." });
+    expect(L.chooseNote({ ...ctx, prefs: { involvement: "mild", nickname: "" } })).toBeNull();
+    expect(L.chooseNote({ ...ctx, prefs: undefined })).toBeNull();
+    expect(L.chooseNote({ ...ctx, onStudium: true })).toBeNull();
+    expect(L.chooseNote({ ...ctx, noteOpen: true })).toBeNull();
+    expect(L.chooseNote({ ...ctx, petAway: { p: { kind: "nap", until: now + 60_000, startedAt: now } } })).toBeNull();
+    expect(L.chooseNote({ ...ctx, lastNoteAt: now - 29 * 60_000 })).toBeNull();
+    expect(L.chooseNote({ ...ctx, lastNoteAt: now - L.NOTE_GAP_MS })).not.toBeNull();
+  });
+
+  it("chooseNote skips pets with nothing to say and pets that aren't shown", () => {
+    const now = Date.parse("2026-10-28T12:00:00Z");
+    const quiet = status({ projectId: "q", shortName: "quiet" });
+    const hidden = status({ projectId: "h", shortName: "hidden", idleRequirement: { title: "x", days: 9 } });
+    const due = status({ projectId: "d", shortName: "novel", deadline: "2026-10-30" });
+    const ctx = { statuses: [quiet, hidden, due], shown: new Set(["q", "d"]), prefs: { involvement: "moderate", nickname: "" }, petAway: {}, lastNoteAt: 0, now, today, onStudium: false, noteOpen: false };
+    expect(L.chooseNote(ctx)).toEqual({ projectId: "d", text: "novel is due in 2 days." });
+    expect(L.chooseNote({ ...ctx, shown: new Set(["q"]) })).toBeNull();
+  });
+
+  it("todayKey is the local date", () => {
+    expect(L.todayKey(new Date(2026, 9, 5, 23, 30))).toBe("2026-10-05");
+  });
+});
