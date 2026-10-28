@@ -8,49 +8,81 @@ import type { StudiumData } from "../planner/types";
 import { buildSeed } from "../store/seed";
 import { SETTINGS_KEY } from "../store/settings";
 import { renderWithStudium } from "../test/render";
-import { TOUR_STEPS } from "../ui/tourSteps";
+import { PROJECT_TOUR_STEPS, SHOP_TOUR_STEPS, type TourStep } from "../ui/tourSteps";
 import { cardPosition } from "./Tour";
 
 const tourTitle = () => within(screen.getByRole("dialog")).getByRole("heading").textContent;
 const savedSettings = (storage: Storage | null) => JSON.parse(storage?.getItem(SETTINGS_KEY) ?? "{}");
 
 // These render the whole app and click through every step.
-describe("tutorial tour", { timeout: 20_000 }, () => {
-  it("starts the first time a project page opens, and walks through the project page, the Overview and the Shop", async () => {
+async function walkThrough(steps: TourStep[], projectHeading: string) {
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    expect(tourTitle()).toBe(step.title);
+    within(screen.getByRole("dialog")).getByText(`Tutorial · ${i + 1} of ${steps.length}`);
+    // Each target is on the step's page (a typo in a data-tour name would leave it unlit).
+    if (step.target) expect(document.querySelector(`[data-tour="${step.target}"]`), step.target).not.toBeNull();
+    if (step.page === "project") screen.getByRole("heading", { name: projectHeading });
+    if (step.page === "overview") screen.getByRole("heading", { name: "Your Projects" });
+    if (step.page === "shop") screen.getByRole("heading", { name: "Shop" });
+    if (step.page === "settings") screen.getByRole("heading", { name: "User Settings" });
+    if (step.shopTab) expect(screen.getByRole("tab", { name: "Habitat" }).getAttribute("aria-selected")).toBe("true");
+    const last = i === steps.length - 1;
+    await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: last ? "Finish" : "Next" }));
+  }
+  expect(screen.queryByRole("dialog")).toBeNull();
+}
+
+const openShop = () => userEvent.click(screen.getAllByRole("button", { name: "Shop" })[0]);
+
+describe("tutorial tours", { timeout: 30_000 }, () => {
+  it("the project tutorial starts the first time a project page opens, covers the project page and the Overview, and ends in Settings", async () => {
     const { storage } = renderWithStudium(<StudiumApp />, { tutorial: true });
     expect(screen.queryByRole("dialog")).toBeNull(); // not on the Overview
     await userEvent.click(screen.getAllByRole("button", { name: /webDev/ })[0]);
 
-    for (let i = 0; i < TOUR_STEPS.length; i++) {
-      const step = TOUR_STEPS[i];
-      expect(tourTitle()).toBe(step.title);
-      within(screen.getByRole("dialog")).getByText(`Tutorial · ${i + 1} of ${TOUR_STEPS.length}`);
-      // Each target is on the step's page (a typo in a data-tour name would leave it unlit).
-      if (step.target) expect(document.querySelector(`[data-tour="${step.target}"]`), step.target).not.toBeNull();
-      if (step.page === "project") screen.getByRole("heading", { name: "Web Development Portfolio" });
-      if (step.page === "overview") screen.getByRole("heading", { name: "Your Projects" });
-      if (step.page === "shop") screen.getByRole("heading", { name: "Shop" });
-      const last = i === TOUR_STEPS.length - 1;
-      await userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: last ? "Finish" : "Next" }));
-    }
-    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(PROJECT_TOUR_STEPS.some((s) => s.page === "shop")).toBe(false);
+    expect(PROJECT_TOUR_STEPS[PROJECT_TOUR_STEPS.length - 1].page).toBe("settings");
+    await walkThrough(PROJECT_TOUR_STEPS, "Web Development Portfolio");
     expect(savedSettings(storage).tutorialDone).toBe(true);
+    expect(savedSettings(storage).shopTutorialDone).toBe(false);
 
     // It doesn't come back on the next project page.
     await userEvent.click(screen.getAllByRole("button", { name: /appDev/ })[0]);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
-  it("Back goes to the previous step, and Skip ends it for good", async () => {
+  it("the shop tutorial starts the first time the Shop opens, shows habitat decor on a project page, and ends in Settings", async () => {
+    const { storage } = renderWithStudium(<StudiumApp />, { settings: { tutorialDone: true, shopTutorialDone: false } });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await openShop();
+
+    expect(SHOP_TOUR_STEPS.some((s) => s.page === "project")).toBe(true);
+    expect(SHOP_TOUR_STEPS[SHOP_TOUR_STEPS.length - 1].page).toBe("settings");
+    await walkThrough(SHOP_TOUR_STEPS, "Web Development Portfolio");
+    expect(savedSettings(storage).shopTutorialDone).toBe(true);
+
+    // It doesn't come back on the next visit.
+    await openShop();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("Back goes to the previous step, and Skip ends only that tutorial for good", async () => {
     const { storage } = renderWithStudium(<StudiumApp />, { tutorial: true });
     await userEvent.click(screen.getAllByRole("button", { name: /webDev/ })[0]);
     await userEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(tourTitle()).toBe(TOUR_STEPS[1].title);
+    expect(tourTitle()).toBe(PROJECT_TOUR_STEPS[1].title);
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(tourTitle()).toBe(TOUR_STEPS[0].title);
+    expect(tourTitle()).toBe(PROJECT_TOUR_STEPS[0].title);
     await userEvent.click(screen.getByRole("button", { name: "Skip tour" }));
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(savedSettings(storage).tutorialDone).toBe(true);
+    expect(savedSettings(storage).shopTutorialDone).toBe(false);
+
+    await openShop();
+    expect(tourTitle()).toBe(SHOP_TOUR_STEPS[0].title);
+    await userEvent.click(screen.getByRole("button", { name: "Skip tour" }));
+    expect(savedSettings(storage).shopTutorialDone).toBe(true);
   });
 
   it("Escape skips the tour", async () => {
@@ -80,22 +112,35 @@ describe("tutorial tour", { timeout: 20_000 }, () => {
     expect(tourTitle()).toBe("Welcome to your project");
   });
 
-  it("Replay tutorial in Settings starts it again", async () => {
+  it("Settings replays each tutorial on its own", async () => {
     renderWithStudium(<StudiumApp />);
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    await userEvent.click(screen.getByRole("button", { name: "Replay tutorial" }));
+    await userEvent.click(screen.getByRole("button", { name: "Replay project tutorial" }));
     expect(tourTitle()).toBe("Welcome to your project");
+    within(screen.getByRole("dialog")).getByText(`Tutorial · 1 of ${PROJECT_TOUR_STEPS.length}`);
     screen.getByRole("heading", { name: "Web Development Portfolio" });
+    await userEvent.click(screen.getByRole("button", { name: "Skip tour" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Replay shop tutorial" }));
+    expect(tourTitle()).toBe(SHOP_TOUR_STEPS[0].title);
+    within(screen.getByRole("dialog")).getByText(`Tutorial · 1 of ${SHOP_TOUR_STEPS.length}`);
+    screen.getByRole("heading", { name: "Shop" });
   });
 
-  it("Replay with no projects shows only the Overview and Shop steps", async () => {
+  it("with no projects, both tutorials leave out the project page steps", async () => {
     const empty: StudiumData = { ...buildSeed(NOW), projects: [], requirements: [], tasks: [], events: [], decor: {} };
     renderWithStudium(<StudiumApp />, { data: empty });
     await userEvent.click(screen.getByRole("button", { name: "Settings" }));
-    await userEvent.click(screen.getByRole("button", { name: "Replay tutorial" }));
-    const count = TOUR_STEPS.filter((s) => s.page !== "project").length;
+    await userEvent.click(screen.getByRole("button", { name: "Replay project tutorial" }));
+    const count = PROJECT_TOUR_STEPS.filter((s) => s.page !== "project").length;
     within(screen.getByRole("dialog")).getByText(`Tutorial · 1 of ${count}`);
     expect(tourTitle()).toBe("The Overview");
+    await userEvent.click(screen.getByRole("button", { name: "Skip tour" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getByRole("button", { name: "Replay shop tutorial" }));
+    await walkThrough(SHOP_TOUR_STEPS.filter((s) => s.page !== "project"), "");
   });
 });
 

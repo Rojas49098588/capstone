@@ -21,7 +21,8 @@ export type Settings = {
   petOrder: PetOrder;
   progressStyle: ProgressStyle;
   petInvolvement: PetInvolvement;
-  tutorialDone: boolean; // the tour has been finished or skipped (Settings can replay it)
+  tutorialDone: boolean; // the project tutorial has been finished or skipped (Settings can replay it)
+  shopTutorialDone: boolean; // the same for the Shop tutorial
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   progressStyle: "circle",
   petInvolvement: "very",
   tutorialDone: false,
+  shopTutorialDone: false,
 };
 
 export const DIFFICULTIES: { value: Difficulty; label: string }[] = [
@@ -72,6 +74,8 @@ export function parseSettings(raw: string | null): Settings {
     progressStyle: oneOf(PROGRESS_STYLES, o.progressStyle, DEFAULT_SETTINGS.progressStyle),
     petInvolvement: oneOf(PET_INVOLVEMENTS, o.petInvolvement, DEFAULT_SETTINGS.petInvolvement),
     tutorialDone: o.tutorialDone === true,
+    // Saved before the tour was split in two: finishing the old tour covered the Shop too.
+    shopTutorialDone: o.shopTutorialDone === undefined ? o.tutorialDone === true : o.shopTutorialDone === true,
   };
 }
 

@@ -15,7 +15,7 @@ import { tokenBalance } from "./planner/history";
 import { StudiumProvider, useStudiumContext } from "./store/useStudium";
 import { parseHashLink } from "./ui/hashLinks";
 import { SERIF } from "./ui/styles";
-import { tourSteps } from "./ui/tourSteps";
+import { type TourId, tourSteps } from "./ui/tourSteps";
 
 type Theme = "light" | "dark";
 type Modal = null | { mode: "create" } | { mode: "edit"; projectId: string };
@@ -42,7 +42,9 @@ export function StudiumApp() {
   const [toast, setToast] = useState<string | null>(null);
   const [justHatchedId, setJustHatchedId] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(initialTheme);
-  // The tutorial: which step is showing (null: none), and the project its project-page steps use.
+  // The tutorials: which one, which step is showing (null: none), and the project its
+  // project-page steps use.
+  const [tour, setTour] = useState<TourId>("project");
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [tourProjectId, setTourProjectId] = useState<string | null>(null);
 
@@ -76,37 +78,53 @@ export function StudiumApp() {
 
   // ---- Tutorial ----
   const tourProject = s.data.projects.find((p) => p.id === tourProjectId) ?? null;
-  const steps = tourSteps(tourProject !== null);
+  const steps = tourSteps(tour, tourProject !== null);
+  const tourShopTab = tourStep !== null ? steps[tourStep]?.shopTab : undefined;
+  // The project a tutorial uses: the one being looked at last, or the first one.
+  const defaultTourProjectId = selectedId ?? s.data.projects[0]?.id ?? null;
 
-  function showTourStep(index: number, projectId = tourProjectId) {
-    const step = tourSteps(s.data.projects.some((p) => p.id === projectId))[index];
+  function showTourStep(index: number, projectId = tourProjectId, which = tour) {
+    const step = tourSteps(which, s.data.projects.some((p) => p.id === projectId))[index];
     if (!step) return;
     if (step.page === "project" && projectId) openProject(projectId);
     else if (step.page === "overview") openProjects();
     else if (step.page === "shop") setPage("shop");
+    else if (step.page === "settings") setPage("settings");
+    setTour(which);
     setTourStep(index);
   }
 
   function endTour() {
     setTourStep(null);
-    if (!s.settings.tutorialDone) s.updateSettings({ tutorialDone: true });
+    const done = tour === "project" ? "tutorialDone" : "shopTutorialDone";
+    if (!s.settings[done]) s.updateSettings({ [done]: true });
   }
 
-  /** From Settings: the tour again, on the project being looked at last (or the first one). */
-  function replayTour() {
-    const projectId = selectedId ?? s.data.projects[0]?.id ?? null;
-    setTourProjectId(projectId);
-    showTourStep(0, projectId);
+  /** From Settings: one of the tutorials again. */
+  function replayTour(which: TourId) {
+    setTourProjectId(defaultTourProjectId);
+    showTourStep(0, defaultTourProjectId, which);
   }
 
   // The first time a project page opens (right after creating the first project, once Studium
-  // starts with none), the tour begins on that project. It runs once; Settings can replay it.
+  // starts with none), the project tutorial begins on that project. It runs once; Settings can
+  // replay it.
   const startTour = !s.settings.tutorialDone && tourStep === null && page === "projects" && selected !== null && !modal;
   useEffect(() => {
     if (!startTour || !selected) return;
     setTourProjectId(selected.id);
+    setTour("project");
     setTourStep(0);
   }, [startTour, selected]);
+
+  // The Shop tutorial, the same way: the first time the Shop opens.
+  const startShopTour = !s.settings.shopTutorialDone && tourStep === null && page === "shop" && !modal;
+  useEffect(() => {
+    if (!startShopTour) return;
+    setTourProjectId(defaultTourProjectId);
+    setTour("shop");
+    setTourStep(0);
+  }, [startShopTour, defaultTourProjectId]);
 
   // Links from the browser pets (Open project, Done after a nap). Read through a ref, so the
   // hashchange listener is added once and still sees the latest data.
@@ -209,7 +227,7 @@ export function StudiumApp() {
 
       <main className="max-w-6xl mx-auto w-full px-6 py-10">
         {page === "shop" ? (
-          <Shop />
+          <Shop openTab={tourShopTab} />
         ) : page === "settings" ? (
           <Settings onReplayTutorial={replayTour} />
         ) : selected ? (

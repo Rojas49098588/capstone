@@ -38,6 +38,7 @@ describe("Settings", () => {
       progressStyle: "bar",
       petInvolvement: "notMuch",
       tutorialDone: true,
+      shopTutorialDone: true,
     });
   });
 });

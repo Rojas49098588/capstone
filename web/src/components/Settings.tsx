@@ -8,11 +8,12 @@ import {
 } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
+import type { TourId } from "../ui/tourSteps";
 
 const LATER = "Saved now; what it changes comes in a later update.";
 
 /** The User Settings page: account details (once accounts exist) and preferences. */
-type Props = { onReplayTutorial?: () => void };
+type Props = { onReplayTutorial?: (tour: TourId) => void };
 
 export default function Settings({ onReplayTutorial }: Props) {
   const s = useStudiumContext();
@@ -121,14 +122,21 @@ export default function Settings({ onReplayTutorial }: Props) {
         {choices("involvement", "How involved your pet is", PET_INVOLVEMENTS, settings.petInvolvement, (petInvolvement) => change({ petInvolvement }))}
       </section>
 
-      <section aria-labelledby="settings-tutorial" className={`${CARD} p-6 space-y-3`}>
+      <section aria-labelledby="settings-tutorial" data-tour="settings-tutorial" className={`${CARD} p-6 space-y-3`}>
         <h2 id="settings-tutorial" style={SERIF} className="text-xl">
           Tutorial
         </h2>
-        <p className={`text-sm ${MUTED}`}>A short tour of the project page, the Overview and the Shop.</p>
-        <button type="button" onClick={onReplayTutorial} className={BUTTON_SECONDARY}>
-          Replay tutorial
-        </button>
+        <p className={`text-sm ${MUTED}`}>
+          Two short tours: one of the project page and the Overview, and one of the Shop and decorating a habitat.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => onReplayTutorial?.("project")} className={BUTTON_SECONDARY}>
+            Replay project tutorial
+          </button>
+          <button type="button" onClick={() => onReplayTutorial?.("shop")} className={BUTTON_SECONDARY}>
+            Replay shop tutorial
+          </button>
+        </div>
       </section>
     </div>
   );
