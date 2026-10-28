@@ -6,6 +6,7 @@ import {
   addToToday,
   clampWeight,
   completeTask,
+  createProject,
   createRequirement,
   createTask,
   deleteRequirement,
@@ -18,6 +19,7 @@ import {
   updateRequirement,
   updateTask,
 } from "./actions";
+import { petStage } from "../planner/lifecycle";
 import { isValidData } from "./storage";
 import { buildSeed } from "./seed";
 
@@ -235,5 +237,62 @@ describe("buying decor", () => {
     const seed = buildSeed(NOW);
     seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed.events) - 199 });
     expect(purchase(seed, "log", NOW).ok).toBe(false);
+  });
+});
+
+describe("pet lifecycle", () => {
+  const input = { name: "Novel", shortName: "novel", color: "#2d3a8c", deadline: dayKey(30), description: "", petKind: "cat" as const };
+  const newEgg = () => createProject(makeData({ projects: [] }), input, NOW);
+  const addReq = (data: ReturnType<typeof newEgg>["data"], projectId: string, title = "R") =>
+    createRequirement(data, { projectId, title, weight: 3 }, NOW);
+
+  it("starts new projects as an egg that hasn't hatched", () => {
+    const { project } = newEgg();
+    expect(project.stage).toBe("egg");
+    expect(project.hatchedAt).toBeNull();
+  });
+
+  it("hatches on the 3rd requirement, not the 1st or 2nd", () => {
+    const { data, project } = newEgg();
+    const one = addReq(data, project.id);
+    expect(one.hatched).toBe(false);
+    const two = addReq(one.data, project.id);
+    expect(two.hatched).toBe(false);
+    expect(petStage(two.data.projects[0])).toBe("egg");
+    const three = addReq(two.data, project.id);
+    expect(three.hatched).toBe(true);
+    expect(three.data.projects[0].stage).toBe("juvenile");
+    expect(three.data.projects[0].hatchedAt).toBe(NOW.toISOString());
+  });
+
+  it("counts the requirements the project has now, after deletions", () => {
+    const { data, project } = newEgg();
+    const two = addReq(addReq(data, project.id).data, project.id);
+    const afterDelete = deleteRequirement(two.data, two.requirement.id, "unlinkTasks");
+    const backToTwo = addReq(afterDelete, project.id);
+    expect(backToTwo.hatched).toBe(false);
+    const three = addReq(backToTwo.data, project.id);
+    expect(three.hatched).toBe(true);
+  });
+
+  it("stays hatched when requirements are deleted afterwards", () => {
+    const { data, project } = newEgg();
+    let d = data;
+    for (let i = 0; i < 3; i++) d = addReq(d, project.id).data;
+    for (const r of d.requirements) d = deleteRequirement(d, r.id, "unlinkTasks");
+    expect(d.requirements).toHaveLength(0);
+    expect(d.projects[0].stage).toBe("juvenile");
+  });
+
+  it("never hatches or changes an adult project", () => {
+    let d = makeData();
+    let last = { hatched: true };
+    for (let i = 0; i < 4; i++) {
+      const r = addReq(d, "p1");
+      d = r.data;
+      last = r;
+    }
+    expect(last.hatched).toBe(false);
+    expect(d.projects[0].stage).toBeUndefined();
   });
 });

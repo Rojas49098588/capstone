@@ -35,6 +35,10 @@ export const LEARNING_MIN_SAMPLES_SHOWN = 3;
 export const MULTIPLIER_MIN = 0.5;
 export const MULTIPLIER_MAX = 3;
 
+// Pet lifecycle
+export const HATCH_REQUIREMENTS = 3; // an egg hatches once its project has this many requirements
+export const JUVENILE_SCALE = 0.75; // juveniles are drawn at this fraction of the adult size
+
 // Misc
 export const SUGGESTED_COUNT = 6;
 export const MEDICINE_PRODUCT_ID = "medicine";
