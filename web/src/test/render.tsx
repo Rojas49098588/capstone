@@ -29,7 +29,7 @@ export function memoryStorage(): Storage {
 
 /**
  * Renders `ui` inside a StudiumProvider with saved data (the example data by default) and a fixed
- * clock. Both tutorials count as already seen unless `tutorial` is true or `settings` says otherwise
+ * clock. Setup and both tutorials count as already done unless `tutorial` is true or `settings` says otherwise
  * (or the storage already has settings).
  */
 export function renderWithStudium(
@@ -40,7 +40,7 @@ export function renderWithStudium(
   const storage = o.storage === null ? null : (o.storage ?? memoryStorage());
   if (storage) saveData(storage, o.data ?? buildSeed(now));
   if (storage && !o.tutorial && storage.getItem(SETTINGS_KEY) === null) {
-    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, tutorialDone: true, shopTutorialDone: true, ...o.settings }));
+    storage.setItem(SETTINGS_KEY, JSON.stringify({ ...DEFAULT_SETTINGS, setupDone: true, tutorialDone: true, shopTutorialDone: true, ...o.settings }));
   }
   const result = render(<StudiumProvider options={{ storage, clock: () => now }}>{ui}</StudiumProvider>);
   return { ...result, storage };

@@ -41,7 +41,7 @@ describe("Settings", () => {
       petInvolvement: "minimal",
       nickname: "",
       projectType: "school",
-      setupDone: false,
+      setupDone: true,
       tutorialDone: true,
       shopTutorialDone: true,
     });

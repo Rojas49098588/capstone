@@ -171,3 +171,9 @@ export function projectsHeading(nickname: string): string {
   const name = nickname.trim();
   return name ? `${name}'s Projects` : "Your Projects";
 }
+
+export const NO_PROJECTS_TITLE = "No projects yet";
+export const NO_PROJECTS_TEXT = "Start a project and its pet hatches once you've planned it.";
+export const FIRST_PROJECT_TITLE = "Create your first project";
+export const FIRST_PROJECT_TEXT =
+  "Each project gets its own egg. Add a few requirements and it hatches into a pet that follows how the work is going.";

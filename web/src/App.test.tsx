@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import { dayKey } from "./planner/testData";
 import { StudiumApp } from "./App";
 import { renderWithStudium, savedData } from "./test/render";
+import { NOW } from "./planner/testData";
+import { emptyData } from "./store/seed";
 
 // These render the whole app; the first one also pays the file's cold start, which can pass 5 s
 // when the full suite runs in parallel on a busy machine.
@@ -18,6 +20,31 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
     screen.getByRole("heading", { name: "Shop" });
     await userEvent.click(screen.getAllByRole("button", { name: "All Projects" })[0]);
     screen.getByRole("heading", { name: "Your Projects" });
+  });
+
+  it("a new user who finished setup is asked to create a first project", async () => {
+    renderWithStudium(<StudiumApp />, { data: emptyData(NOW) });
+    const prompt = screen.getByRole("dialog", { name: "Create your first project" });
+    await userEvent.click(within(prompt).getByRole("button", { name: "Create my first project" }));
+    expect(screen.queryByRole("dialog", { name: "Create your first project" })).toBeNull();
+    screen.getByLabelText("Project name");
+  });
+
+  it("Not now closes the first-project prompt, and it returns when the Overview opens again", async () => {
+    renderWithStudium(<StudiumApp />, { data: emptyData(NOW) });
+    await userEvent.click(screen.getByRole("button", { name: "Not now" }));
+    expect(screen.queryByRole("dialog", { name: "Create your first project" })).toBeNull();
+    await userEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await userEvent.click(screen.getAllByRole("button", { name: "All Projects" })[0]);
+    screen.getByRole("dialog", { name: "Create your first project" });
+  });
+
+  it("never shows the first-project prompt before setup or once a project exists", () => {
+    const { unmount } = renderWithStudium(<StudiumApp />, { data: emptyData(NOW), settings: { setupDone: false } });
+    expect(screen.queryByRole("dialog", { name: "Create your first project" })).toBeNull();
+    unmount();
+    renderWithStudium(<StudiumApp />);
+    expect(screen.queryByRole("dialog", { name: "Create your first project" })).toBeNull();
   });
 
   it("the gear button opens User Settings", async () => {

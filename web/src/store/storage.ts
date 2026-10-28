@@ -2,7 +2,7 @@
 import { isDateKey } from "../planner/time";
 import { DIFFICULTY_LEVELS, PET_KINDS, PET_STAGES, PROJECT_TYPES, type FocusSession, type StudiumData } from "../planner/types";
 import { cleanDecor, giveDefaultBeds } from "./decor";
-import { buildSeed } from "./seed";
+import { buildSeed, emptyData } from "./seed";
 
 export const STORAGE_KEY = "studium-data-v1";
 export const BACKUP_PREFIX = "studium-data-backup-";
@@ -124,7 +124,8 @@ export function loadData(storage: Storage | null, now: Date): LoadResult {
   }
 
   if (raw === null) {
-    const data = buildSeed(now);
+    // A new user starts blank. (The example data is only for when the browser can't save.)
+    const data = emptyData(now);
     saveData(storage, data);
     return { data, persistent: true, notice: null };
   }

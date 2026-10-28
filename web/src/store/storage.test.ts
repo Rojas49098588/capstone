@@ -38,10 +38,12 @@ describe("isValidData", () => {
 });
 
 describe("loadData / saveData", () => {
-  it("starts with the example data and saves it when nothing is stored", () => {
+  it("starts with no projects and saves that when nothing is stored", () => {
     const storage = memoryStorage();
     const result = loadData(storage, NOW);
     expect(result).toMatchObject({ persistent: true, notice: null });
+    expect(result.data).toMatchObject({ version: 1, projects: [], requirements: [], tasks: [], events: [], defaultBeds: true });
+    expect(isValidData(result.data)).toBe(true);
     expect(storage.getItem(STORAGE_KEY)).not.toBeNull();
   });
 
