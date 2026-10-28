@@ -139,6 +139,21 @@ describe("pet stages in saved data", () => {
     expect("stage" in loaded.projects[0]).toBe(false);
   });
 
+  it("loads projects saved before types existed unchanged", () => {
+    const storage = memoryStorage();
+    const data = valid();
+    storage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const loaded = loadData(storage, NOW).data.projects[0];
+    expect("type" in loaded || "difficulty" in loaded).toBe(false);
+    const typed = makeData({ projects: [makeProject({ type: "code", difficulty: "gentle" })] });
+    expect(isValidData(typed)).toBe(true);
+  });
+
+  it("rejects an unknown type or difficulty", () => {
+    expect(isValidData(makeData({ projects: [{ ...makeProject(), type: "poetry" } as never] }))).toBe(false);
+    expect(isValidData(makeData({ projects: [{ ...makeProject(), difficulty: "brutal" } as never] }))).toBe(false);
+  });
+
   it("round-trips an egg that hasn't hatched", () => {
     const egg = makeData({ projects: [makeProject({ stage: "egg", hatchedAt: null })] });
     expect(isValidData(egg)).toBe(true);

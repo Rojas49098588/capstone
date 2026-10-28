@@ -5,6 +5,14 @@ export const PET_KINDS: readonly PetKind[] = ["cat", "dog", "frog", "pigeon", "t
 export type PetStage = "egg" | "juvenile" | "adult";
 export const PET_STAGES: readonly PetStage[] = ["egg", "juvenile", "adult"];
 
+/** What kind of work a project is. It sets the project's wording (ui/format.ts projectWords). Missing = school. */
+export type ProjectType = "school" | "writing" | "art" | "code" | "music" | "other";
+export const PROJECT_TYPES: readonly ProjectType[] = ["school", "writing", "art", "code", "music", "other"];
+
+/** How strict a project's pet is (tuning.ts DIFFICULTY_RULES). Missing = steady, today's rules. */
+export type Difficulty = "gentle" | "steady" | "strict";
+export const DIFFICULTY_LEVELS: readonly Difficulty[] = ["gentle", "steady", "strict"];
+
 export type Project = {
   id: string;
   name: string;
@@ -15,6 +23,8 @@ export type Project = {
   petKind: PetKind;
   stage?: PetStage; // missing in projects saved before the lifecycle: they're adults
   hatchedAt: string | null; // ISO time; null while it's still an egg
+  type?: ProjectType; // missing in projects saved before project types: they're school
+  difficulty?: Difficulty; // missing in projects saved before difficulty: they're steady
   createdAt: string; // ISO time
 };
 

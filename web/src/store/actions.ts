@@ -16,6 +16,7 @@ import type {
   StudiumEvent,
   Task,
 } from "../planner/types";
+import { DIFFICULTY_LEVELS, PROJECT_TYPES } from "../planner/types";
 import { computeCompletionPayout, type Payout } from "../planner/value";
 import { allowedIn, freeCopies, withDefaultBed } from "./decor";
 import { priceOf } from "./products";
@@ -76,7 +77,8 @@ function cleanRequirementId(data: StudiumData, projectId: string, requirementId:
 
 // ---- Projects ----
 
-export type ProjectInput = Pick<Project, "name" | "shortName" | "color" | "deadline" | "description" | "petKind">;
+export type ProjectInput = Pick<Project, "name" | "shortName" | "color" | "deadline" | "description" | "petKind"> &
+  Partial<Pick<Project, "type" | "difficulty">>;
 
 export function createProject(data: StudiumData, input: ProjectInput, now: Date): { data: StudiumData; project: Project } {
   if (!isDateKey(input.deadline)) throw new Error(`Invalid deadline ${input.deadline}`);
@@ -91,10 +93,12 @@ export function createProject(data: StudiumData, input: ProjectInput, now: Date)
 export function updateProject(
   data: StudiumData,
   id: string,
-  changes: Partial<Pick<Project, "name" | "shortName" | "color" | "deadline" | "description">>,
+  changes: Partial<Pick<Project, "name" | "shortName" | "color" | "deadline" | "description" | "type" | "difficulty">>,
 ): StudiumData {
   const clean = definedOnly(changes);
   if (clean.deadline !== undefined && !isDateKey(clean.deadline)) delete clean.deadline;
+  if (clean.type !== undefined && !PROJECT_TYPES.includes(clean.type)) delete clean.type;
+  if (clean.difficulty !== undefined && !DIFFICULTY_LEVELS.includes(clean.difficulty)) delete clean.difficulty;
   if (clean.name !== undefined) clean.name = clean.name.trim();
   return { ...data, projects: data.projects.map((p) => (p.id === id ? { ...p, ...clean } : p)) };
 }

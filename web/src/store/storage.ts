@@ -1,6 +1,6 @@
 // Loading and saving Studium's data in localStorage, with validation and backups.
 import { isDateKey } from "../planner/time";
-import { PET_KINDS, PET_STAGES, type FocusSession, type StudiumData } from "../planner/types";
+import { DIFFICULTY_LEVELS, PET_KINDS, PET_STAGES, PROJECT_TYPES, type FocusSession, type StudiumData } from "../planner/types";
 import { cleanDecor, giveDefaultBeds } from "./decor";
 import { buildSeed } from "./seed";
 
@@ -58,6 +58,8 @@ export function isValidData(value: unknown): value is StudiumData {
     if (!isObj(p) || !allStr(p, ["id", "name", "shortName", "color", "deadline", "description", "createdAt"])) return false;
     if (!(isStr(p.hatchedAt) || p.hatchedAt === null)) return false;
     if (p.stage !== undefined && !PET_STAGES.includes(p.stage as never)) return false;
+    if (p.type !== undefined && !PROJECT_TYPES.includes(p.type as never)) return false;
+    if (p.difficulty !== undefined && !DIFFICULTY_LEVELS.includes(p.difficulty as never)) return false;
     if (!PET_KINDS.includes(p.petKind as never) || !isDateKey(p.deadline)) return false;
     projectIds.add(p.id as string);
   }
