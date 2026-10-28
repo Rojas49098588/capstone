@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NOW, dayKey } from "../planner/testData";
 import { PET_KINDS } from "../planner/types";
 import { buildSeed } from "../store/seed";
-import { renderWithStudium, savedData } from "../test/render";
+import { renderWithStudium, savedData, withEgg } from "../test/render";
 import ProjectModal from "./ProjectModal";
 
 const webDev = () => buildSeed(NOW).projects[0];
@@ -61,5 +61,16 @@ describe("ProjectModal", () => {
     renderWithStudium(<ProjectModal onClose={onClose} />);
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe("ProjectModal for an egg", () => {
+  it("doesn't give away the animal or say it has hatched", () => {
+    const { data, id } = withEgg(1);
+    const egg = data.projects.find((p) => p.id === id)!;
+    renderWithStudium(<ProjectModal project={egg} onClose={vi.fn()} />, { data });
+    screen.getByText("Companion: an egg (it hatches once the project has 3 requirements).");
+    expect(screen.queryByText(/cat/)).toBeNull();
+    expect(screen.queryByText(/has hatched/)).toBeNull();
   });
 });

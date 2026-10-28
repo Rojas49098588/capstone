@@ -205,3 +205,20 @@ describe("Habitat pet stages", () => {
     expect(screen.getByRole("img", { name: "novel's cat" }).style.height).toBe("72px");
   });
 });
+
+describe("Habitat pictures and decor placing", () => {
+  it("lets clicks through the egg to the floor spots", () => {
+    const { data, id } = withEgg(1);
+    renderWithStudium(<Habitat projectId={id} onOpenShop={vi.fn()} />, { data });
+    expect(screen.getByRole("img", { name: "novel's egg" }).className).toContain("pointer-events-none");
+  });
+
+  it("lets clicks through the still picture to the floor spots", () => {
+    vi.useFakeTimers();
+    renderWithStudium(<Habitat projectId="webDev" onOpenShop={vi.fn()} />);
+    act(() => {
+      vi.advanceTimersByTime(HABITAT_FALLBACK_MS);
+    });
+    expect(screen.getByRole("img", { name: "webDev's pigeon" }).className).toContain("pointer-events-none");
+  });
+});

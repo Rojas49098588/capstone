@@ -1,7 +1,9 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { petStage } from "../planner/lifecycle";
 import { isDateKey } from "../planner/time";
 import type { PetKind, Project } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
+import { eggCompanionLabel } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, PROJECT_COLORS, SERIF } from "../ui/styles";
 import EggPicker from "./EggPicker";
 import { useReturnFocus } from "./useReturnFocus";
@@ -104,7 +106,9 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
               ))}
             </div>
           </fieldset>
-          {project ? (
+          {project && petStage(project) === "egg" ? (
+            <p className="text-sm text-[var(--color-muted-foreground)]">{eggCompanionLabel()}</p>
+          ) : project ? (
             <p className="text-sm text-[var(--color-muted-foreground)]">
               Companion: {project.petKind} (it has hatched, so it can't be changed).
             </p>

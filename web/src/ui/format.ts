@@ -1,7 +1,7 @@
 // All wording shown in the UI, in one place so it stays consistent and testable.
 import type { NeglectedRequirement } from "../planner/mood";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
-import { LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
+import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
 import type { Mood, Task } from "../planner/types";
 import type { Payout } from "../planner/value";
 
@@ -94,6 +94,11 @@ export const EGG_LABEL = "Egg";
 
 export function hatchHint(remaining: number): string {
   return `Add ${remaining} more ${remaining === 1 ? "requirement" : "requirements"} to hatch`;
+}
+
+/** The edit dialog's companion line while the pet is an egg: it doesn't give the animal away. */
+export function eggCompanionLabel(): string {
+  return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} requirements).`;
 }
 
 export function hatchingMessage(shortName: string): string {

@@ -104,7 +104,7 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
             <img
               src={`${import.meta.env.BASE_URL}pets/egg.png`}
               alt={`${project.shortName}'s egg`}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2 h-20"
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 h-20 pointer-events-none"
               style={{ imageRendering: "pixelated" }}
             />
           )}
@@ -112,7 +112,7 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
             <img
               src={`${import.meta.env.BASE_URL}pets/${project.petKind}.png`}
               alt={`${project.shortName}'s ${project.petKind}`}
-              className="absolute bottom-6 left-1/2 -translate-x-1/2"
+              className="absolute bottom-6 left-1/2 -translate-x-1/2 pointer-events-none"
               style={{
                 height: STILL_HEIGHT_PX * (stage === "juvenile" ? JUVENILE_SCALE : 1),
                 filter: `drop-shadow(0 0 2px ${project.color})${sick ? " saturate(0.5) hue-rotate(40deg)" : ""}`,
