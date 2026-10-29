@@ -113,8 +113,8 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
             <input aria-label="Project name" autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Senior Capstone Project" className={`${INPUT} mt-1 normal-case tracking-normal font-sans`} />
           </label>
           <label className={LABEL}>
-            Short Label
-            <input aria-label="Short label" value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="e.g. seniorCap" className={`${INPUT} mt-1 normal-case tracking-normal font-sans`} />
+            Pet Nickname
+            <input aria-label="Pet nickname" value={shortName} onChange={(e) => setShortName(e.target.value)} placeholder="e.g. UI/UX" className={`${INPUT} mt-1 normal-case tracking-normal font-sans`} />
           </label>
           <label className={LABEL}>
             Deadline *

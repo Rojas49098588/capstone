@@ -37,6 +37,17 @@ describe("ProjectModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("the short name is asked for as the pet's nickname", async () => {
+    const { storage } = renderWithStudium(<ProjectModal onClose={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Project name"), "Senior Capstone");
+    await userEvent.type(screen.getByLabelText("Pet nickname"), "UI/UX");
+    fireEvent.change(screen.getByLabelText("Deadline"), { target: { value: dayKey(40) } });
+    await userEvent.click(screen.getAllByRole("radio", { name: /^Egg / })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Create project" }));
+    expect(savedData(storage).projects.find((p) => p.name === "Senior Capstone")?.shortName).toBe("UI/UX");
+    expect(screen.queryByLabelText("Short label")).toBeNull();
+  });
+
   it("edits a project without changing its pet", async () => {
     const { storage } = renderWithStudium(<ProjectModal project={webDev()} onClose={vi.fn()} />);
     screen.getByText(/Companion: pigeon/);

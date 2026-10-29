@@ -150,9 +150,12 @@
     /* A sticky note a Moderate pet leaves on the page (lower third, never over the middle half). */
     .note {
       position: fixed; bottom: 18vh; width: 190px; max-width: 22vw; padding: 10px 26px 12px 12px;
-      background: #fff3a8; color: #3a3220; box-shadow: 0 3px 10px rgba(0,0,0,.25); transform: rotate(-2deg);
+      /* Paper tinted with the project's color, with a strip of it along the top. */
+      background: color-mix(in srgb, var(--c, #f2c94c) 22%, #fffdf3); color: #2b2a26;
+      border-top: 6px solid var(--c, #f2c94c); box-shadow: 0 3px 10px rgba(0,0,0,.25); transform: rotate(-2deg);
       font: 600 13px/1.35 system-ui, sans-serif; pointer-events: auto; cursor: default;
     }
+    .note .sign { margin: 6px 0 0; text-align: right; font-weight: 700; }
     .note.left { left: 2vw; }
     .note.right { right: 2vw; transform: rotate(2deg); }
     .note button {
@@ -371,6 +374,8 @@
 
     // Minimal pets stay put and quiet on web pages (User Settings: How much pets interact).
     const keepsQuiet = () => L.staysPut(env.prefs?.(), Boolean(box));
+    // On Moderate, its "Haven't seen …" reminders go into sticky notes instead (web pages only). Sounds stay bubbles.
+    const writesNotes = () => L.writesNotes(env.prefs?.(), Boolean(box));
 
     function goIdle(now) {
       state.mode = 'idle';
@@ -446,14 +451,14 @@
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
       if (kind.sound && !busy && !keepsQuiet() && now > state.nextSoundAt) {
-        if (state.nextSoundAt) chatter(kind.sound);
+        if (state.nextSoundAt) chatter(L.pickSound(kind.sound));
         state.nextSoundAt = now + between(kind.soundMs);
       }
       if (kind.mouth && !busy && state.y === 0 && now > state.nextLickAt) {
         if (state.nextLickAt) lick();
         state.nextLickAt = now + between(kind.tongueMs);
       }
-      if (idleText && !busy && !keepsQuiet() && now > state.nextIdleMessageAt) {
+      if (idleText && !busy && !keepsQuiet() && !writesNotes() && now > state.nextIdleMessageAt) {
         if (state.nextIdleMessageAt) chatter(idleText, 4000);
         state.nextIdleMessageAt = L.nextIdleMessageAt(now);
       }
@@ -639,12 +644,12 @@
         // Clicking a napping pet wakes it up.
         wake();
         settle(performance.now());
-        chatter(kind.sound ? kind.sound.replace('!', '?') : '♥');
+        chatter(kind.sound ? L.pickSound(kind.sound).replace('!', '?') : '♥');
       } else {
         // Clicked: stop using furniture, hop and make its sound.
         if (state.mode === 'goto' || state.mode === 'use') settle(performance.now());
         if (state.y === 0) hop();
-        chatter(kind.sound ?? '♥');
+        chatter(L.pickSound(kind.sound) ?? '♥');
         lick();
       }
       press = null;
@@ -904,6 +909,7 @@
     const el = document.createElement('div');
     el.className = `note ${side}`;
     el.setAttribute('role', 'note');
+    if (choice.color) el.style.setProperty('--c', choice.color);
     const textEl = document.createElement('p');
     textEl.style.margin = '0';
     textEl.textContent = choice.text;
@@ -912,7 +918,10 @@
     close.textContent = '×';
     close.setAttribute('aria-label', 'Close note');
     close.addEventListener('click', closeNote);
-    el.append(textEl, close);
+    const signEl = document.createElement('p');
+    signEl.className = 'sign';
+    signEl.textContent = choice.signature;
+    el.append(textEl, signEl, close);
     root.appendChild(el);
     note = { projectId: choice.projectId, el };
     pet?.walkTo(side === 'left' ? 0.1 : 0.9);
