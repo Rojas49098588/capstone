@@ -11,22 +11,30 @@ import {
   PET_STATUS_REFRESH_MS,
   STUDIUM_READY_EVENT,
 } from "./petStatus";
-import { STORAGE_KEY } from "./storage";
+import { buildSeed } from "./seed";
+import { STORAGE_KEY, saveData } from "./storage";
+
+/** Storage that already holds the example data (a returning user). */
+function seededStorage(): Storage {
+  const storage = memoryStorage();
+  saveData(storage, buildSeed(NOW));
+  return storage;
+}
 import { NOW_REFRESH_MS, useStudium } from "./useStudium";
 
 afterEach(() => vi.useRealTimers());
 
 describe("useStudium", () => {
-  it("loads the example data and saves it on the first visit", () => {
+  it("starts with no projects and saves that on the first visit", () => {
     const storage = memoryStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
-    expect(result.current.data.projects).toHaveLength(5);
+    expect(result.current.data.projects).toHaveLength(0);
     expect(storage.getItem(STORAGE_KEY)).not.toBeNull();
     expect(result.current.notice).toBeNull();
   });
 
   it("applies actions with the clock's time and saves them", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     let payout: ReturnType<typeof result.current.completeTask> = null;
     act(() => {
@@ -40,7 +48,7 @@ describe("useStudium", () => {
   });
 
   it("reports a failed save but keeps working", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     storage.setItem = () => {
       throw new Error("QuotaExceededError");
@@ -64,7 +72,7 @@ describe("useStudium", () => {
   it('refreshes "now" every minute so day changes show up', () => {
     vi.useFakeTimers();
     let time = NOW;
-    const { result } = renderHook(() => useStudium({ storage: memoryStorage(), clock: () => time }));
+    const { result } = renderHook(() => useStudium({ storage: seededStorage(), clock: () => time }));
     time = new Date(NOW.getTime() + 24 * 3_600_000);
     act(() => {
       vi.advanceTimersByTime(NOW_REFRESH_MS);
@@ -75,7 +83,7 @@ describe("useStudium", () => {
 
 describe("useStudium with two tabs", () => {
   it("picks up changes another tab saved instead of overwriting them", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     // The other tab completes a task and saves.
     const other = { ...savedData(storage) };
@@ -93,7 +101,7 @@ describe("useStudium with two tabs", () => {
   });
 
   it("cross-tab data is cleaned too", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     const other = { ...result.current.data, decor: { webDev: { floorLeft: "pet-bed" } } }; // not owned
     act(() => {
@@ -103,7 +111,7 @@ describe("useStudium with two tabs", () => {
   });
 
   it("ignores damaged data from another tab", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     act(() => {
       window.dispatchEvent(new StorageEvent("storage", { key: STORAGE_KEY, newValue: "{broken" }));
@@ -116,13 +124,13 @@ describe("useStudium and the browser extension", () => {
   const published = (storage: Storage) => JSON.parse(storage.getItem(PET_STATUS_KEY) ?? "null");
 
   it("publishes pet statuses when it loads", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     renderHook(() => useStudium({ storage, clock: () => NOW }));
     expect(published(storage).pets).toHaveLength(5);
   });
 
   it("publishes again after every change", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const onUpdate = vi.fn();
     window.addEventListener(PET_STATUS_EVENT, onUpdate);
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
@@ -154,7 +162,7 @@ describe("useStudium and the browser extension", () => {
   it("republishes every hour because moods change with time", () => {
     vi.useFakeTimers();
     let time = NOW;
-    const storage = memoryStorage();
+    const storage = seededStorage();
     renderHook(() => useStudium({ storage, clock: () => time }));
     time = new Date(NOW.getTime() + PET_STATUS_REFRESH_MS);
     act(() => {
@@ -190,13 +198,13 @@ describe("useStudium receiving focus sessions", () => {
   it("announces it is ready after mounting", () => {
     const onReady = vi.fn();
     window.addEventListener(STUDIUM_READY_EVENT, onReady);
-    renderHook(() => useStudium({ storage: memoryStorage(), clock: () => NOW }));
+    renderHook(() => useStudium({ storage: seededStorage(), clock: () => NOW }));
     window.removeEventListener(STUDIUM_READY_EVENT, onReady);
     expect(onReady).toHaveBeenCalled();
   });
 
   it("records sessions, saves and answers with the handled ids", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     renderHook(() => useStudium({ storage, clock: () => NOW }));
     send(JSON.stringify([session()]));
     expect(focusCount(savedData(storage).events)).toBe(1);
@@ -204,7 +212,7 @@ describe("useStudium receiving focus sessions", () => {
   });
 
   it("answers again for sessions it already has", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     renderHook(() => useStudium({ storage, clock: () => NOW }));
     send(JSON.stringify([session()]));
     send(JSON.stringify([session()]));
@@ -213,7 +221,7 @@ describe("useStudium receiving focus sessions", () => {
   });
 
   it("ignores damaged deliveries", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     const before = result.current.data;
     send("{broken");
@@ -223,7 +231,7 @@ describe("useStudium receiving focus sessions", () => {
   });
 
   it("doesn't answer or keep sessions it couldn't save, and records them on the next delivery", () => {
-    const storage = memoryStorage();
+    const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
     const setItem = storage.setItem;
     storage.setItem = () => {

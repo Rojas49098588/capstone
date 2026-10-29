@@ -6,7 +6,7 @@ import { JUVENILE_SCALE, MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import { PET_AWAY_ATTR, WAKE_PET_EVENT } from "../store/petStatus";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { EGG_LABEL, MOOD_COLORS, accuracyLabel, attentionLabel, awayLabel, gapLabel, hatchHint, parsePetAway, type PetAway } from "../ui/format";
+import { EGG_LABEL, MOOD_COLORS, accuracyLabel, accuracyPending, attentionLabel, recoveringNote, awayLabel, gapLabel, hatchHint, parsePetAway, wordsFor, type PetAway } from "../ui/format";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 import HabitatDecor, { type Placing } from "./HabitatDecor";
 
@@ -57,7 +57,8 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
   if (!project) return null;
   const summary = summarizeProject(project, s.data, s.now);
   const medicine = inventory(s.data.events)[MEDICINE_PRODUCT_ID] ?? 0;
-  const accuracy = accuracyLabel(project.shortName, summary.multiplier, summary.samples);
+  const words = wordsFor(project);
+  const accuracy = accuracyLabel(project.shortName, summary.multiplier, summary.samples, words);
   const sick = summary.mood === "Sick";
   const stage = petStage(project);
   const egg = stage === "egg";
@@ -125,7 +126,7 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
           {egg ? (
             <div>
               <p className={LABEL}>Hatching</p>
-              <p>{hatchHint(requirementsToHatch(project, s.data))}</p>
+              <p>{hatchHint(requirementsToHatch(project, s.data), words)}</p>
             </div>
           ) : (
             <>
@@ -139,19 +140,19 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
                 </p>
                 {summary.health.recovering && (
                   <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-                    Recovering: mood stays at Worried or below until the neglected requirements move again.
+                    {recoveringNote(words)}
                   </p>
                 )}
               </div>
               <div>
                 <p className={LABEL}>Attention</p>
-                <p className={summary.neglected.length > 0 ? "text-[var(--color-accent)]" : ""}>{attentionLabel(summary.neglected)}</p>
+                <p className={summary.neglected.length > 0 ? "text-[var(--color-accent)]" : ""}>{attentionLabel(summary.neglected, words)}</p>
               </div>
             </>
           )}
           <div>
             <p className={LABEL}>Estimate accuracy</p>
-            <p>{accuracy ?? "Finish a few tasks with a time to see how your estimates compare."}</p>
+            <p>{accuracy ?? accuracyPending(words)}</p>
           </div>
           {/* Giving medicine is in the inventory below; here, only say where to get it. */}
           {!egg && sick && medicine === 0 && (

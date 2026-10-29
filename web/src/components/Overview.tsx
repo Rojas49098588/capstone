@@ -4,10 +4,10 @@ import { suggestNext, todayTaskIds } from "../planner/suggest";
 import type { Task } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeAll } from "../ui/derive";
-import { EGG_LABEL, MOOD_COLORS, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
-import { CARD, LABEL, SERIF } from "../ui/styles";
+import { EGG_LABEL, MOOD_COLORS, NO_PROJECTS_TEXT, NO_PROJECTS_TITLE, projectsHeading, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import { BUTTON_PRIMARY, CARD, LABEL, SERIF } from "../ui/styles";
 
-type Props = { onSelect: (projectId: string) => void; onRequestComplete: (taskId: string) => void };
+type Props = { onSelect: (projectId: string) => void; onRequestComplete: (taskId: string) => void; onNewProject?: () => void };
 
 function Ring({ value, color, radius, strokeWidth }: { value: number; color: string; radius: number; strokeWidth: number }) {
   return (
@@ -29,7 +29,7 @@ function Ring({ value, color, radius, strokeWidth }: { value: number; color: str
   );
 }
 
-export default function Overview({ onSelect, onRequestComplete }: Props) {
+export default function Overview({ onSelect, onRequestComplete, onNewProject }: Props) {
   const s = useStudiumContext();
   const dash = summarizeAll(s.data, s.now);
   const total = percent(dash.total);
@@ -44,13 +44,25 @@ export default function Overview({ onSelect, onRequestComplete }: Props) {
     <div className="space-y-8">
       <div>
         <h1 style={SERIF} className="text-4xl text-[var(--color-foreground)]">
-          Your Projects
+          {projectsHeading(s.settings.nickname)}
         </h1>
         <p className="text-[var(--color-muted-foreground)] mt-1 text-sm">
           {count} active {count === 1 ? "project" : "projects"} · {todayTasks.filter((t) => !t.done).length} tasks planned
           today
         </p>
       </div>
+
+      {count === 0 && (
+        <div className={`${CARD} p-6 space-y-3`}>
+          <h2 style={SERIF} className="text-xl">
+            {NO_PROJECTS_TITLE}
+          </h2>
+          <p className="text-sm text-[var(--color-muted-foreground)]">{NO_PROJECTS_TEXT}</p>
+          <button type="button" onClick={onNewProject} className={BUTTON_PRIMARY}>
+            New project
+          </button>
+        </div>
+      )}
 
       {/* Total progress */}
       <div data-tour="total-progress" className={`${CARD} p-6`}>

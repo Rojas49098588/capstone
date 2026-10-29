@@ -6,8 +6,24 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../store/settings";
 import { memoryStorage, renderWithStudium, savedData, withEgg } from "../test/render";
 import Settings from "./Settings";
 import Overview from "./Overview";
+import { NOW } from "../planner/testData";
+import { emptyData } from "../store/seed";
 
 describe("Overview", () => {
+  it("uses the nickname in the heading", () => {
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { settings: { nickname: "Abby" } });
+    screen.getByRole("heading", { name: "Abby's Projects" });
+  });
+
+  it("with no projects shows 0% and a New project button", async () => {
+    const onNewProject = vi.fn();
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} onNewProject={onNewProject} />, { data: emptyData(NOW) });
+    expect(document.body.textContent).not.toMatch(/NaN/);
+    expect(document.body.textContent).toMatch(/0%/);
+    await userEvent.click(screen.getByRole("button", { name: "New project" }));
+    expect(onNewProject).toHaveBeenCalled();
+  });
+
   it("shows today's plan from the saved data", () => {
     renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />);
     const today = screen.getByRole("region", { name: "Today" });

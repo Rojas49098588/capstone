@@ -2,6 +2,7 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { NOW, completed, dayKey, daysAgo, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { renderWithStudium, savedData } from "../test/render";
 import RequirementCard from "./RequirementCard";
 
@@ -17,6 +18,21 @@ describe("RequirementCard", () => {
   it("flags a neglected requirement", () => {
     renderWithStudium(<RequirementCard requirementId="Animation-r2" onRequestComplete={vi.fn()} />);
     screen.getByText("9 days idle");
+  });
+
+  it("shows days idle using the project's difficulty", () => {
+    const data = (difficulty: "strict" | "steady") =>
+      makeData({
+        projects: [makeProject({ difficulty })],
+        requirements: [makeRequirement({ title: "Draft", startDate: dayKey(-20), dueDate: dayKey(20) })],
+        tasks: [makeTask({ id: "t1", done: true }), makeTask({ id: "t2" })],
+        events: [completed("t1", daysAgo(4))],
+      });
+    const { unmount } = renderWithStudium(<RequirementCard requirementId="r1" onRequestComplete={vi.fn()} />, { data: data("strict"), now: NOW });
+    screen.getByText("4 days idle");
+    unmount();
+    renderWithStudium(<RequirementCard requirementId="r1" onRequestComplete={vi.fn()} />, { data: data("steady"), now: NOW });
+    expect(screen.queryByText("4 days idle")).toBeNull();
   });
 
   it("adds a task to itself", async () => {

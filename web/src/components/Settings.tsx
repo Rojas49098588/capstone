@@ -3,14 +3,16 @@ import {
   PET_INVOLVEMENTS,
   PET_ORDERS,
   PROGRESS_STYLES,
+  PROJECT_TYPE_OPTIONS,
   type PetCount,
   type Settings as SettingsValues,
 } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
+import { NICKNAME_MAX } from "../planner/tuning";
+import { DIFFICULTY_HINTS, INVOLVEMENT_HINTS } from "../ui/format";
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 import type { TourId } from "../ui/tourSteps";
 
-const LATER = "Saved now; what it changes comes in a later update.";
 
 /** The User Settings page: account details (once accounts exist) and preferences. */
 type Props = { onReplayTutorial?: (tour: TourId) => void };
@@ -29,7 +31,7 @@ export default function Settings({ onReplayTutorial }: Props) {
     options: { value: T; label: string }[],
     value: T,
     onPick: (v: T) => void,
-    note: string = LATER,
+    note: string,
   ) {
     return (
       <fieldset>
@@ -72,16 +74,42 @@ export default function Settings({ onReplayTutorial }: Props) {
         <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
           <dt className={LABEL}>Email</dt>
           <dd className={MUTED}>Not set yet</dd>
-          <dt className={LABEL}>Nickname</dt>
-          <dd className={MUTED}>Not set yet</dd>
         </dl>
+        <div>
+          <label htmlFor="settings-nickname" className={LABEL}>
+            Nickname
+          </label>
+          <input
+            id="settings-nickname"
+            value={settings.nickname}
+            maxLength={NICKNAME_MAX}
+            onChange={(e) => change({ nickname: e.target.value.slice(0, NICKNAME_MAX) })}
+            className={`${INPUT} max-w-[16rem] block mt-1`}
+          />
+          <p className={`text-xs mt-2 ${MUTED}`}>Shown on the Overview and in your pets' notes. Leave it blank to go without.</p>
+        </div>
       </section>
 
       <section aria-labelledby="settings-settings" className={`${CARD} p-6 space-y-6`}>
         <h2 id="settings-settings" style={SERIF} className="text-xl">
           Settings
         </h2>
-        {choices("difficulty", "Difficulty", DIFFICULTIES, settings.difficulty, (difficulty) => change({ difficulty }))}
+        {choices(
+          "project-type",
+          "Default project type",
+          PROJECT_TYPE_OPTIONS,
+          settings.projectType,
+          (projectType) => change({ projectType }),
+          "The type new projects start as. It sets the words a project uses, like chapters for writing.",
+        )}
+        {choices(
+          "difficulty",
+          "Default difficulty for new projects",
+          DIFFICULTIES,
+          settings.difficulty,
+          (difficulty) => change({ difficulty }),
+          `${DIFFICULTY_HINTS[settings.difficulty]} Each project can change its own.`,
+        )}
         <div>
           <label htmlFor="settings-pet-count" className="text-sm font-semibold block mb-2">
             Pets on screen at once
@@ -119,7 +147,14 @@ export default function Settings({ onReplayTutorial }: Props) {
           (progressStyle) => change({ progressStyle }),
           "How Total Progress on the Overview shows each project: rings in a circle, or one bar per project.",
         )}
-        {choices("involvement", "How involved your pet is", PET_INVOLVEMENTS, settings.petInvolvement, (petInvolvement) => change({ petInvolvement }))}
+        {choices(
+          "involvement",
+          "How much pets interact",
+          PET_INVOLVEMENTS,
+          settings.petInvolvement,
+          (petInvolvement) => change({ petInvolvement }),
+          INVOLVEMENT_HINTS[settings.petInvolvement],
+        )}
       </section>
 
       <section aria-labelledby="settings-tutorial" data-tour="settings-tutorial" className={`${CARD} p-6 space-y-3`}>

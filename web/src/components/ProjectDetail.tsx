@@ -5,7 +5,7 @@ import type { DecorSlot } from "../planner/types";
 import { freeCopies } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel } from "../ui/format";
+import { daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel, wordsFor } from "../ui/format";
 import { BUTTON_SMALL, LABEL, SERIF } from "../ui/styles";
 import Habitat from "./Habitat";
 import type { Placing } from "./HabitatDecor";
@@ -90,7 +90,7 @@ export default function ProjectDetail({ projectId, onToast, onRequestComplete, o
             <div className="h-full transition-all duration-500" style={{ width: `${percent(summary.progress)}%`, backgroundColor: project.color }} />
           </div>
           <p className="text-xs text-[var(--color-muted-foreground)] mt-1">
-            {summary.tasksDone} of {summary.tasksTotal} tasks complete · {gapLabel(summary.gap)}
+            {summary.tasksDone} of {summary.tasksTotal} {wordsFor(project).tasks} complete · {gapLabel(summary.gap)}
           </p>
           {focusedThisWeek > 0 && (
             <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{weekFocusLabel(focusedThisWeek)}</p>

@@ -252,6 +252,20 @@ describe("pet lifecycle", () => {
   const addReq = (data: ReturnType<typeof newEgg>["data"], projectId: string, title = "R") =>
     createRequirement(data, { projectId, title, weight: 3 }, NOW);
 
+  it("a new project keeps its type and difficulty", () => {
+    const { project } = createProject(makeData({ projects: [] }), { ...input, type: "art", difficulty: "gentle" }, NOW);
+    expect(project).toMatchObject({ type: "art", difficulty: "gentle" });
+    expect("type" in newEgg().project).toBe(false); // none given: an old-style School / Steady project
+  });
+
+  it("updateProject changes type and difficulty and ignores unknown values", () => {
+    const { data, project } = newEgg();
+    const music = updateProject(data, project.id, { type: "music", difficulty: "strict" });
+    expect(music.projects[0]).toMatchObject({ type: "music", difficulty: "strict" });
+    const same = updateProject(music, project.id, { difficulty: "brutal" as never, type: "poetry" as never });
+    expect(same.projects[0]).toMatchObject({ type: "music", difficulty: "strict" });
+  });
+
   it("starts new projects as an egg that hasn't hatched", () => {
     const { project } = newEgg();
     expect(project.stage).toBe("egg");

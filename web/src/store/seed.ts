@@ -322,3 +322,8 @@ export function buildSeed(now: Date): StudiumData {
   events.sort((a, b) => Date.parse(a.at) - Date.parse(b.at));
   return giveDefaultBeds({ version: 1, projects, requirements, tasks, events, today: { date: localDateKey(now), taskIds: TODAY_TASK_IDS } });
 }
+
+/** What a new user starts with: no projects yet (the first one starts the tutorial). */
+export function emptyData(now: Date): StudiumData {
+  return { version: 1, projects: [], requirements: [], tasks: [], events: [], today: { date: localDateKey(now), taskIds: [] }, defaultBeds: true };
+}
