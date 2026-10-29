@@ -43,7 +43,9 @@ it("a Moderate pet leaves a note that can be closed, waits 30 minutes across tab
   const note = () => root()?.querySelector<HTMLElement>(".note") ?? null;
 
   await vi.advanceTimersByTimeAsync(L.NOTE_CHECK_MS + 1000);
-  expect(note()?.textContent).toContain("Abby, portraits misses you: 5 days since you worked on it.");
+  expect(note()?.querySelector("p")?.textContent).toBe("Abby, I miss you. It's been 5 days since you worked on Base colors.");
+  expect(note()?.querySelector(".sign")?.textContent).toBe("- portraits"); // signed with the pet's nickname
+  expect(note()?.style.getPropertyValue("--c")).toBe("#2d3a8c"); // in the project's color
   expect(store.petNoteAt).toBe(Date.now() - 1000);
 
   // Closing it removes it; no new note before 30 minutes have passed.

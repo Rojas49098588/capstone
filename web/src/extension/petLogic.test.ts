@@ -252,27 +252,27 @@ describe("sticky notes (Moderate)", () => {
     const sick = status({ mood: "Sick", idleRequirement: { title: "x", days: 5 }, deadline: "2026-10-29" });
     const lines = [0, 0.3, 0.6, 0.99].map((r) => L.noteText(sick, "Abby", today, () => r));
     expect(new Set(lines).size).toBe(4);
-    for (const line of lines) expect(line).toMatch(/^(\*\w+\* )?Abby, portraits /);
+    for (const line of lines) expect(line).toMatch(/^(\*\w+\* )?Abby, I/); // in the pet's own voice
     expect(lines.some((l) => /medicine/.test(l))).toBe(true);
     expect(lines.some((l) => /\*cough\*|\*sniffle\*|\*achoo\*/.test(l))).toBe(true);
-    expect(L.noteText(status({ mood: "Sick" }), "", today, () => 0)).toMatch(/^portraits /);
+    expect(L.noteText(status({ mood: "Sick" }), "", today, () => 0)).toMatch(/^I /);
   });
 
   it("noteText: an upset or worried pet always has something to say", () => {
-    expect(L.noteText(status({ mood: "Upset" }), "Abby", today, () => 0)).toMatch(/^Abby, portraits .*upset/);
-    expect(L.noteText(status({ mood: "Worried" }), "", today, () => 0)).toMatch(/^portraits .*worried/);
+    expect(L.noteText(status({ mood: "Upset" }), "Abby", today, () => 0)).toMatch(/^Abby, I'm upset/);
+    expect(L.noteText(status({ mood: "Worried" }), "", today, () => 0)).toMatch(/^I'm getting worried/);
     // A reason to write still comes first.
-    expect(L.noteText(status({ mood: "Upset", deadline: "2026-10-29" }), "", today)).toBe("portraits is due tomorrow.");
+    expect(L.noteText(status({ mood: "Upset", deadline: "2026-10-29" }), "", today)).toBe("We're due tomorrow.");
   });
 
   it("noteText prefers an idle requirement, then a near deadline", () => {
     const idle = status({ idleRequirement: { title: "Base colors", days: 5 }, deadline: "2026-10-29" });
-    expect(L.noteText(idle, "Abby", today)).toBe("Abby, portraits misses you: 5 days since you worked on it.");
-    expect(L.noteText(idle, "", today)).toBe("portraits misses you: 5 days since you worked on it.");
-    expect(L.noteText(status({ idleRequirement: { title: "x", days: 1 } }), "", today)).toBe("portraits misses you: 1 day since you worked on it.");
-    expect(L.noteText(status({ deadline: "2026-10-31" }), "Abby", today)).toBe("Abby, portraits is due in 3 days.");
-    expect(L.noteText(status({ deadline: "2026-10-29" }), "", today)).toBe("portraits is due tomorrow.");
-    expect(L.noteText(status({ deadline: "2026-10-28" }), "", today)).toBe("portraits is due today.");
+    expect(L.noteText(idle, "Abby", today)).toBe("Abby, I miss you. It's been 5 days since you worked on Base colors.");
+    expect(L.noteText(idle, "", today)).toBe("I miss you. It's been 5 days since you worked on Base colors.");
+    expect(L.noteText(status({ idleRequirement: { title: "x", days: 1 } }), "", today)).toBe("I miss you. It's been 1 day since you worked on x.");
+    expect(L.noteText(status({ deadline: "2026-10-31" }), "Abby", today)).toBe("Abby, we're due in 3 days.");
+    expect(L.noteText(status({ deadline: "2026-10-29" }), "", today)).toBe("We're due tomorrow.");
+    expect(L.noteText(status({ deadline: "2026-10-28" }), "", today)).toBe("We're due today!");
     expect(L.noteText(status({ deadline: "2026-11-01" }), "", today)).toBeNull(); // 4 days away
     expect(L.noteText(status({ deadline: "2026-10-20" }), "", today)).toBeNull(); // overdue
     expect(L.noteText(status(), "Abby", today)).toBeNull();
@@ -291,7 +291,7 @@ describe("sticky notes (Moderate)", () => {
       onStudium: false,
       noteOpen: false,
     };
-    expect(L.chooseNote(ctx)).toEqual({ projectId: "p", text: "Abby, portraits misses you: 5 days since you worked on it." });
+    expect(L.chooseNote(ctx)).toEqual({ projectId: "p", text: "Abby, I miss you. It's been 5 days since you worked on x.", signature: "- portraits", color: "#2d3a8c" });
     expect(L.chooseNote({ ...ctx, prefs: { involvement: "mild", nickname: "" } })).toBeNull();
     expect(L.chooseNote({ ...ctx, prefs: undefined })).toBeNull();
     expect(L.chooseNote({ ...ctx, onStudium: true })).toBeNull();
@@ -309,7 +309,7 @@ describe("sticky notes (Moderate)", () => {
     const hidden = status({ projectId: "h", shortName: "hidden", idleRequirement: { title: "x", days: 9 } });
     const due = status({ projectId: "d", shortName: "novel", deadline: "2026-10-30" });
     const ctx = { statuses: [quiet, hidden, due], shown: new Set(["q", "d"]), prefs: { involvement: "moderate", nickname: "" }, petAway: {}, lastNoteAt: 0, now, today, onStudium: false, noteOpen: false };
-    expect(L.chooseNote(ctx)).toEqual({ projectId: "d", text: "novel is due in 2 days." });
+    expect(L.chooseNote(ctx)).toEqual({ projectId: "d", text: "We're due in 2 days.", signature: "- novel", color: "#2d3a8c" });
     expect(L.chooseNote({ ...ctx, shown: new Set(["q"]) })).toBeNull();
   });
 

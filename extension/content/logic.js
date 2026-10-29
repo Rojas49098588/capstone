@@ -599,20 +599,21 @@
   const NOTE_GAP_MINUTES = { Proud: 60, Delighted: 60, Happy: 60, Worried: 30, Upset: 15, Sick: 10 };
   // Which pet writes first: the one in the worst mood.
   const NOTE_MOOD_RANK = { Sick: 0, Upset: 1, Worried: 2, Happy: 3, Delighted: 3, Proud: 3 };
-  // What unwell pets write when nothing more specific comes first. who = "Abby, " or "".
+  // Notes are in the pet's own voice and signed "- <its nickname>". who = "Abby, " or "".
+  // What unwell pets write when nothing more specific comes first:
   const SICK_NOTES = [
-    (who, s) => `${who}${s} doesn't feel well. *cough*`,
-    (who, s) => `${who}${s} is sick and needs medicine. You can buy some in the Shop.`,
-    (who, s) => `*sniffle* ${who}${s} could really use some medicine.`,
-    (who, s) => `${who}${s} feels awful. *achoo* Medicine from the Shop would help.`,
+    (who) => `${who}I don't feel well. *cough*`,
+    (who) => `${who}I'm sick and need medicine. You can buy some in the Shop.`,
+    (who) => `*sniffle* ${who}I could really use some medicine.`,
+    (who) => `${who}I feel awful. *achoo* Medicine from the Shop would help.`,
   ];
   const UPSET_NOTES = [
-    (who, s) => `${who}${s} is upset and could use some of your time.`,
-    (who, s) => `${who}${s} feels left behind. *sigh*`,
+    (who) => `${who}I'm upset. Could you spend some time with me?`,
+    (who) => `${who}I feel left behind. *sigh*`,
   ];
   const WORRIED_NOTES = [
-    (who, s) => `${who}${s} is getting worried about falling behind.`,
-    (who, s) => `${who}${s} wonders when you'll be back.`,
+    (who) => `${who}I'm getting worried we're falling behind.`,
+    (who) => `${who}I wonder when you'll be back.`,
   ];
   const NOTE_DUE_SOON_DAYS = 3;
   const NOTE_CHECK_MS = 60 * 1000; // how often a page looks for a note to leave
@@ -621,7 +622,7 @@
     return (NOTE_GAP_MINUTES[mood] ?? NOTE_GAP_MINUTES.Happy) * 60000;
   }
 
-  /** A Moderate pet on a web page leaves notes instead of chatting in bubbles. In its habitat it chats as usual. */
+  /** A Moderate pet on a web page puts its "Haven't seen …" reminders in notes instead of bubbles. In its habitat it chats as usual. */
   function writesNotes(prefs, inHabitat) {
     return cleanPrefs(prefs).involvement === 'moderate' && !inHabitat;
   }
@@ -635,20 +636,22 @@
   const keyDays = (key) => Date.UTC(+key.slice(0, 4), +key.slice(5, 7) - 1, +key.slice(8, 10)) / 86400000;
 
   /**
-   * What a pet's note says, or null if it has nothing to say: a sick pet says so first; then an idle
-   * requirement, a near deadline, and for an upset or worried pet, how it feels.
+   * What a pet's note says, in its own voice, or null if it has nothing to say: a sick pet says so
+   * first; then an idle requirement, a near deadline, and for an upset or worried pet, how it feels.
    */
   function noteText(status, nickname, today, random = Math.random) {
     const who = nickname ? `${nickname}, ` : '';
-    const pick = (lines) => lines[Math.min(lines.length - 1, Math.floor(random() * lines.length))](who, status.shortName);
+    // Without a nickname the note starts with "we're …", so capitalize it.
+    const say = (text) => text.charAt(0).toUpperCase() + text.slice(1);
+    const pick = (lines) => say(lines[Math.min(lines.length - 1, Math.floor(random() * lines.length))](who));
     if (status.mood === 'Sick') return pick(SICK_NOTES);
     const idle = status.idleRequirement;
-    if (idle) return `${who}${status.shortName} misses you: ${idle.days} ${idle.days === 1 ? 'day' : 'days'} since you worked on it.`;
+    if (idle) return say(`${who}I miss you. It's been ${idle.days} ${idle.days === 1 ? 'day' : 'days'} since you worked on ${idle.title}.`);
     if (status.deadline && isDateKey(today)) {
       const days = keyDays(status.deadline) - keyDays(today);
-      if (days === 0) return `${who}${status.shortName} is due today.`;
-      if (days === 1) return `${who}${status.shortName} is due tomorrow.`;
-      if (days > 1 && days <= NOTE_DUE_SOON_DAYS) return `${who}${status.shortName} is due in ${days} days.`;
+      if (days === 0) return say(`${who}we're due today!`);
+      if (days === 1) return say(`${who}we're due tomorrow.`);
+      if (days > 1 && days <= NOTE_DUE_SOON_DAYS) return say(`${who}we're due in ${days} days.`);
     }
     if (status.mood === 'Upset') return pick(UPSET_NOTES);
     if (status.mood === 'Worried') return pick(WORRIED_NOTES);
@@ -656,7 +659,8 @@
   }
 
   /**
-   * The note to leave now, as { projectId, text }, or null. Only Moderate pets leave notes, never on
+   * The note to leave now, as { projectId, text, signature, color } (the pet's nickname and its project's
+   * color), or null. Only Moderate pets leave notes, never on
    * Studium, in a background tab, during a nap, or while a note is open. Of the shown pets with something
    * to say, the one in the worst mood writes (project order breaks ties), once noteGapMs(its mood) has
    * passed since the last note.
@@ -672,7 +676,12 @@
     const writer = writers[0];
     if (!writer) return null;
     if (Number.isFinite(lastNoteAt) && now - lastNoteAt < noteGapMs(writer.mood)) return null;
-    return { projectId: writer.projectId, text: noteText(writer, p.nickname, today, random) };
+    return {
+      projectId: writer.projectId,
+      text: noteText(writer, p.nickname, today, random),
+      signature: `- ${writer.shortName}`,
+      color: writer.color,
+    };
   }
 
   /** Saved screen settings with anything invalid replaced: limit >= 1 or null, a known order. */

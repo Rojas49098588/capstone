@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // @vitest-environment-options {"url":"https://example.com/article"}
 // Runs the extension's content script on an ordinary web page: on Moderate, a pet's own chatter (its
-// sounds and "Haven't seen …") goes into sticky notes, so no bubbles; on Mild it chats in bubbles.
+// "Haven't seen …" reminders go into sticky notes instead of bubbles, but its sounds stay bubbles.
+// On Mild, both are bubbles.
 import { afterAll, expect, it, vi } from "vitest";
 import "../../../extension/content/logic.js";
 
@@ -15,7 +16,7 @@ const status = {
 
 afterAll(() => vi.useRealTimers());
 
-it("a Moderate pet on a web page doesn't chatter in bubbles; a Mild one does", async () => {
+it("a Moderate pet on a web page keeps its sounds in bubbles and puts reminders in notes; a Mild one says both", async () => {
   vi.useFakeTimers({ now: new Date("2026-10-28T12:00:00") });
   const store: Record<string, unknown> = {
     petStatuses: { updatedAt: new Date().toISOString(), pets: [status] },
@@ -48,9 +49,11 @@ it("a Moderate pet on a web page doesn't chatter in bubbles; a Mild one does", a
 
   await watch(6 * 60_000);
   expect(root()?.querySelector(".pet")).not.toBeNull();
-  expect([...said]).toEqual([]);
-  expect(root()?.querySelector(".note")?.textContent).toMatch(/portraits/); // it wrote a note instead
+  expect([...said].some((s) => s.startsWith("Haven't seen"))).toBe(false);
+  expect([...said].some((s) => ["Achoo!", "*sniffle*", "*cough*"].includes(s))).toBe(true);
+  expect(root()?.querySelector(".note .sign")?.textContent).toBe("- portraits"); // it wrote a note instead
 
+  said.clear();
   await set({ petPrefs: { involvement: "mild", nickname: "Abby" } });
   await watch(6 * 60_000);
   expect([...said].some((s) => s.startsWith("Haven't seen Base colors"))).toBe(true);
