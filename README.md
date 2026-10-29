@@ -73,7 +73,7 @@ After editing extension files, click the reload icon on the extension's card, th
 | Each difficulty's thresholds | `DIFFICULTY_RULES` in `web/src/planner/tuning.ts` |
 | Each project type's words | `projectWords` in `web/src/ui/format.ts` |
 | Setup's questions and wording | `web/src/components/Setup.tsx`, `SETUP_COPY` in `web/src/ui/format.ts` |
-| Sticky notes: how often, what they say | `NOTE_GAP_MS`, `noteText` and `chooseNote` in `extension/content/logic.js` |
+| Sticky notes: how often (by mood), what they say | `NOTE_GAP_MINUTES`, `SICK_NOTES`, `UPSET_NOTES`, `WORRIED_NOTES`, `noteText` and `chooseNote` in `extension/content/logic.js` |
 | How many requirements hatch an egg, and the juvenile size | `HATCH_REQUIREMENTS` and `JUVENILE_SCALE` in `web/src/planner/tuning.ts` (and `JUVENILE_SCALE` in `extension/content/logic.js`; a test keeps them equal) |
 | The egg shown in the habitat | `web/public/pets/egg.png` |
 | Studium colors, fonts, dark mode | `web/src/index.css` |

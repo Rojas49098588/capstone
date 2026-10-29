@@ -371,6 +371,8 @@
 
     // Minimal pets stay put and quiet on web pages (User Settings: How much pets interact).
     const keepsQuiet = () => L.staysPut(env.prefs?.(), Boolean(box));
+    // On Moderate, what a pet would say on its own goes into sticky notes instead (web pages only).
+    const writesNotes = () => L.writesNotes(env.prefs?.(), Boolean(box));
 
     function goIdle(now) {
       state.mode = 'idle';
@@ -445,15 +447,15 @@
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
-      if (kind.sound && !busy && !keepsQuiet() && now > state.nextSoundAt) {
-        if (state.nextSoundAt) chatter(kind.sound);
+      if (kind.sound && !busy && !keepsQuiet() && !writesNotes() && now > state.nextSoundAt) {
+        if (state.nextSoundAt) chatter(L.pickSound(kind.sound));
         state.nextSoundAt = now + between(kind.soundMs);
       }
       if (kind.mouth && !busy && state.y === 0 && now > state.nextLickAt) {
         if (state.nextLickAt) lick();
         state.nextLickAt = now + between(kind.tongueMs);
       }
-      if (idleText && !busy && !keepsQuiet() && now > state.nextIdleMessageAt) {
+      if (idleText && !busy && !keepsQuiet() && !writesNotes() && now > state.nextIdleMessageAt) {
         if (state.nextIdleMessageAt) chatter(idleText, 4000);
         state.nextIdleMessageAt = L.nextIdleMessageAt(now);
       }
@@ -639,12 +641,12 @@
         // Clicking a napping pet wakes it up.
         wake();
         settle(performance.now());
-        chatter(kind.sound ? kind.sound.replace('!', '?') : '♥');
+        chatter(kind.sound ? L.pickSound(kind.sound).replace('!', '?') : '♥');
       } else {
         // Clicked: stop using furniture, hop and make its sound.
         if (state.mode === 'goto' || state.mode === 'use') settle(performance.now());
         if (state.y === 0) hop();
-        chatter(kind.sound ?? '♥');
+        chatter(L.pickSound(kind.sound) ?? '♥');
         lick();
       }
       press = null;

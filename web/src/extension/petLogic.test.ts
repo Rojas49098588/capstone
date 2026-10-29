@@ -90,15 +90,15 @@ describe("applyMood", () => {
   it("says … , pauses longer and naps more when Upset", () => {
     const k = L.applyMood(cat, "Upset");
     expect(k.walkSpeed).toBeCloseTo(14);
-    expect(k.sound).toBe("…");
+    expect(k.sound).toEqual(["…", "*sigh*"]);
     expect(k.napChance).toBeCloseTo(0.6);
     expect(k.idleMs[0]).toBeGreaterThan(cat.idleMs[0]);
-    expect(L.applyMood(turtle, "Upset").sound).toBe("…");
+    expect(L.applyMood(turtle, "Upset").sound).toEqual(["…", "*sigh*"]);
   });
 
-  it("is slow, only sneezes, and stays grounded when Sick", () => {
+  it("is slow, sneezes, sniffles and coughs, and stays grounded when Sick", () => {
     const k = L.applyMood(cat, "Sick");
-    expect(k).toMatchObject({ sound: "Achoo!", napChance: 0, tint: true });
+    expect(k).toMatchObject({ sound: ["Achoo!", "*sniffle*", "*cough*"], napChance: 0, tint: true });
     expect(k.walkSpeed).toBeCloseTo(8.4);
     expect(k.soundMs[0]).toBeGreaterThanOrEqual(30000);
     expect(L.applyMood(pigeon, "Sick").flyChance).toBe(0);
@@ -112,6 +112,13 @@ describe("applyMood", () => {
     L.applyMood(dog, "Sick");
     expect(dog.walkSpeed).toBe(60);
     expect(dog.soundMs).toEqual([8000, 20000]);
+  });
+
+  it("pickSound picks one of a mood's sounds, or keeps a single one", () => {
+    expect(L.pickSound("Meow!")).toBe("Meow!");
+    expect(L.pickSound(["Achoo!", "*sniffle*", "*cough*"], () => 0)).toBe("Achoo!");
+    expect(L.pickSound(["Achoo!", "*sniffle*", "*cough*"], () => 0.99)).toBe("*cough*");
+    expect(L.pickSound(undefined)).toBeUndefined();
   });
 
   it("treats an unknown mood as Happy", () => {
@@ -223,6 +230,41 @@ describe("sticky notes (Moderate)", () => {
   const status = (o: Record<string, unknown> = {}) => pet({ shortName: "portraits", projectId: "p", idleRequirement: null, deadline: null, ...o });
   const today = "2026-10-28";
 
+  it("writesNotes: a Moderate pet on a web page writes notes instead of chatting; in its habitat it chats", () => {
+    expect(L.writesNotes({ involvement: "moderate", nickname: "" }, false)).toBe(true);
+    expect(L.writesNotes({ involvement: "moderate", nickname: "" }, true)).toBe(false);
+    expect(L.writesNotes({ involvement: "mild", nickname: "" }, false)).toBe(false);
+    expect(L.writesNotes(undefined, false)).toBe(false);
+  });
+
+  it("noteGapMs: the worse the mood, the more often", () => {
+    const min = 60_000;
+    expect(L.noteGapMs("Proud")).toBe(60 * min);
+    expect(L.noteGapMs("Delighted")).toBe(60 * min);
+    expect(L.noteGapMs("Happy")).toBe(60 * min);
+    expect(L.noteGapMs("Worried")).toBe(30 * min);
+    expect(L.noteGapMs("Upset")).toBe(15 * min);
+    expect(L.noteGapMs("Sick")).toBe(10 * min);
+    expect(L.noteGapMs("Confused")).toBe(60 * min);
+  });
+
+  it("noteText: a sick pet says it feels unwell or needs medicine, before anything else", () => {
+    const sick = status({ mood: "Sick", idleRequirement: { title: "x", days: 5 }, deadline: "2026-10-29" });
+    const lines = [0, 0.3, 0.6, 0.99].map((r) => L.noteText(sick, "Abby", today, () => r));
+    expect(new Set(lines).size).toBe(4);
+    for (const line of lines) expect(line).toMatch(/^(\*\w+\* )?Abby, portraits /);
+    expect(lines.some((l) => /medicine/.test(l))).toBe(true);
+    expect(lines.some((l) => /\*cough\*|\*sniffle\*|\*achoo\*/.test(l))).toBe(true);
+    expect(L.noteText(status({ mood: "Sick" }), "", today, () => 0)).toMatch(/^portraits /);
+  });
+
+  it("noteText: an upset or worried pet always has something to say", () => {
+    expect(L.noteText(status({ mood: "Upset" }), "Abby", today, () => 0)).toMatch(/^Abby, portraits .*upset/);
+    expect(L.noteText(status({ mood: "Worried" }), "", today, () => 0)).toMatch(/^portraits .*worried/);
+    // A reason to write still comes first.
+    expect(L.noteText(status({ mood: "Upset", deadline: "2026-10-29" }), "", today)).toBe("portraits is due tomorrow.");
+  });
+
   it("noteText prefers an idle requirement, then a near deadline", () => {
     const idle = status({ idleRequirement: { title: "Base colors", days: 5 }, deadline: "2026-10-29" });
     expect(L.noteText(idle, "Abby", today)).toBe("Abby, portraits misses you: 5 days since you worked on it.");
@@ -236,7 +278,7 @@ describe("sticky notes (Moderate)", () => {
     expect(L.noteText(status(), "Abby", today)).toBeNull();
   });
 
-  it("chooseNote only for Moderate, off Studium, with no nap, no open note and 30 minutes since the last one", () => {
+  it("chooseNote only for Moderate, off Studium, with no nap, no open note and long enough since the last one", () => {
     const now = Date.parse("2026-10-28T12:00:00Z");
     const ctx = {
       statuses: [status({ idleRequirement: { title: "x", days: 5 } })],
@@ -257,8 +299,8 @@ describe("sticky notes (Moderate)", () => {
     expect(L.chooseNote({ ...ctx, pageVisible: false })).toBeNull(); // a background tab leaves no note
     expect(L.chooseNote({ ...ctx, pageVisible: true })).not.toBeNull();
     expect(L.chooseNote({ ...ctx, petAway: { p: { kind: "nap", until: now + 60_000, startedAt: now } } })).toBeNull();
-    expect(L.chooseNote({ ...ctx, lastNoteAt: now - 29 * 60_000 })).toBeNull();
-    expect(L.chooseNote({ ...ctx, lastNoteAt: now - L.NOTE_GAP_MS })).not.toBeNull();
+    expect(L.chooseNote({ ...ctx, lastNoteAt: now - 59 * 60_000 })).toBeNull(); // a Happy pet: an hour
+    expect(L.chooseNote({ ...ctx, lastNoteAt: now - 60 * 60_000 })).not.toBeNull();
   });
 
   it("chooseNote skips pets with nothing to say and pets that aren't shown", () => {
@@ -269,6 +311,21 @@ describe("sticky notes (Moderate)", () => {
     const ctx = { statuses: [quiet, hidden, due], shown: new Set(["q", "d"]), prefs: { involvement: "moderate", nickname: "" }, petAway: {}, lastNoteAt: 0, now, today, onStudium: false, noteOpen: false };
     expect(L.chooseNote(ctx)).toEqual({ projectId: "d", text: "novel is due in 2 days." });
     expect(L.chooseNote({ ...ctx, shown: new Set(["q"]) })).toBeNull();
+  });
+
+  it("chooseNote: the pet in the worst mood writes, and its mood sets the wait", () => {
+    const now = Date.parse("2026-10-28T12:00:00Z");
+    const happy = status({ projectId: "h", shortName: "happy", deadline: "2026-10-29" });
+    const sick = status({ projectId: "s", shortName: "sick", mood: "Sick" });
+    const upset = status({ projectId: "u", shortName: "upset", mood: "Upset" });
+    const ctx = { statuses: [happy, upset, sick], shown: new Set(["h", "u", "s"]), prefs: { involvement: "moderate", nickname: "" }, petAway: {}, lastNoteAt: 0, now, today, onStudium: false, noteOpen: false, random: () => 0 };
+    expect(L.chooseNote(ctx)?.projectId).toBe("s");
+    expect(L.chooseNote({ ...ctx, lastNoteAt: now - 9 * 60_000 })).toBeNull();
+    expect(L.chooseNote({ ...ctx, lastNoteAt: now - 10 * 60_000 })?.projectId).toBe("s");
+    // Without the sick pet: the upset one, every 15 minutes.
+    const noSick = { ...ctx, shown: new Set(["h", "u"]) };
+    expect(L.chooseNote({ ...noSick, lastNoteAt: now - 14 * 60_000 })).toBeNull();
+    expect(L.chooseNote({ ...noSick, lastNoteAt: now - 15 * 60_000 })?.projectId).toBe("u");
   });
 
   it("todayKey is the local date", () => {
