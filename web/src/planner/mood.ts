@@ -5,8 +5,19 @@ import { estimateMultipliers, type Multipliers } from "./learning";
 import { petStage } from "./lifecycle";
 import { isRequirementDone, plannedProgress, requirementStart, scheduleGap, tasksOfRequirement } from "./progress";
 import { DAY_MS, wholeDaysBetween } from "./time";
-import { DELIGHTED_GAP, NEGLECT_DAYS, RECOVERY_DAYS, SICK_DAYS, UPSET_GAP, WORRIED_GAP } from "./tuning";
-import type { Mood, Requirement, StudiumData } from "./types";
+import { projectDifficulty } from "./projectKind";
+import { DELIGHTED_GAP, DIFFICULTY_RULES, RECOVERY_DAYS } from "./tuning";
+import type { Difficulty, Mood, Project, Requirement, StudiumData } from "./types";
+
+/** Idle days before a requirement lowers this project's pet's mood (its difficulty decides). */
+export function neglectDays(project: Project): number {
+  return DIFFICULTY_RULES[projectDifficulty(project)].neglectDays;
+}
+
+/** Idle days before this project's pet gets sick. */
+export function sickDays(project: Project): number {
+  return DIFFICULTY_RULES[projectDifficulty(project)].sickDays;
+}
 
 export function requirementIdleDays(req: Requirement, data: StudiumData, now: Date): number {
   const start = idleClockStart(req, data);
@@ -36,15 +47,16 @@ export function neglectedRequirements(
   projectId: string,
   data: StudiumData,
   now: Date,
-  minDays: number = NEGLECT_DAYS,
+  minDays?: number,
 ): NeglectedRequirement[] {
   const project = data.projects.find((p) => p.id === projectId);
   if (!project) return [];
+  const min = minDays ?? neglectDays(project);
   return data.requirements
     .filter((r) => r.projectId === projectId)
     .filter((r) => !isRequirementDone(r.id, data.tasks) && plannedProgress(r, project, now) > 0)
     .map((r) => ({ requirement: r, idleDays: requirementIdleDays(r, data, now) }))
-    .filter((n) => n.idleDays >= minDays)
+    .filter((n) => n.idleDays >= min)
     .sort((a, b) => b.idleDays - a.idleDays);
 }
 
@@ -69,14 +81,15 @@ export function projectHealth(projectId: string, data: StudiumData, now: Date): 
     recovering = !allMoved;
     recoveringFor = recovering ? targets : [];
   }
-  const sick = !recovering && neglectedRequirements(projectId, data, now, SICK_DAYS).length > 0;
+  const sick = !recovering && !!project && neglectedRequirements(projectId, data, now, sickDays(project)).length > 0;
   return { sick, recovering, recoveringFor };
 }
 
-export function moodFromGap(gap: number): Mood {
+export function moodFromGap(gap: number, difficulty: Difficulty = "steady"): Mood {
+  const rules = DIFFICULTY_RULES[difficulty];
   if (gap >= DELIGHTED_GAP) return "Delighted";
-  if (gap > WORRIED_GAP) return "Happy";
-  if (gap > UPSET_GAP) return "Worried";
+  if (gap > rules.worriedGap) return "Happy";
+  if (gap > rules.upsetGap) return "Worried";
   return "Upset";
 }
 
@@ -105,12 +118,14 @@ export function projectMood(
   multipliers: Multipliers = estimateMultipliers(data),
 ): ProjectMood {
   const reqs = data.requirements.filter((r) => r.projectId === projectId);
+  const project = data.projects.find((p) => p.id === projectId);
+  const difficulty = project ? projectDifficulty(project) : "steady";
   const gap = scheduleGap(projectId, data, multipliers, now);
   const neglected = neglectedRequirements(projectId, data, now);
   const health = projectHealth(projectId, data, now);
 
   let mood: Mood =
-    reqs.length > 0 && reqs.every((r) => isRequirementDone(r.id, data.tasks)) ? "Proud" : moodFromGap(gap);
+    reqs.length > 0 && reqs.every((r) => isRequirementDone(r.id, data.tasks)) ? "Proud" : moodFromGap(gap, difficulty);
   if (neglected.length > 0) mood = lowerOneLevel(mood);
   if (health.sick) mood = "Sick";
   else if (health.recovering) mood = capAtWorried(mood);

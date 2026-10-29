@@ -2,11 +2,13 @@
 // data and actions come from the Studium provider (store/useStudium.tsx).
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import CompletionPrompt from "./components/CompletionPrompt";
+import FirstProjectPrompt from "./components/FirstProjectPrompt";
 import NoticeBanner from "./components/NoticeBanner";
 import Overview from "./components/Overview";
 import ProjectDetail from "./components/ProjectDetail";
 import ProjectModal from "./components/ProjectModal";
 import Settings from "./components/Settings";
+import Setup from "./components/Setup";
 import Shop from "./components/Shop";
 import Toast from "./components/Toast";
 import Tour from "./components/Tour";
@@ -46,6 +48,8 @@ export function StudiumApp() {
   const [tour, setTour] = useState<TourId>("project");
   const [tourStep, setTourStep] = useState<number | null>(null);
   const [tourProjectId, setTourProjectId] = useState<string | null>(null);
+  // "Not now" on the first-project prompt hides it until the Overview opens again.
+  const [firstPromptHidden, setFirstPromptHidden] = useState(false);
 
   useLayoutEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -65,6 +69,7 @@ export function StudiumApp() {
   const onProjects = page === "projects";
 
   function openProjects() {
+    setFirstPromptHidden(false);
     setSelectedId(null);
     setPage("projects");
   }
@@ -73,6 +78,10 @@ export function StudiumApp() {
     setSelectedId(id);
     setPage("projects");
   }
+
+  // A new user with no projects is asked to create one (never over setup, a tutorial or a modal).
+  const showFirstPrompt =
+    s.settings.setupDone && onProjects && selected === null && s.data.projects.length === 0 && tourStep === null && !modal && !firstPromptHidden;
 
   // ---- Tutorial ----
   const tourProject = s.data.projects.find((p) => p.id === tourProjectId) ?? null;
@@ -165,6 +174,18 @@ export function StudiumApp() {
     navButton("Shop", page === "shop", () => setPage("shop"), undefined, small),
   ];
 
+
+  // First run (and once for people who used Studium before setup existed): setup comes before anything else.
+  // The storage warning still shows above it.
+  if (!s.settings.setupDone) {
+    return (
+      <>
+        <NoticeBanner notice={s.notice} onDismiss={s.dismissNotice} />
+        <Setup theme={theme} onTheme={setTheme} onFinish={openProjects} />
+      </>
+    );
+  }
+
   return (
     <div className="min-h-screen flex flex-col" style={{ backgroundColor: "var(--color-background)" }}>
       <header className="bg-[var(--color-card)] border-b border-[var(--color-border)] sticky top-0 z-10">
@@ -247,10 +268,13 @@ export function StudiumApp() {
             />
           </>
         ) : (
-          <Overview onSelect={openProject} onRequestComplete={setCompletingId} />
+          <Overview onSelect={openProject} onRequestComplete={setCompletingId} onNewProject={() => setModal({ mode: "create" })} />
         )}
       </main>
 
+      {showFirstPrompt && (
+        <FirstProjectPrompt onCreate={() => setModal({ mode: "create" })} onClose={() => setFirstPromptHidden(true)} />
+      )}
       {modal && (
         <ProjectModal
           project={editing}

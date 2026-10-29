@@ -124,6 +124,49 @@ describe("sick, medicine and recovery", () => {
   });
 });
 
+describe("difficulty", () => {
+  const withDifficulty = (data: StudiumData, difficulty?: "gentle" | "steady" | "strict") => ({
+    ...data,
+    projects: data.projects.map((p) => ({ ...p, difficulty })),
+  });
+  // Start day -40, due day +40, so planned progress is about half and the requirement has started long ago.
+  const idleFor = (days: number) => moodData({ done: 4, lastDoneDaysAgo: days, startDate: dayKey(-40), dueDate: dayKey(40) });
+
+  it("each difficulty has its own Worried and Upset lines", () => {
+    expect(moodFromGap(-15, "gentle")).toBe("Happy");
+    expect(moodFromGap(-15)).toBe("Worried");
+    expect(moodFromGap(-15, "strict")).toBe("Upset");
+    expect(moodFromGap(-30, "gentle")).toBe("Worried");
+    expect(moodFromGap(-6, "strict")).toBe("Worried");
+    expect(moodFromGap(-41, "gentle")).toBe("Upset");
+  });
+
+  it("a strict pet gets neglected and sick sooner", () => {
+    const strict4 = withDifficulty(idleFor(4), "strict");
+    expect(neglectedRequirements("p1", strict4, NOW)).toHaveLength(1);
+    expect(projectHealth("p1", strict4, NOW).sick).toBe(false);
+    expect(projectHealth("p1", withDifficulty(idleFor(7), "strict"), NOW).sick).toBe(true);
+    const steady4 = withDifficulty(idleFor(4), "steady");
+    expect(neglectedRequirements("p1", steady4, NOW)).toHaveLength(0);
+    const steady7 = withDifficulty(idleFor(7), "steady");
+    expect(neglectedRequirements("p1", steady7, NOW)).toHaveLength(1);
+    expect(projectHealth("p1", steady7, NOW).sick).toBe(false);
+  });
+
+  it("a gentle pet isn't sick after 14 idle days", () => {
+    expect(projectHealth("p1", withDifficulty(idleFor(15), "gentle"), NOW).sick).toBe(false);
+    expect(neglectedRequirements("p1", withDifficulty(idleFor(13), "gentle"), NOW)).toHaveLength(0);
+    expect(projectHealth("p1", withDifficulty(idleFor(29), "gentle"), NOW).sick).toBe(true);
+  });
+
+  it("a project with no difficulty behaves exactly as before", () => {
+    for (const days of [3, 8, 15]) {
+      const data = idleFor(days);
+      expect(projectMood("p1", data, NOW)).toEqual(projectMood("p1", withDifficulty(data, "steady"), NOW));
+    }
+  });
+});
+
 describe("pet lifecycle and health", () => {
   // Requirement started 20 days ago, due in 19; nothing completed since.
   const idle = { startDate: dayKey(-20), dueDate: dayKey(19), done: 0 };

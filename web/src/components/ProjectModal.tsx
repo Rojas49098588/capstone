@@ -1,9 +1,10 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { petStage } from "../planner/lifecycle";
 import { isDateKey } from "../planner/time";
-import type { PetKind, Project } from "../planner/types";
+import { projectDifficulty, projectType } from "../planner/projectKind";
+import { DIFFICULTY_LEVELS, PROJECT_TYPES, type Difficulty, type PetKind, type Project, type ProjectType } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
-import { eggCompanionLabel } from "../ui/format";
+import { DIFFICULTY_HINTS, DIFFICULTY_LABELS, PROJECT_TYPE_LABELS, eggCompanionLabel, wordsFor } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, PROJECT_COLORS, SERIF } from "../ui/styles";
 import EggPicker from "./EggPicker";
 import { useReturnFocus } from "./useReturnFocus";
@@ -24,6 +25,8 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
   const [description, setDescription] = useState(project?.description ?? "");
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0]);
   const [petKind, setPetKind] = useState<PetKind | null>(null);
+  const [type, setType] = useState<ProjectType>(project ? projectType(project) : s.settings.projectType);
+  const [difficulty, setDifficulty] = useState<Difficulty>(project ? projectDifficulty(project) : s.settings.difficulty);
   const [errors, setErrors] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
@@ -52,14 +55,46 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
       description: description.trim(),
     };
     if (project) {
-      s.updateProject(project.id, fields);
+      // Only what changed, so an old project with no type or difficulty stays that way.
+      s.updateProject(project.id, {
+        ...fields,
+        ...(type !== projectType(project) ? { type } : {}),
+        ...(difficulty !== projectDifficulty(project) ? { difficulty } : {}),
+      });
     } else if (petKind) {
-      onCreated?.(s.createProject({ ...fields, petKind }));
+      const created = s.createProject({ ...fields, petKind, type, difficulty });
+      onCreated?.(created);
     }
     onClose();
   }
 
   const title = project ? "Edit Project" : "New Project";
+
+  function radioGroup<T extends string>(legend: string, values: readonly T[], labels: Record<T, string>, value: T, onPick: (v: T) => void) {
+    return (
+      <fieldset>
+        <legend className={LABEL}>{legend}</legend>
+        <div className="flex flex-wrap gap-2 mt-1" role="radiogroup" aria-label={legend}>
+          {values.map((v) => (
+            <button
+              key={v}
+              type="button"
+              role="radio"
+              aria-checked={value === v}
+              onClick={() => onPick(v)}
+              className={`px-3 py-1 text-sm border transition-colors ${
+                value === v
+                  ? "bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] border-[var(--color-inverse)]"
+                  : "border-[var(--color-border)] text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)]"
+              }`}
+            >
+              {labels[v]}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)] overflow-y-auto py-8">
@@ -106,8 +141,11 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
               ))}
             </div>
           </fieldset>
+          {radioGroup("Type", PROJECT_TYPES, PROJECT_TYPE_LABELS, type, setType)}
+          {radioGroup("Difficulty", DIFFICULTY_LEVELS, DIFFICULTY_LABELS, difficulty, setDifficulty)}
+          <p className="text-xs text-[var(--color-muted-foreground)] -mt-2">{DIFFICULTY_HINTS[difficulty]}</p>
           {project && petStage(project) === "egg" ? (
-            <p className="text-sm text-[var(--color-muted-foreground)]">{eggCompanionLabel()}</p>
+            <p className="text-sm text-[var(--color-muted-foreground)]">{eggCompanionLabel(wordsFor(project))}</p>
           ) : project ? (
             <p className="text-sm text-[var(--color-muted-foreground)]">
               Companion: {project.petKind} (it has hatched, so it can't be changed).

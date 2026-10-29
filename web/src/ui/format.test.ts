@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
 import {
+  projectsHeading,
+  projectWords,
+  hatchHint as hatchHintFor,
   EGG_LABEL,
   hatchHint,
   hatchingMessage,
@@ -115,5 +118,38 @@ describe("pet lifecycle wording", () => {
   it("announces the hatch with the project's short name", () => {
     expect(hatchingMessage("webDev")).toBe("webDev is hatching!");
     expect(EGG_LABEL).toBe("Egg");
+  });
+});
+
+describe("projectsHeading", () => {
+  it("uses the nickname when there is one", () => {
+    expect(projectsHeading("")).toBe("Your Projects");
+    expect(projectsHeading("   ")).toBe("Your Projects");
+    expect(projectsHeading("Abby")).toBe("Abby's Projects");
+    expect(projectsHeading("Chris")).toBe("Chris's Projects");
+  });
+});
+
+describe("project words in the habitat", () => {
+  it("attention and accuracy use the project's words", () => {
+    expect(attentionLabel([], projectWords("writing"))).toBe("All chapters active");
+    expect(accuracyLabel("novel", 1.42, 3, projectWords("writing"))).toBe("Your novel scenes take about 1.4× your estimates");
+  });
+});
+
+describe("projectWords", () => {
+  it("every type has its words", () => {
+    expect(projectWords("school")).toEqual({ requirement: "requirement", requirements: "requirements", task: "task", tasks: "tasks" });
+    expect(projectWords("writing")).toEqual({ requirement: "chapter", requirements: "chapters", task: "scene", tasks: "scenes" });
+    expect(projectWords("art")).toEqual({ requirement: "piece", requirements: "pieces", task: "step", tasks: "steps" });
+    expect(projectWords("code")).toEqual({ requirement: "feature", requirements: "features", task: "task", tasks: "tasks" });
+    expect(projectWords("music")).toEqual({ requirement: "track", requirements: "tracks", task: "task", tasks: "tasks" });
+    expect(projectWords("other")).toEqual({ requirement: "milestone", requirements: "milestones", task: "task", tasks: "tasks" });
+  });
+
+  it("the hatch hint uses the project's words", () => {
+    expect(hatchHintFor(2, projectWords("writing"))).toBe("Add 2 more chapters to hatch");
+    expect(hatchHintFor(1, projectWords("writing"))).toBe("Add 1 more chapter to hatch");
+    expect(hatchHintFor(2)).toBe("Add 2 more requirements to hatch");
   });
 });

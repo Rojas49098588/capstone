@@ -2,7 +2,9 @@
 import type { NeglectedRequirement } from "../planner/mood";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
-import type { Mood, Task } from "../planner/types";
+import { projectType } from "../planner/projectKind";
+import type { Difficulty, Mood, Project, ProjectType, Task } from "../planner/types";
+import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
 
 export const ESTIMATE_CHOICES: readonly number[] = [15, 30, 60, 120, 240, 480];
@@ -92,13 +94,52 @@ export function percent(fraction: number): number {
 /** Shown where the mood goes while the pet is still an egg. */
 export const EGG_LABEL = "Egg";
 
-export function hatchHint(remaining: number): string {
-  return `Add ${remaining} more ${remaining === 1 ? "requirement" : "requirements"} to hatch`;
+export function hatchHint(remaining: number, words: ProjectWords = SCHOOL_WORDS): string {
+  return `Add ${remaining} more ${remaining === 1 ? words.requirement : words.requirements} to hatch`;
 }
 
 /** The edit dialog's companion line while the pet is an egg: it doesn't give the animal away. */
-export function eggCompanionLabel(): string {
-  return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} requirements).`;
+export function eggCompanionLabel(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} ${words.requirements}).`;
+}
+
+// ---- Project types ----
+
+/** What one project calls its requirements and tasks (lower case). Screens that mix projects keep the school words. */
+export type ProjectWords = { requirement: string; requirements: string; task: string; tasks: string };
+
+const words = (requirement: string, task: string): ProjectWords => ({ requirement, requirements: `${requirement}s`, task, tasks: `${task}s` });
+const SCHOOL_WORDS = words("requirement", "task");
+const PROJECT_WORDS: Record<ProjectType, ProjectWords> = {
+  school: SCHOOL_WORDS,
+  writing: words("chapter", "scene"),
+  art: words("piece", "step"),
+  code: words("feature", "task"),
+  music: words("track", "task"),
+  other: words("milestone", "task"),
+};
+
+export function projectWords(type: ProjectType): ProjectWords {
+  return PROJECT_WORDS[type];
+}
+
+/** The words for a project (missing type = school). */
+export function wordsFor(project: Project | undefined): ProjectWords {
+  return project ? PROJECT_WORDS[projectType(project)] : SCHOOL_WORDS;
+}
+
+/** The habitat's line before there's enough data for estimate accuracy. */
+export function accuracyPending(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Finish a few ${words.tasks} with a time to see how your estimates compare.`;
+}
+
+/** The habitat's note while a pet recovers from medicine. */
+export function recoveringNote(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Recovering: mood stays at Worried or below until the neglected ${words.requirements} move again.`;
+}
+
+export function capitalize(word: string): string {
+  return word.charAt(0).toUpperCase() + word.slice(1);
 }
 
 export function hatchingMessage(shortName: string): string {
@@ -111,15 +152,15 @@ export function gapLabel(gap: number): string {
   return `${n} ${n === 1 ? "point" : "points"} ${gap > 0 ? "ahead of" : "behind"} plan`;
 }
 
-export function attentionLabel(neglected: NeglectedRequirement[]): string {
-  if (neglected.length === 0) return "All requirements active";
+export function attentionLabel(neglected: NeglectedRequirement[], words: ProjectWords = SCHOOL_WORDS): string {
+  if (neglected.length === 0) return `All ${words.requirements} active`;
   const top = neglected[0];
   return `${top.requirement.title}: ${top.idleDays} days idle`;
 }
 
-export function accuracyLabel(shortName: string, multiplier: number, samples: number): string | null {
+export function accuracyLabel(shortName: string, multiplier: number, samples: number, words: ProjectWords = SCHOOL_WORDS): string | null {
   if (samples < LEARNING_MIN_SAMPLES_SHOWN) return null;
-  return `Your ${shortName} tasks take about ${multiplier.toFixed(1)}× your estimates`;
+  return `Your ${shortName} ${words.tasks} take about ${multiplier.toFixed(1)}× your estimates`;
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`;
@@ -139,3 +180,63 @@ export function payoutMessage(payout: Payout, task: Task): string {
   if (b.sickMultiplier < 1) parts.push(`sick pet ×${b.sickMultiplier}`);
   return `+${payout.tokens} tokens${parts.length > 0 ? `: ${parts.join(", ")}` : ""}`;
 }
+
+// ---- Setup and settings ----
+
+export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
+  school: "School",
+  writing: "Writing",
+  art: "Art & design",
+  code: "Code",
+  music: "Music",
+  other: "Something else",
+};
+
+export const DIFFICULTY_LABELS: Record<Difficulty, string> = { gentle: "Gentle", steady: "Steady", strict: "Strict" };
+export const DIFFICULTY_HINTS: Record<Difficulty, string> = {
+  gentle: "Forgiving. Worried only when you're well behind, and slow to get sick.",
+  steady: "Balanced. Worried when you fall a little behind, sick after two idle weeks.",
+  strict: "Notices quickly when you fall behind or leave work idle.",
+};
+
+export const INVOLVEMENT_LABELS: Record<PetInvolvement, string> = { minimal: "Minimal", mild: "Mild", moderate: "Moderate" };
+export const INVOLVEMENT_HINTS: Record<PetInvolvement, string> = {
+  minimal: "Stays put and keeps quiet on your pages. Focus naps still work.",
+  mild: "Walks around, celebrates finished tasks and checks in after naps.",
+  moderate: "Mild, plus it leaves sticky notes about your work. More mischief coming in a future update.",
+};
+
+/** The Overview's heading: "Abby's Projects", or "Your Projects" with no nickname. */
+export function projectsHeading(nickname: string): string {
+  const name = nickname.trim();
+  return name ? `${name}'s Projects` : "Your Projects";
+}
+
+export const NO_PROJECTS_TITLE = "No projects yet";
+export const NO_PROJECTS_TEXT = "Start a project and its pet hatches once you've planned it.";
+export const FIRST_PROJECT_TITLE = "Create your first project";
+export const FIRST_PROJECT_TEXT =
+  "Each project gets its own egg. Add a few requirements and it hatches into a pet that follows how the work is going.";
+
+export const SETUP_COPY = {
+  welcome: "Welcome to Studium",
+  makeTitle: "What do you make?",
+  makeHint: "This sets the words your new projects use, like chapters for writing. You can pick a different type for each project.",
+  nameTitle: "What should we call you?",
+  namePlaceholder: "Optional",
+  nameHint: "Shown on your Overview and in your pets' notes. Leave it blank to go without.",
+  petsTitle: "Your pets",
+  difficultyLegend: "Difficulty",
+  involvementLegend: "How much they interact",
+  lookTitle: "Your look",
+  progressLegend: "How should Total Progress look?",
+  themeLegend: "Light or dark?",
+  changeLater: "You can change all of this later in Settings.",
+} as const;
+
+/** Made-up projects for setup's progress previews. */
+export const SETUP_SAMPLE_PROJECTS = [
+  { name: "portraits", color: "#2d3a8c", percent: 57 },
+  { name: "novel", color: "#c9501a", percent: 49 },
+  { name: "history", color: "#3a7c4f", percent: 24 },
+] as const;

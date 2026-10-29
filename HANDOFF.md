@@ -2,11 +2,12 @@
 
 Briefing for the next Claude session working in this repo. Read this first, then the files it points to.
 
-## Start here: Plans 1–3, pet interactions and the pet lifecycle are done; ask the user what's next
+## Start here: Plans 1–3, pet interactions, the pet lifecycle and setup/project types are done; ask the user what's next
 
 All three plans from the planner spec are built, and so is the pet interactions round (spec `docs/superpowers/specs/2026-10-19-pet-interactions-design.md`, plan `docs/superpowers/plans/2026-10-19-pet-interactions.md`, branch `feature/pet-interactions`). Its planned next round is **work limiters**, built on the focus sessions it records. Ask the user to choose the next step, for example:
 - **Deploy Studium** somewhere other than `localhost` (Vercel, Netlify), so testers don't need Node. Then change `HOMEPAGE_URL` in `extension/content/logic.js`; the toolbar icon and the pets' Studium detection both use it.
 - **Deferred ideas** (spec "Out of scope"): growing juveniles into adults and juvenile art (the lifecycle's next round), using food, clothes and toys, and sprite animation frames.
+- **The deck's other "Next" items** (spec `2026-10-28-setup-and-project-types-design.md`, Non-goals): optional deadlines and time estimates, mood based on consistency, a pause button, progress photos, and more mischief for Moderate pets (with the desktop app).
 - **Deferred minors** listed under "Known small issues" below.
 
 New work still goes through `superpowers:brainstorming` / `superpowers:writing-plans`, with the user's approval before any code. Plans 1–3 were built with **inline execution** (`superpowers:executing-plans`) at the user's request ("a native approach"): test-first, with one whole-branch review at the end.
@@ -37,6 +38,7 @@ The user is a student building this as their capstone. They make the product dec
 | Plan 3: extension link (pet statuses, habitat mode, mood behavior) | **Done**, reviewed (2 fixes after review), 208 tests + a 27-step Playwright check with the real extension | branch `feature/extension-link`; plan `docs/superpowers/plans/2026-10-15-extension-link.md` |
 | Habitat decor: Shop Habitat tab, inventory under the habitat, fixed spots, pets use their furniture | **Done**, 362 tests + a 14-step Playwright check (and the 40-step pet-interactions check still passes) | branch `feature/habitat-decor` (from `feature/pet-interactions`); plan `docs/superpowers/plans/2026-10-19-habitat-decor.md` |
 | Pet interactions: pet menu, naps as focus sessions, sleep, check-ins, celebrations | **Done**, 309 tests + a 39-step Playwright check with the real extension | branch `feature/pet-interactions`; plan `docs/superpowers/plans/2026-10-19-pet-interactions.md` |
+| Setup and project types: 4-step first-run setup, a type (its own words) and a difficulty per project, three interaction levels with sticky notes for Moderate, nickname, blank start with a first-project prompt | **Done**, 482 tests + a Playwright check with the real extension | branch `feature/setup-and-project-types` (from `feature/pet-lifecycle`); spec `docs/superpowers/specs/2026-10-28-setup-and-project-types-design.md`, plan `docs/superpowers/plans/2026-10-28-setup-and-project-types.md` |
 | Pet lifecycle: new projects start as eggs, the 3rd requirement hatches a 75%-size juvenile, existing pets stay adults | **Done**, 431 tests + a 16-step Playwright check with the real extension | branch `feature/pet-lifecycle` (from `feature/tutorial`); spec `docs/superpowers/specs/2026-10-28-pet-lifecycle-design.md`, plan `docs/superpowers/plans/2026-10-28-pet-lifecycle.md` |
 
 ## Code map
@@ -77,6 +79,9 @@ web/
   src/ui/                  format.ts (ALL wording), derive.ts (per-project summaries), styles.ts (shared classes)
   src/pets/eggs.ts         egg looks + vague descriptions, shuffle
   src/planner/lifecycle.ts pet stages: petStage (missing = adult), requirementsToHatch, hatchIfReady
+  src/planner/projectKind.ts projectType (missing = school), projectDifficulty (missing = steady)
+  src/components/Setup.tsx  the 4-step first-run setup (App shows only it until settings.setupDone)
+  src/components/FirstProjectPrompt.tsx  "Create your first project" while there are none
   src/components/          one file per screen piece (Overview, ProjectDetail, RequirementCard, TaskRow,
                            CompletionPrompt, Habitat, Shop, ProjectModal, EggPicker, ...) + tests next to each
   src/test/render.tsx      renderWithStudium, memoryStorage, savedData; importing it registers RTL cleanup
@@ -146,6 +151,15 @@ From the pet lifecycle:
 - **Neglect counts from the hatch only for projects with a `stage` field**: a just-hatched pet can't be neglected or sick straight away. Adults saved before the lifecycle keep the old rule.
 - **Juveniles are drawn at `JUVENILE_SCALE` (0.75)**: `PetLogic.petHeight` in the extension, the still picture in Studium. `lifecycleScale.test.ts` keeps the two values equal.
 - Full-suite runs on this machine use `npx vitest run --maxWorkers=4`: with default parallelism, test workers sometimes time out while starting (no test fails; files just don't run).
+
+From setup and project types:
+- **New users start blank** (`emptyData`): no example projects. The examples (`buildSeed`) are only used when the browser can't save or the saved data is damaged, and in tests. Creating the first project opens it, which starts the tutorial.
+- **Setup shows until `settings.setupDone`**, for existing users too (once). Nothing is saved until its last step. Its answers are defaults: `projectType` and `difficulty` pre-fill the New Project form; they don't change existing projects.
+- **`Project.type` missing means School and `Project.difficulty` missing means Steady**, so old projects keep today's words and thresholds. The edit dialog only writes them when changed.
+- **Difficulty** sets the Worried/Upset gaps, neglect days and sick days (`DIFFICULTY_RULES` in `tuning.ts`; Steady is the old values). Tokens, Delighted, recovery and medicine don't change.
+- **Project words** (`projectWords` / `wordsFor` in `format.ts`) are used only on one project's own screens: section, cards, forms, the hatch hint. Overview, Today, Suggested next, the Shop, token messages and the tutorial keep "requirement" and "task".
+- **Old settings map**: difficulty easy/medium/hard → gentle/steady/strict; involvement notMuch/very → minimal/mild.
+- **The extension gets `petPrefs`** ({ involvement, nickname }) next to `petScreen`, copied on the Studium page. Minimal pets stay put and quiet on web pages (`staysPut`), but act normally in their habitat. Moderate pets leave sticky notes (`chooseNote` in `logic.js`): at most one per `NOTE_GAP_MS` (30 min) across tabs via `chrome.storage.local.petNoteAt`, never on Studium, during a nap, or while one is open. `NICKNAME_MAX` (20) is kept equal in both by a test.
 
 Known small issues, deferred on purpose:
 - Juveniles and furniture: in the lifecycle's browser check, a juvenile frog hopped around its habitat normally but didn't use its bed during a one-minute watch, so how a 75%-size pet sits on the bed and each kind's furniture hasn't been seen yet.

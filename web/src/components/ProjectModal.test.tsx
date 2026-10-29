@@ -47,6 +47,34 @@ describe("ProjectModal", () => {
     expect(savedData(storage).projects.find((p) => p.id === "webDev")).toMatchObject({ name: "Portfolio Site", petKind: "pigeon" });
   });
 
+  it("a new project starts with the default type and difficulty from settings", async () => {
+    const { storage } = renderWithStudium(<ProjectModal onClose={vi.fn()} />, { settings: { projectType: "writing", difficulty: "strict" } });
+    expect(screen.getByRole("radio", { name: "Writing" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Strict" }).getAttribute("aria-checked")).toBe("true");
+    await userEvent.type(screen.getByLabelText("Project name"), "Novel");
+    fireEvent.change(screen.getByLabelText("Deadline"), { target: { value: dayKey(40) } });
+    await userEvent.click(screen.getAllByRole("radio", { name: /^Egg / })[0]);
+    await userEvent.click(screen.getByRole("button", { name: "Create project" }));
+    expect(savedData(storage).projects.find((p) => p.name === "Novel")).toMatchObject({ type: "writing", difficulty: "strict" });
+  });
+
+  it("editing changes a project's type and difficulty", async () => {
+    const { storage } = renderWithStudium(<ProjectModal project={webDev()} onClose={vi.fn()} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Music" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Gentle" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save project" }));
+    expect(savedData(storage).projects.find((p) => p.id === "webDev")).toMatchObject({ type: "music", difficulty: "gentle" });
+  });
+
+  it("editing an old project shows School and Steady, and saving without changes keeps it unset", async () => {
+    const { storage } = renderWithStudium(<ProjectModal project={webDev()} onClose={vi.fn()} />, { settings: { projectType: "art", difficulty: "strict" } });
+    expect(screen.getByRole("radio", { name: "School" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Steady" }).getAttribute("aria-checked")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: "Save project" }));
+    const saved = savedData(storage).projects.find((p) => p.id === "webDev");
+    expect(saved && ("type" in saved || "difficulty" in saved)).toBe(false);
+  });
+
   it("deletes a project after confirming", async () => {
     const onDeleted = vi.fn();
     const { storage } = renderWithStudium(<ProjectModal project={webDev()} onClose={vi.fn()} onDeleted={onDeleted} />);
