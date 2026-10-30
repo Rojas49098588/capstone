@@ -30,6 +30,7 @@ export type Settings = {
   setupDone: boolean; // the first-run setup has been finished
   tutorialDone: boolean; // the project tutorial has been finished or skipped (Settings can replay it)
   shopTutorialDone: boolean; // the same for the Shop tutorial
+  startWithComputer: boolean; // desktop app only: start in the tray when the computer starts
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -43,6 +44,7 @@ export const DEFAULT_SETTINGS: Settings = {
   setupDone: false,
   tutorialDone: false,
   shopTutorialDone: false,
+  startWithComputer: true,
 };
 
 export const DIFFICULTIES: { value: Difficulty; label: string }[] = DIFFICULTY_LEVELS.map((value) => ({ value, label: DIFFICULTY_LABELS[value] }));
@@ -94,6 +96,7 @@ export function parseSettings(raw: string | null): Settings {
     tutorialDone: o.tutorialDone === true,
     // Saved before the tour was split in two: finishing the old tour covered the Shop too.
     shopTutorialDone: o.shopTutorialDone === undefined ? o.tutorialDone === true : o.shopTutorialDone === true,
+    startWithComputer: o.startWithComputer !== false,
   };
 }
 

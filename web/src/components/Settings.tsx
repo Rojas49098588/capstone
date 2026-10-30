@@ -9,7 +9,7 @@ import {
 } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
 import { NICKNAME_MAX } from "../planner/tuning";
-import { DIFFICULTY_HINTS, INVOLVEMENT_HINTS } from "../ui/format";
+import { DIFFICULTY_HINTS, INVOLVEMENT_HINTS, START_WITH_COMPUTER_HINT, START_WITH_COMPUTER_LABEL } from "../ui/format";
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 import type { TourId } from "../ui/tourSteps";
 
@@ -154,6 +154,19 @@ export default function Settings({ onReplayTutorial }: Props) {
           settings.petInvolvement,
           (petInvolvement) => change({ petInvolvement }),
           INVOLVEMENT_HINTS[settings.petInvolvement],
+        )}
+        {window.studiumDesktop?.desktop && (
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input
+                type="checkbox"
+                checked={settings.startWithComputer}
+                onChange={(e) => change({ startWithComputer: e.target.checked })}
+              />
+              {START_WITH_COMPUTER_LABEL}
+            </label>
+            <p className={`text-xs mt-2 ${MUTED}`}>{START_WITH_COMPUTER_HINT}</p>
+          </div>
         )}
       </section>
 

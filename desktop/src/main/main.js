@@ -9,6 +9,7 @@ const { createStore } = require('./store');
 const { createAwayRunner } = require('./away');
 const { CHANNELS, handleStudium } = require('./bridge');
 const { createTray } = require('./tray');
+const { loginItemSettings } = require('./loginItem');
 
 const args = parseArgs(process.argv);
 if (args.userData) app.setPath('userData', args.userData);
@@ -46,7 +47,11 @@ if (!app.requestSingleInstanceLock()) {
     const sendSessions = (sessions) => {
       if (win && !win.isDestroyed()) win.webContents.send('studium:focus-sessions', sessions);
     };
-    const deps = { store, runner, L, sendSessions };
+    // Only an installed build registers itself; in development it would register electron.exe.
+    const applyLoginItem = (on) => {
+      if (app.isPackaged) app.setLoginItemSettings(loginItemSettings(on, process.execPath));
+    };
+    const deps = { store, runner, L, sendSessions, applyLoginItem };
     for (const channel of CHANNELS) {
       ipcMain.on(channel, (event, payload) => {
         // Only Studium's own window may talk to the main process.

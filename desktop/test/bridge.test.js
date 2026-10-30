@@ -14,12 +14,14 @@ let store;
 let requests;
 let sendSessions;
 let deps;
+let applyLoginItem;
 
 beforeEach(() => {
   store = createStore({ file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'studium-bridge-')), 'pet-state.json') });
   requests = [];
   sendSessions = vi.fn();
-  deps = { store, L, sendSessions, runner: { request: (r) => requests.push(r) } };
+  applyLoginItem = vi.fn();
+  deps = { store, L, sendSessions, applyLoginItem, runner: { request: (r) => requests.push(r) } };
 });
 
 describe('handleStudium', () => {
@@ -39,6 +41,12 @@ describe('handleStudium', () => {
     handleStudium('studium:settings', JSON.stringify({ petInvolvement: 'moderate', petCount: 2 }), deps);
     expect(store.get().petPrefs.involvement).toBe('moderate');
     expect(store.get().petScreen).toEqual(L.screenFromSettings(JSON.stringify({ petInvolvement: 'moderate', petCount: 2 })));
+  });
+
+  it('turns starting with the computer on or off from the settings', () => {
+    handleStudium('studium:settings', JSON.stringify({ startWithComputer: false }), deps);
+    handleStudium('studium:settings', null, deps);
+    expect(applyLoginItem.mock.calls).toEqual([[false], [true]]);
   });
 
   it('sends every waiting session when Studium is ready', () => {

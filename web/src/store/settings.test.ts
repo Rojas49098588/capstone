@@ -15,6 +15,7 @@ describe("settings", () => {
       setupDone: false,
       tutorialDone: false,
       shopTutorialDone: false,
+      startWithComputer: true,
     });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
@@ -36,6 +37,7 @@ describe("settings", () => {
       setupDone: true,
       tutorialDone: false,
       shopTutorialDone: false,
+      startWithComputer: true,
     });
     expect(parseSettings(JSON.stringify({ projectType: "poetry", setupDone: "yes" }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, petOrder: "random", progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
@@ -59,6 +61,12 @@ describe("settings", () => {
     expect(parseSettings(JSON.stringify({ tutorialDone: true, shopTutorialDone: false })).shopTutorialDone).toBe(false);
     expect(parseSettings(JSON.stringify({ tutorialDone: false })).shopTutorialDone).toBe(false);
     expect(parseSettings(JSON.stringify({ shopTutorialDone: true })).tutorialDone).toBe(false);
+  });
+
+  it("starts with the computer unless that was turned off", () => {
+    expect(parseSettings(JSON.stringify({ petInvolvement: "mild" })).startWithComputer).toBe(true);
+    expect(parseSettings(JSON.stringify({ startWithComputer: "no" })).startWithComputer).toBe(true);
+    expect(parseSettings(JSON.stringify({ startWithComputer: false })).startWithComputer).toBe(false);
   });
 
   it("saves and loads", () => {
