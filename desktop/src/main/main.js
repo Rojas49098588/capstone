@@ -2,7 +2,7 @@
 // the modules next to it, which have unit tests.
 const path = require('node:path');
 const { app, ipcMain } = require('electron');
-const { parseArgs, resolvePaths, startUrl } = require('./paths');
+const { parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
 const { registerStudiumScheme, handleStudiumScheme } = require('./protocol');
 const { createStudiumWindow, showStudium } = require('./studiumWindow');
 const { createStore } = require('./store');
@@ -54,8 +54,8 @@ if (!app.requestSingleInstanceLock()) {
     const deps = { store, runner, L, sendSessions, applyLoginItem };
     for (const channel of CHANNELS) {
       ipcMain.on(channel, (event, payload) => {
-        // Only Studium's own window may talk to the main process.
-        if (win && event.sender === win.webContents) handleStudium(channel, payload, deps);
+        // Only Studium itself, in its own window, may talk to the main process.
+        if (win && event.sender === win.webContents && isStudiumPage(event.senderFrame?.url, args.dev)) handleStudium(channel, payload, deps);
       });
     }
     // A nap that ends while Studium is open reaches it at once; otherwise Studium asks on studium:ready.
@@ -65,7 +65,12 @@ if (!app.requestSingleInstanceLock()) {
       }
     });
 
-    win = createStudiumWindow({ url: startUrl(args.dev), preload: path.join(__dirname, '..', 'preload', 'studium.js'), show: !args.hidden });
+    win = createStudiumWindow({
+      url: startUrl(args.dev),
+      preload: path.join(__dirname, '..', 'preload', 'studium.js'),
+      show: !args.hidden,
+      isAllowed: (url) => isStudiumPage(url, args.dev),
+    });
     tray = createTray({
       L,
       store,

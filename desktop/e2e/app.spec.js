@@ -114,3 +114,24 @@ test("the tray's Quit ends the app", async () => {
   await app.evaluate(() => globalThis.studiumTest.trayClick('quit')).catch(() => {});
   await expect(Promise.race([exited.then(() => 'exited'), new Promise((r) => setTimeout(() => r('still running'), 10000))])).resolves.toBe('exited');
 });
+
+test('the window stays on Studium when something tries to navigate it away', async () => {
+  const app = await launch({ userData: tempUserData() });
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  // Turn start-with-computer off, as the user would in Settings.
+  await page.evaluate(() => {
+    localStorage.setItem('studium-settings-v1', JSON.stringify({ startWithComputer: false }));
+    window.dispatchEvent(new Event('studium:settings-updated'));
+  });
+  // What dropping a file onto the window does: a navigation started by the page.
+  await page.evaluate(() => {
+    location.href = 'file:///C:/Windows/win.ini';
+  });
+  const popup = await page.evaluate(() => window.open('file:///C:/Windows/win.ini') === null);
+  await page.waitForTimeout(1000);
+  expect(page.url()).toMatch(/^studium:\/\/app\//);
+  expect(popup).toBe(true);
+  expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
+  await app.close();
+});

@@ -1,7 +1,8 @@
 // The Studium window. Closing it only hides it; the app keeps running in the tray until Quit.
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, shell } = require('electron');
 
-function createStudiumWindow({ url, preload, show }) {
+/** `isAllowed(url)` says which pages the window may show: Studium only. */
+function createStudiumWindow({ url, preload, show, isAllowed }) {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -16,6 +17,16 @@ function createStudiumWindow({ url, preload, show }) {
       sandbox: true,
       nodeIntegration: false,
     },
+  });
+  // Dropping a file on the window, or a link, would otherwise replace Studium with that page (with
+  // no way back) and give that page the preload's bridge.
+  win.webContents.on('will-navigate', (event, target) => {
+    if (!isAllowed(target)) event.preventDefault();
+  });
+  // Links that open a new window go to the default browser instead (web pages only).
+  win.webContents.setWindowOpenHandler(({ url: target }) => {
+    if (/^https?:\/\//i.test(target)) shell.openExternal(target).catch(() => {});
+    return { action: 'deny' };
   });
   win.on('close', (event) => {
     if (app.isQuitting) return;

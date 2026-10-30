@@ -41,4 +41,9 @@ function startUrl(dev) {
   return dev ? DEV_URL : STUDIUM_URL;
 }
 
-module.exports = { STUDIUM_URL, DEV_URL, resolvePaths, parseArgs, startUrl };
+/** Whether a URL is Studium itself (the only page the Studium window may show or take messages from). */
+function isStudiumPage(url, dev) {
+  return typeof url === 'string' && url.startsWith(startUrl(dev));
+}
+
+module.exports = { STUDIUM_URL, DEV_URL, resolvePaths, parseArgs, startUrl, isStudiumPage };
