@@ -73,7 +73,10 @@ My calls here, which the user agreed to in the playback:
 - **The app starts with the computer** (`app.setLoginItemSettings`), so the pets are always there. A
   setting in Studium's Settings turns this off.
 - **Closing the Studium window only hides it.** The app keeps running in the tray. Quit is in the
-  tray menu.
+  tray menu, and in the menu you get by right-clicking Studium's taskbar button (added 2026-10-30:
+  Windows 11 hides new tray icons under the ^ arrow, so the user couldn't find the tray's Quit).
+- **At login the Studium window opens** (changed 2026-10-30 after the first install test; it was
+  "starts hidden in the tray"). Starting hidden looked like it hadn't started at all.
 
 ## How it's built
 
@@ -119,9 +122,10 @@ for away pets, and adds Quit. Its tooltip says when there are no pets yet (as `u
 **Multiple monitors:** pets stay on the primary display for now (my call).
 
 More of my calls:
-- **The Studium window loads at login, hidden**, so moods and pet statuses keep refreshing (Studium
-  recomputes them on a timer) even when nobody opens it. A hidden window doesn't count as a project
-  page showing, so its pet stays on the desktop.
+- **The Studium window loads at login** (shown, see above) and stays loaded when it's closed to the
+  tray, so moods and pet statuses keep refreshing (Studium recomputes them on a timer) even when
+  nobody looks at it. A hidden window doesn't count as a project page showing, so its pet stays on
+  the desktop.
 - **The overlay never takes keyboard focus** (`focusable: false`), so clicking a pet doesn't steal
   focus from the app being typed in.
 - **A desktop note stays** until it's closed, its pet goes on a nap or sleep, or 15 minutes pass.

@@ -10,6 +10,7 @@ const { createAwayRunner } = require('./away');
 const { CHANNELS, handleStudium } = require('./bridge');
 const { createTray } = require('./tray');
 const { loginItemSettings } = require('./loginItem');
+const { quitTask } = require('./taskbar');
 
 const args = parseArgs(process.argv);
 if (args.userData) app.setPath('userData', args.userData);
@@ -19,8 +20,14 @@ globalThis.studiumTest = {};
 
 registerStudiumScheme();
 
-if (!app.requestSingleInstanceLock()) {
-  // Already running (for example started with the computer): the first copy shows its window.
+const quitApp = () => {
+  app.isQuitting = true;
+  app.quit();
+};
+
+if (!app.requestSingleInstanceLock() || args.quit) {
+  // Already running (for example started with the computer): the first copy shows its window, or
+  // quits if this copy came from the taskbar menu's Quit Studium. --quit with nothing running just exits.
   app.quit();
 } else {
   let win = null;
@@ -31,7 +38,10 @@ if (!app.requestSingleInstanceLock()) {
     app.isQuitting = true;
     runner?.dispose();
   });
-  app.on('second-instance', () => showStudium(win));
+  app.on('second-instance', (_event, argv) => {
+    if (parseArgs(argv).quit) quitApp();
+    else showStudium(win);
+  });
   // The app lives in the tray, so closing every window doesn't quit it.
   app.on('window-all-closed', () => {});
 
@@ -47,9 +57,10 @@ if (!app.requestSingleInstanceLock()) {
     const sendSessions = (sessions) => {
       if (win && !win.isDestroyed()) win.webContents.send('studium:focus-sessions', sessions);
     };
-    // Only an installed build registers itself; in development it would register electron.exe.
+    // Only an installed build registers itself: in development it would register electron.exe, and
+    // a test run (--user-data) must not change the computer's real start-up list.
     const applyLoginItem = (on) => {
-      if (app.isPackaged) app.setLoginItemSettings(loginItemSettings(on, process.execPath));
+      if (app.isPackaged && !args.userData) app.setLoginItemSettings(loginItemSettings(on, process.execPath));
     };
     const deps = { store, runner, L, sendSessions, applyLoginItem };
     for (const channel of CHANNELS) {
@@ -77,11 +88,11 @@ if (!app.requestSingleInstanceLock()) {
       runner,
       iconPath: paths.trayIcon,
       open: () => showStudium(win),
-      quit: () => {
-        app.isQuitting = true;
-        app.quit();
-      },
+      quit: quitApp,
     });
+    // Quit Studium in the taskbar button's right-click menu. Only for an installed build: in
+    // development it would point at electron.exe.
+    if (app.isPackaged && process.platform === 'win32') app.setUserTasks([quitTask(process.execPath)]);
     // End naps that finished while the app was closed, and re-arm the others.
     runner.request({ type: 'endOverdue' });
     Object.assign(globalThis.studiumTest, { store, runner });

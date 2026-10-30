@@ -30,7 +30,7 @@ npm run dist       # Windows installer in your home folder's StudiumBuilds\
 ```
 
 - Dev mode (`npm run dev`) loads `http://localhost:5173`, so its Studium data is separate from the built app's.
-- Quit the app from the tray icon's menu (**Quit Studium**); closing the window only hides it.
+- Closing the window only hides it. To quit, right-click Studium's taskbar button (or the egg in the tray; Windows may tuck it under the **^** by the clock) and choose **Quit Studium**.
 - The installer isn't signed: Windows shows "Windows protected your PC", so click **More info → Run anyway**.
 - The installer is built outside the repo (set `STUDIUM_RELEASE_DIR` to change where): built inside OneDrive, the installer step timed out while OneDrive synced the 120 MB file.
 - `desktop/node_modules` holds the Electron program. Like `web/node_modules`, it's best kept out of OneDrive sync.

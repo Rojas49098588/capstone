@@ -1,8 +1,8 @@
 // Starting with the computer. On by default; Studium's Settings has a checkbox to turn it off.
 
-/** For app.setLoginItemSettings: start hidden in the tray, so logging in doesn't open a window. */
+/** For app.setLoginItemSettings: Studium opens with its window showing, so it's clear it started. */
 function loginItemSettings(startWithComputer, exePath) {
-  return { openAtLogin: startWithComputer, path: exePath, args: ['--hidden'] };
+  return { openAtLogin: startWithComputer, path: exePath, args: [] };
 }
 
 /** Reads startWithComputer from Studium's saved settings (JSON text). Missing or damaged means on. */

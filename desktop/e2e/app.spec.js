@@ -135,3 +135,31 @@ test('the window stays on Studium when something tries to navigate it away', asy
   expect(await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().length)).toBe(1);
   await app.close();
 });
+
+/** Starts a second copy of the app (as Windows does for a taskbar menu item) and waits for it to exit. */
+function runCopy(userData, extraArgs) {
+  const copy = spawn(require('electron'), ['.', `--user-data=${userData}`, ...extraArgs], { cwd: desktopDir, env: electronEnv() });
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      copy.kill();
+      reject(new Error('copy did not exit'));
+    }, 10000);
+    copy.on('exit', (c) => {
+      clearTimeout(timer);
+      resolve(c);
+    });
+  });
+}
+
+test("the taskbar menu's Quit Studium ends the running app", async () => {
+  const userData = tempUserData();
+  const app = await launch({ userData });
+  await app.firstWindow();
+  const exited = new Promise((resolve) => app.process().on('exit', resolve));
+  expect(await runCopy(userData, ['--quit'])).toBe(0);
+  await expect(Promise.race([exited.then(() => 'exited'), new Promise((r) => setTimeout(() => r('still running'), 10000))])).resolves.toBe('exited');
+});
+
+test('Quit Studium when Studium is not running just exits', async () => {
+  expect(await runCopy(tempUserData(), ['--quit'])).toBe(0);
+});

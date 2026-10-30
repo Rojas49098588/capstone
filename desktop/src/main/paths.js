@@ -26,13 +26,17 @@ function resolvePaths({ packaged, resourcesPath, desktopDir }) {
   };
 }
 
-/** --dev: load the Vite dev server. --hidden: start in the tray (used at login). --user-data=<dir>: for tests. */
+/**
+ * --dev: load the Vite dev server. --hidden: start in the tray without showing the window.
+ * --quit: quit a running Studium (the taskbar menu's Quit Studium). --user-data=<dir>: for tests.
+ */
 function parseArgs(argv) {
   const userDataArg = argv.find((a) => a.startsWith('--user-data='));
   const userData = userDataArg ? userDataArg.slice('--user-data='.length) : '';
   return {
     dev: argv.includes('--dev'),
     hidden: argv.includes('--hidden'),
+    quit: argv.includes('--quit'),
     userData: userData || null,
   };
 }

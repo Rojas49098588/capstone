@@ -20,11 +20,15 @@ describe('resolvePaths', () => {
 
 describe('parseArgs', () => {
   it('reads --hidden and --user-data', () => {
-    expect(parseArgs(['electron.exe', '.', '--hidden', '--user-data=C:\\tmp\\u'])).toEqual({ dev: false, hidden: true, userData: 'C:\\tmp\\u' });
+    expect(parseArgs(['electron.exe', '.', '--hidden', '--user-data=C:\\tmp\\u'])).toEqual({ dev: false, hidden: true, quit: false, userData: 'C:\\tmp\\u' });
   });
 
   it('has defaults for a plain launch', () => {
-    expect(parseArgs(['Studium.exe'])).toEqual({ dev: false, hidden: false, userData: null });
+    expect(parseArgs(['Studium.exe'])).toEqual({ dev: false, hidden: false, quit: false, userData: null });
+  });
+
+  it("reads --quit (the taskbar menu's Quit Studium)", () => {
+    expect(parseArgs(['Studium.exe', '--quit']).quit).toBe(true);
   });
 
   it('reads --dev', () => {
