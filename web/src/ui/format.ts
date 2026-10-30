@@ -208,7 +208,10 @@ export const INVOLVEMENT_HINTS: Record<PetInvolvement, string> = {
 
 /** The desktop app's Start with computer setting. */
 export const START_WITH_COMPUTER_LABEL = "Start Studium when your computer starts";
-export const START_WITH_COMPUTER_HINT = "Your pets are there as soon as you log in. Studium stays in the tray by the clock until you open it.";
+export const START_WITH_COMPUTER_HINT = "Your pets are there as soon as you log in.";
+export const START_OPEN_LABEL = "Open the window";
+export const START_QUIETLY_LABEL = "Start quietly in the tray";
+export const START_QUIETLY_HINT = "Studium waits in the tray by the clock (Windows may tuck it under the ^) until you open it.";
 
 /** The Overview's heading: "Abby's Projects", or "Your Projects" with no nickname. */
 export function projectsHeading(nickname: string): string {

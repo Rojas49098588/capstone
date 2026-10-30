@@ -46,7 +46,12 @@ describe('handleStudium', () => {
   it('turns starting with the computer on or off from the settings', () => {
     handleStudium('studium:settings', JSON.stringify({ startWithComputer: false }), deps);
     handleStudium('studium:settings', null, deps);
-    expect(applyLoginItem.mock.calls).toEqual([[false], [true]]);
+    expect(applyLoginItem.mock.calls).toEqual([[false, false], [true, false]]);
+  });
+
+  it('passes on a quiet start from the settings', () => {
+    handleStudium('studium:settings', JSON.stringify({ startQuietly: true }), deps);
+    expect(applyLoginItem.mock.calls).toEqual([[true, true]]);
   });
 
   it('sends every waiting session when Studium is ready', () => {

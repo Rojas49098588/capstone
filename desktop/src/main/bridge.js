@@ -1,6 +1,6 @@
 // What the main process does with each message from the Studium window's preload
 // (src/preload/studium.js). Pure apart from the dependencies passed in.
-const { startWithComputerFrom } = require('./loginItem');
+const { startQuietlyFrom, startWithComputerFrom } = require('./loginItem');
 
 const CHANNELS = ['studium:statuses', 'studium:settings', 'studium:ready', 'studium:delivered', 'studium:wake'];
 
@@ -15,7 +15,7 @@ function handleStudium(channel, payload, { store, runner, L, sendSessions, apply
     case 'studium:settings': {
       const raw = typeof payload === 'string' ? payload : null;
       store.set({ petScreen: L.screenFromSettings(raw), petPrefs: L.prefsFromSettings(raw) });
-      applyLoginItem(startWithComputerFrom(raw));
+      applyLoginItem(startWithComputerFrom(raw), startQuietlyFrom(raw));
       return;
     }
     case 'studium:ready':

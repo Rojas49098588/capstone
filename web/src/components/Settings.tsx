@@ -9,7 +9,15 @@ import {
 } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
 import { NICKNAME_MAX } from "../planner/tuning";
-import { DIFFICULTY_HINTS, INVOLVEMENT_HINTS, START_WITH_COMPUTER_HINT, START_WITH_COMPUTER_LABEL } from "../ui/format";
+import {
+  DIFFICULTY_HINTS,
+  INVOLVEMENT_HINTS,
+  START_OPEN_LABEL,
+  START_QUIETLY_HINT,
+  START_QUIETLY_LABEL,
+  START_WITH_COMPUTER_HINT,
+  START_WITH_COMPUTER_LABEL,
+} from "../ui/format";
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 import type { TourId } from "../ui/tourSteps";
 
@@ -166,6 +174,28 @@ export default function Settings({ onReplayTutorial }: Props) {
               {START_WITH_COMPUTER_LABEL}
             </label>
             <p className={`text-xs mt-2 ${MUTED}`}>{START_WITH_COMPUTER_HINT}</p>
+            {settings.startWithComputer && (
+              <fieldset className="mt-3 ml-6">
+                <legend className="sr-only">When Studium starts with your computer</legend>
+                <div className="flex flex-wrap gap-4 text-sm">
+                  {[
+                    { quiet: false, label: START_OPEN_LABEL },
+                    { quiet: true, label: START_QUIETLY_LABEL },
+                  ].map(({ quiet, label }) => (
+                    <label key={label} className="flex items-center gap-2">
+                      <input
+                        type="radio"
+                        name="startQuietly"
+                        checked={settings.startQuietly === quiet}
+                        onChange={() => change({ startQuietly: quiet })}
+                      />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+                {settings.startQuietly && <p className={`text-xs mt-2 ${MUTED}`}>{START_QUIETLY_HINT}</p>}
+              </fieldset>
+            )}
           </div>
         )}
       </section>

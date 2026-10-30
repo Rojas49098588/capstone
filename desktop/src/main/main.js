@@ -59,8 +59,8 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     };
     // Only an installed build registers itself: in development it would register electron.exe, and
     // a test run (--user-data) must not change the computer's real start-up list.
-    const applyLoginItem = (on) => {
-      if (app.isPackaged && !args.userData) app.setLoginItemSettings(loginItemSettings(on, process.execPath));
+    const applyLoginItem = (on, quiet) => {
+      if (app.isPackaged && !args.userData) app.setLoginItemSettings(loginItemSettings(on, process.execPath, quiet));
     };
     const deps = { store, runner, L, sendSessions, applyLoginItem };
     for (const channel of CHANNELS) {

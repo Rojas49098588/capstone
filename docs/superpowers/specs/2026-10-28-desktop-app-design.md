@@ -76,7 +76,8 @@ My calls here, which the user agreed to in the playback:
   tray menu, and in the menu you get by right-clicking Studium's taskbar button (added 2026-10-30:
   Windows 11 hides new tray icons under the ^ arrow, so the user couldn't find the tray's Quit).
 - **At login the Studium window opens** (changed 2026-10-30 after the first install test; it was
-  "starts hidden in the tray"). Starting hidden looked like it hadn't started at all.
+  "starts hidden in the tray"). Starting hidden looked like it hadn't started at all. Settings can
+  switch it to "Start quietly in the tray" (added 2026-10-30 at the user's request).
 
 ## How it's built
 

@@ -45,6 +45,7 @@ describe("Settings", () => {
       tutorialDone: true,
       shopTutorialDone: true,
       startWithComputer: true,
+      startQuietly: false,
     });
   });
 
@@ -67,6 +68,23 @@ describe("Settings", () => {
       expect(box.checked).toBe(true);
       await userEvent.click(box);
       expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ startWithComputer: false });
+    });
+
+    it("chooses whether Studium opens its window or starts quietly in the tray", async () => {
+      window.studiumDesktop = { desktop: true };
+      const { storage } = renderWithStudium(<Settings />);
+      expect((screen.getByRole("radio", { name: "Open the window" }) as HTMLInputElement).checked).toBe(true);
+      await userEvent.click(screen.getByRole("radio", { name: "Start quietly in the tray" }));
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ startQuietly: true });
+      await userEvent.click(screen.getByRole("radio", { name: "Open the window" }));
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ startQuietly: false });
+    });
+
+    it("hides the choice when Studium doesn't start with the computer", async () => {
+      window.studiumDesktop = { desktop: true };
+      renderWithStudium(<Settings />);
+      await userEvent.click(screen.getByRole("checkbox", { name: "Start Studium when your computer starts" }));
+      expect(screen.queryByRole("radio", { name: "Start quietly in the tray" })).toBeNull();
     });
   });
 

@@ -17,7 +17,7 @@ It runs at http://localhost:5173 (the port is fixed because the extension opens 
 
 ## Desktop app (in progress)
 
-Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer (Settings can turn that off), and naps and sleep run in the app. The pets come to the desktop in Week 2; until then, use the extension below for pets.
+Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer and opens its window (Settings can turn that off, or start it quietly in the tray instead), and naps and sleep run in the app. The pets come to the desktop in Week 2; until then, use the extension below for pets.
 
 ```sh
 cd desktop
