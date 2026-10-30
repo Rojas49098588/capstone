@@ -61,3 +61,29 @@ test('a second launch exits and shows the first copy', async () => {
   await expect.poll(() => isVisible(app)).toBe(true);
   await app.close();
 });
+
+test("Studium's settings reach the main process", async () => {
+  const app = await launch({ userData: tempUserData() });
+  const page = await app.firstWindow();
+  await page.waitForLoadState('domcontentloaded');
+  await page.evaluate(() => {
+    localStorage.setItem('studium-settings-v1', JSON.stringify({ petInvolvement: 'moderate' }));
+    window.dispatchEvent(new Event('studium:settings-updated'));
+  });
+  await expect.poll(() => app.evaluate(() => globalThis.studiumTest.store.get().petPrefs?.involvement)).toBe('moderate');
+  expect(await page.evaluate(() => window.studiumDesktop)).toEqual({ desktop: true });
+  await app.close();
+});
+
+test('a nap that ended while the app was closed reaches Studium on the next start', async () => {
+  const userData = tempUserData();
+  const now = Date.now();
+  const nap = { kind: 'nap', id: 'nap-e2e', startedAt: new Date(now - 20 * 60000).toISOString(), until: new Date(now - 5 * 60000).toISOString(), taskId: null, taskTitle: null };
+  require('node:fs').writeFileSync(require('node:path').join(userData, 'pet-state.json'), JSON.stringify({ petAway: { webDev: nap } }));
+  const app = await launch({ userData });
+  await app.firstWindow();
+  // Ended by endOverdue, delivered on studium:ready, confirmed by Studium, then removed.
+  await expect.poll(() => app.evaluate(() => globalThis.studiumTest.store.get().petAway)).toEqual({});
+  await expect.poll(() => app.evaluate(() => globalThis.studiumTest.store.get().focusOutbox)).toEqual({});
+  await app.close();
+});
