@@ -87,3 +87,30 @@ test('a nap that ended while the app was closed reaches Studium on the next star
   await expect.poll(() => app.evaluate(() => globalThis.studiumTest.store.get().focusOutbox)).toEqual({});
   await app.close();
 });
+
+test('the tray hides and shows the pets', async () => {
+  const app = await launch({ userData: tempUserData() });
+  await app.firstWindow();
+  await app.evaluate(() => globalThis.studiumTest.trayClick('toggle-pets'));
+  expect(await app.evaluate(() => globalThis.studiumTest.store.get().petHidden)).toBe(true);
+  expect(await app.evaluate(() => globalThis.studiumTest.trayItems[1].label)).toBe('Show pets');
+  await app.close();
+});
+
+test("the tray's Open Studium brings back a closed window", async () => {
+  const app = await launch({ userData: tempUserData() });
+  await app.firstWindow();
+  await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].close());
+  expect(await isVisible(app)).toBe(false);
+  await app.evaluate(() => globalThis.studiumTest.trayClick('open'));
+  await expect.poll(() => isVisible(app)).toBe(true);
+  await app.close();
+});
+
+test("the tray's Quit ends the app", async () => {
+  const app = await launch({ userData: tempUserData() });
+  await app.firstWindow();
+  const exited = new Promise((resolve) => app.process().on('exit', resolve));
+  await app.evaluate(() => globalThis.studiumTest.trayClick('quit')).catch(() => {});
+  await expect(Promise.race([exited.then(() => 'exited'), new Promise((r) => setTimeout(() => r('still running'), 10000))])).resolves.toBe('exited');
+});

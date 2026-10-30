@@ -8,6 +8,7 @@ const { createStudiumWindow, showStudium } = require('./studiumWindow');
 const { createStore } = require('./store');
 const { createAwayRunner } = require('./away');
 const { CHANNELS, handleStudium } = require('./bridge');
+const { createTray } = require('./tray');
 
 const args = parseArgs(process.argv);
 if (args.userData) app.setPath('userData', args.userData);
@@ -23,6 +24,7 @@ if (!app.requestSingleInstanceLock()) {
 } else {
   let win = null;
   let runner = null;
+  let tray = null; // kept here so it isn't garbage-collected (which would remove the icon)
   app.isQuitting = false;
   app.on('before-quit', () => {
     app.isQuitting = true;
@@ -59,6 +61,17 @@ if (!app.requestSingleInstanceLock()) {
     });
 
     win = createStudiumWindow({ url: startUrl(args.dev), preload: path.join(__dirname, '..', 'preload', 'studium.js'), show: !args.hidden });
+    tray = createTray({
+      L,
+      store,
+      runner,
+      iconPath: paths.trayIcon,
+      open: () => showStudium(win),
+      quit: () => {
+        app.isQuitting = true;
+        app.quit();
+      },
+    });
     // End naps that finished while the app was closed, and re-arm the others.
     runner.request({ type: 'endOverdue' });
     Object.assign(globalThis.studiumTest, { store, runner });
