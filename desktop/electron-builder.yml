@@ -1,0 +1,23 @@
+# Builds the Windows installer: npm run dist (builds web/ first). scripts/dist.js sets the output
+# folder outside OneDrive (~/StudiumBuilds); `release` is only the fallback for a direct electron-builder run.
+# The paths under extraResources are where src/main/paths.js looks in a packaged build.
+appId: edu.smu.studium
+productName: Studium
+directories:
+  output: release
+files:
+  - src/**
+  - package.json
+extraResources:
+  - from: ../web/dist
+    to: web
+  - from: ../extension/content/logic.js
+    to: extension/logic.js
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  runAfterFinish: true

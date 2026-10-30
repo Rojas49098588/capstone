@@ -15,6 +15,26 @@ npm run dev
 
 It runs at http://localhost:5173 (the port is fixed because the extension opens that URL).
 
+## Desktop app (in progress)
+
+Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer (Settings can turn that off), and naps and sleep run in the app. The pets come to the desktop in Week 2; until then, use the extension below for pets.
+
+```sh
+cd desktop
+npm install
+npm start          # builds web/ and opens the app
+npm run dev        # the app on the Vite dev server: run `npm run dev` in web/ first
+npm test           # unit tests
+npm run test:e2e   # starts the real app (builds web/ first)
+npm run dist       # Windows installer in your home folder's StudiumBuilds\
+```
+
+- Dev mode (`npm run dev`) loads `http://localhost:5173`, so its Studium data is separate from the built app's.
+- Quit the app from the tray icon's menu (**Quit Studium**); closing the window only hides it.
+- The installer isn't signed: Windows shows "Windows protected your PC", so click **More info → Run anyway**.
+- The installer is built outside the repo (set `STUDIUM_RELEASE_DIR` to change where): built inside OneDrive, the installer step timed out while OneDrive synced the 120 MB file.
+- `desktop/node_modules` holds the Electron program. Like `web/node_modules`, it's best kept out of OneDrive sync.
+
 ## Load the extension
 
 1. Open `chrome://extensions`.

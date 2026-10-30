@@ -2,7 +2,16 @@
 
 Briefing for the next Claude session working in this repo. Read this first, then the files it points to.
 
-## Start here: Plans 1–3, pet interactions, the pet lifecycle and setup/project types are done; ask the user what's next
+## Start here: the desktop app is under way (Week 1 of 4 done)
+
+After the MVP presentation, Studium is moving to a desktop app (Electron, in `desktop/`), due **December 3rd, 2026**. Spec: `docs/superpowers/specs/2026-10-28-desktop-app-design.md` (approved). The last browser + extension version is tagged `chrome-extension-final`.
+
+- **Week 1, done** (plan `docs/superpowers/plans/2026-10-29-desktop-week1-shell.md`, branch `feature/desktop-app`): Studium window served on `studium://app/`, tray (Open, Show/Hide pets, Wake, Quit), close-to-tray, start with computer (`--hidden`; Settings checkbox, shown only in the desktop app), pet state in `<userData>/pet-state.json`, naps/sleep with timers, a preload bridge that replaces `extension/content/bridge.js`, and a Windows installer (`npm run dist`, built in `~/StudiumBuilds`: inside OneDrive the installer step timed out while OneDrive synced the build). The main process reuses `extension/content/logic.js` unchanged.
+- **Still to check by hand** on the user's PC: install from `StudiumBuilds\Studium Setup 0.4.0.exe` in the user's home folder, start with computer after a restart, turning it off in Settings, tray Quit.
+- **Next: Week 2**, pets in a transparent always-on-top overlay with click-through, drag/throw, menu, naps/sleep/check-ins, celebrations, Open project, habitats in the Studium window. Write its plan with `superpowers:writing-plans` first.
+- **Gotcha:** some shells (VS Code's) set `ELECTRON_RUN_AS_NODE=1`, which makes Electron run as plain Node. The e2e tests remove it (`desktop/e2e/launch.js`); if `npm start` exits at once, unset it.
+
+## Before the desktop app: Plans 1–3, pet interactions, the pet lifecycle and setup/project types are done
 
 All three plans from the planner spec are built, and so is the pet interactions round (spec `docs/superpowers/specs/2026-10-19-pet-interactions-design.md`, plan `docs/superpowers/plans/2026-10-19-pet-interactions.md`, branch `feature/pet-interactions`). Its planned next round is **work limiters**, built on the focus sessions it records. Ask the user to choose the next step, for example:
 - **Deploy Studium** somewhere other than `localhost` (Vercel, Netlify), so testers don't need Node. Then change `HOMEPAGE_URL` in `extension/content/logic.js`; the toolbar icon and the pets' Studium detection both use it.
