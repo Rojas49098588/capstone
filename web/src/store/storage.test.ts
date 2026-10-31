@@ -23,6 +23,15 @@ const valid = () =>
   makeData({ requirements: [makeRequirement()], tasks: [makeTask()] });
 
 describe("isValidData", () => {
+  it("accepts requirements with or without blockers, and rejects damaged ones", () => {
+    const withReq = (extra: object) => makeData({ requirements: [{ ...makeRequirement(), ...extra }], tasks: [makeTask()] });
+    expect(isValidData(withReq({ blockedBy: ["x"] }))).toBe(true);
+    expect(isValidData(withReq({ blockedByAll: true }))).toBe(true);
+    expect(isValidData(withReq({ blockedBy: "x" }))).toBe(false);
+    expect(isValidData(withReq({ blockedBy: [1] }))).toBe(false);
+    expect(isValidData(withReq({ blockedByAll: false }))).toBe(false);
+  });
+
   it("accepts data with or without startingTokens, and rejects a non-number", () => {
     expect(isValidData(valid())).toBe(true);
     expect(isValidData({ ...valid(), startingTokens: 100 })).toBe(true);

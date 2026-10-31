@@ -1,6 +1,6 @@
 // User actions as pure functions: (data, input, now) → new data (+ result).
 // Every change that matters for history appends an event.
-import { isBlocked, wouldCreateCycle } from "../planner/blocking";
+import { isBlocked, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
 import { projectHealth } from "../planner/mood";
@@ -59,12 +59,12 @@ function withoutTasks(data: StudiumData, removed: Set<string>): Pick<StudiumData
 }
 
 /** Keeps wanted blockers that exist, are in the same project and don't create a loop. */
-function cleanBlockers(taskId: string, projectId: string, wanted: string[], tasks: Task[]): string[] {
+function cleanBlockers(taskId: string, projectId: string, wanted: string[], tasks: Task[], requirements: Requirement[]): string[] {
   let working = tasks.map((t) => (t.id === taskId ? { ...t, blockedBy: [] as string[] } : t));
   const result: string[] = [];
   for (const id of new Set(wanted)) {
     const blocker = working.find((t) => t.id === id);
-    if (!blocker || blocker.projectId !== projectId || wouldCreateCycle(taskId, id, working)) continue;
+    if (!blocker || blocker.projectId !== projectId || wouldTaskBlockerLoop(taskId, id, { tasks: working, requirements })) continue;
     result.push(id);
     working = working.map((t) => (t.id === taskId ? { ...t, blockedBy: [...result] } : t));
   }
@@ -204,7 +204,7 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
     requirementId: cleanRequirementId(data, input.projectId, input.requirementId),
     title: input.title.trim(),
     estimateMin: cleanMinutes(input.estimateMin, DEFAULT_ESTIMATE_MIN),
-    blockedBy: cleanBlockers(id, input.projectId, input.blockedBy ?? [], data.tasks),
+    blockedBy: cleanBlockers(id, input.projectId, input.blockedBy ?? [], data.tasks, data.requirements),
     priority: false,
     done: false,
     actualMin: null,
@@ -228,7 +228,7 @@ export function updateTask(
   if (changes.title !== undefined) clean.title = changes.title.trim();
   if (changes.estimateMin !== undefined) clean.estimateMin = cleanMinutes(changes.estimateMin, task.estimateMin);
   if (changes.requirementId !== undefined) clean.requirementId = cleanRequirementId(data, task.projectId, changes.requirementId);
-  if (changes.blockedBy !== undefined) clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy, data.tasks);
+  if (changes.blockedBy !== undefined) clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy, data.tasks, data.requirements);
   return {
     ...data,
     tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
@@ -251,7 +251,7 @@ export function completeTask(
   now: Date,
 ): { data: StudiumData; payout: Payout | null } {
   const task = data.tasks.find((t) => t.id === id);
-  if (!task || task.done || isBlocked(task, data.tasks)) return { data, payout: null };
+  if (!task || task.done || isBlocked(task, data)) return { data, payout: null };
   const actual = actualMin === null ? null : cleanMinutes(actualMin, task.estimateMin);
   const payout = computeCompletionPayout(data, id, actual, now);
   return {

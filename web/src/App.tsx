@@ -147,7 +147,7 @@ export function StudiumApp() {
     const task = s.data.tasks.find((t) => t.id === link.id);
     if (!task) return;
     openProject(task.projectId);
-    if (!task.done && !isBlocked(task, s.data.tasks)) setCompletingId(task.id);
+    if (!task.done && !isBlocked(task, s.data)) setCompletingId(task.id);
   };
   useEffect(() => {
     const follow = () => followLink.current();

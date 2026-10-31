@@ -27,7 +27,7 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
   const [estimateMin, setEstimateMin] = useState(initial?.estimateMin ?? DEFAULT_ESTIMATE_MIN);
   const [blockedBy, setBlockedBy] = useState<string[]>(initial?.blockedBy ?? []);
   const [error, setError] = useState("");
-  const options = taskId ? blockerOptions(taskId, projectTasks) : projectTasks;
+  const options = taskId ? blockerOptions(taskId, { tasks: projectTasks, requirements }) : projectTasks;
 
   function toggleBlocker(id: string) {
     setBlockedBy((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));

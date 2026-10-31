@@ -177,7 +177,7 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
                         role="checkbox"
                         aria-checked={t.done}
                         aria-label={t.done ? `Reopen ${t.title}` : `Complete ${t.title}`}
-                        disabled={!t.done && isBlocked(t, s.data.tasks)}
+                        disabled={!t.done && isBlocked(t, s.data)}
                         onClick={() => (t.done ? s.reopenTask(t.id) : onRequestComplete(t.id))}
                         className="mt-0.5 w-5 h-5 flex-shrink-0 border border-white/40 hover:border-white flex items-center justify-center text-xs disabled:opacity-40"
                       >

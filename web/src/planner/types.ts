@@ -36,6 +36,8 @@ export type Requirement = {
   startDate: string | null; // "YYYY-MM-DD"; null = the day it was created
   dueDate: string | null; // "YYYY-MM-DD"; null = the project deadline
   createdAt: string;
+  blockedBy?: string[]; // requirements (same project) whose tasks must all be done first; missing = none
+  blockedByAll?: true; // waits on every other requirement in the project (then blockedBy is [])
 };
 
 export type Task = {
