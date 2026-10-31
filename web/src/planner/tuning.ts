@@ -1,7 +1,10 @@
 // Every tunable number in the planner. See the spec, sections 2 and 3.
 import type { Difficulty } from "./types";
 
-export const STARTING_TOKENS = 650;
+/** What a new user starts with. Saved with their data (StudiumData.startingTokens). */
+export const STARTING_TOKENS = 100;
+/** What data saved before the starting amount was stored started with. */
+export const LEGACY_STARTING_TOKENS = 650;
 
 // Value
 export const POOL_PER_WEIGHT = 100; // value per requirement weight point

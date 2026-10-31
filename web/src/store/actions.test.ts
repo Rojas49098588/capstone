@@ -77,7 +77,7 @@ describe("completing", () => {
     expect(payout?.tokens).toBeGreaterThan(0);
     expect(data.tasks.find((t) => t.id === "A")).toMatchObject({ done: true, actualMin: 45 });
     expect(data.events.slice(-1)[0]).toMatchObject({ type: "task_completed", taskId: "A", actualMin: 45, tokens: payout?.tokens });
-    expect(tokenBalance(data.events)).toBe(650 + (payout?.tokens ?? 0));
+    expect(tokenBalance(data)).toBe(650 + (payout?.tokens ?? 0));
   });
 
   it("will not complete a blocked task", () => {
@@ -200,7 +200,7 @@ describe("recordFocusSessions", () => {
     const r = recordFocusSessions(seed, [s()], NOW);
     expect(r.handled).toEqual(["s1"]);
     expect(r.data.events.slice(-1)[0]).toEqual({ type: "focus_session", ...s() });
-    expect(tokenBalance(r.data.events)).toBe(tokenBalance(seed.events));
+    expect(tokenBalance(r.data)).toBe(tokenBalance(seed));
     expect(isValidData(r.data)).toBe(true);
   });
 
@@ -235,13 +235,13 @@ describe("buying decor", () => {
     const seed = buildSeed(NOW);
     const r = purchase(seed, "pet-bed", NOW);
     expect(r.ok).toBe(true);
-    expect(tokenBalance(r.data.events)).toBe(tokenBalance(seed.events) - 150);
+    expect(tokenBalance(r.data)).toBe(tokenBalance(seed) - 150);
     expect(inventory(r.data.events)["pet-bed"]).toBe(1);
   });
 
   it("refuses decor it can't afford", () => {
     const seed = buildSeed(NOW);
-    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed.events) - 199 });
+    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed) - 199 });
     expect(purchase(seed, "log", NOW).ok).toBe(false);
   });
 });

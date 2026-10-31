@@ -200,7 +200,7 @@ export function StudiumApp() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-xs font-mono text-[var(--color-muted-foreground)] whitespace-nowrap">
-              {tokenBalance(s.data.events)} tokens
+              {tokenBalance(s.data)} tokens
             </span>
             <button
               type="button"

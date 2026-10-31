@@ -23,6 +23,12 @@ const valid = () =>
   makeData({ requirements: [makeRequirement()], tasks: [makeTask()] });
 
 describe("isValidData", () => {
+  it("accepts data with or without startingTokens, and rejects a non-number", () => {
+    expect(isValidData(valid())).toBe(true);
+    expect(isValidData({ ...valid(), startingTokens: 100 })).toBe(true);
+    expect(isValidData({ ...valid(), startingTokens: "100" })).toBe(false);
+  });
+
   it("accepts good data, including unknown event types from a newer version", () => {
     const data = { ...valid(), events: [{ type: "something_new", at: NOW.toISOString(), extra: 1 }] };
     expect(isValidData(data)).toBe(true);

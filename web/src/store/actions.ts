@@ -300,7 +300,7 @@ export function removeFromToday(data: StudiumData, taskId: string, now: Date): S
 
 export function purchase(data: StudiumData, productId: string, now: Date): { data: StudiumData; ok: boolean } {
   const price = priceOf(productId);
-  if (price === undefined || tokenBalance(data.events) < price) return { data, ok: false };
+  if (price === undefined || tokenBalance(data) < price) return { data, ok: false };
   return {
     data: { ...data, events: withEvent(data, { type: "purchase", at: stamp(now), productId, price }) },
     ok: true,

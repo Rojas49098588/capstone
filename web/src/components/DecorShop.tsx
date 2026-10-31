@@ -6,7 +6,7 @@ import { CARD, SERIF } from "../ui/styles";
 /** The Shop's Habitat tab: decor for the project habitats, grouped by type. */
 export default function DecorShop() {
   const s = useStudiumContext();
-  const balance = tokenBalance(s.data.events);
+  const balance = tokenBalance(s.data);
   const owned = inventory(s.data.events);
 
   return (

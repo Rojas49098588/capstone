@@ -51,6 +51,7 @@ export function isValidData(value: unknown): value is StudiumData {
   if (!isObj(value) || value.version !== 1) return false;
   const { projects, requirements, tasks, events, today } = value;
   if (![projects, requirements, tasks, events].every(Array.isArray)) return false;
+  if (value.startingTokens !== undefined && !isNum(value.startingTokens)) return false;
   if (!isObj(today) || !isStr(today.date) || !Array.isArray(today.taskIds) || !today.taskIds.every(isStr)) return false;
 
   const projectIds = new Set<string>();

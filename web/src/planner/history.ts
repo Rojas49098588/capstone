@@ -1,8 +1,8 @@
 // Facts derived from the event history. The history is the source of truth for
 // tokens, inventory, "last moved" and whether something was already paid.
 import { localDateKey } from "./time";
-import { MEDICINE_PRODUCT_ID, STARTING_TOKENS } from "./tuning";
-import type { CompletedEvent, StudiumEvent } from "./types";
+import { LEGACY_STARTING_TOKENS, MEDICINE_PRODUCT_ID } from "./tuning";
+import type { CompletedEvent, StudiumData, StudiumEvent } from "./types";
 
 const isCompleted = (e: StudiumEvent): e is CompletedEvent => e.type === "task_completed";
 
@@ -27,9 +27,9 @@ export function lastCompletionAt(events: StudiumEvent[], taskIds: Iterable<strin
   return latest === -Infinity ? null : new Date(latest);
 }
 
-export function tokenBalance(events: StudiumEvent[]): number {
-  let balance = STARTING_TOKENS;
-  for (const e of events) {
+export function tokenBalance(data: Pick<StudiumData, "events" | "startingTokens">): number {
+  let balance = data.startingTokens ?? LEGACY_STARTING_TOKENS;
+  for (const e of data.events) {
     if (e.type === "task_completed") balance += e.tokens;
     else if (e.type === "purchase") balance -= e.price;
   }

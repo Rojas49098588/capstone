@@ -3,7 +3,7 @@ import { tokenBalance } from "../planner/history";
 import { petStage } from "../planner/lifecycle";
 import { projectMood } from "../planner/mood";
 import { NOW } from "../planner/testData";
-import { buildSeed } from "./seed";
+import { buildSeed, emptyData } from "./seed";
 import { isValidData } from "./storage";
 
 const LATE = new Date(2026, 9, 14, 23, 30);
@@ -24,7 +24,7 @@ describe.each([
     const ids = new Set(seed.tasks.map((t) => t.id));
     expect(seed.tasks.flatMap((t) => t.blockedBy).every((id) => ids.has(id))).toBe(true);
     expect(seed.tasks.some((t) => t.blockedBy.length > 0)).toBe(true);
-    expect(tokenBalance(seed.events)).toBe(650);
+    expect(tokenBalance(seed)).toBe(650);
   });
 
   it("starts with a mix of moods", () => {
@@ -41,6 +41,14 @@ describe.each([
     const open = new Set(seed.tasks.filter((t) => !t.done).map((t) => t.id));
     expect(seed.today.taskIds.length).toBeGreaterThan(0);
     expect(seed.today.taskIds.every((id) => open.has(id))).toBe(true);
+  });
+});
+
+describe("new users", () => {
+  it("get 100 tokens, while the example data keeps 650", () => {
+    expect(emptyData(NOW).startingTokens).toBe(100);
+    expect(tokenBalance(emptyData(NOW))).toBe(100);
+    expect(buildSeed(NOW).startingTokens).toBeUndefined();
   });
 });
 

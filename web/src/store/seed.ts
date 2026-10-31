@@ -11,6 +11,7 @@ import {
   type Task,
 } from "../planner/types";
 import { giveDefaultBeds } from "./decor";
+import { STARTING_TOKENS } from "../planner/tuning";
 
 type SeedTask = {
   title: string;
@@ -304,7 +305,7 @@ export function buildSeed(now: Date): StudiumData {
           createdAt,
         });
         if (st.done) {
-          // Seed completions pay nothing, so the starting balance stays 650.
+          // Seed completions pay nothing, so the balance stays at the starting 650 (the example data has no startingTokens).
           events.push({
             type: "task_completed",
             at: at(st.done.daysAgo),
@@ -325,5 +326,5 @@ export function buildSeed(now: Date): StudiumData {
 
 /** What a new user starts with: no projects yet (the first one starts the tutorial). */
 export function emptyData(now: Date): StudiumData {
-  return { version: 1, projects: [], requirements: [], tasks: [], events: [], today: { date: localDateKey(now), taskIds: [] }, defaultBeds: true };
+  return { version: 1, projects: [], requirements: [], tasks: [], events: [], today: { date: localDateKey(now), taskIds: [] }, defaultBeds: true, startingTokens: STARTING_TOKENS };
 }
