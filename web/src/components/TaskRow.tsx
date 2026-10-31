@@ -3,9 +3,10 @@ import { waitingOn } from "../planner/blocking";
 import { taskFocusMinutes } from "../planner/focus";
 import { todayTaskIds } from "../planner/suggest";
 import { useStudiumContext } from "../store/useStudium";
-import { focusedLabel, formatMinutes, wordsFor } from "../ui/format";
+import { blockerName, focusedLabel, formatMinutes, wordsFor } from "../ui/format";
 import { BUTTON_SMALL } from "../ui/styles";
 import TaskForm from "./TaskForm";
+import WaitingOn from "./WaitingOn";
 
 type Props = { taskId: string; onRequestComplete: (taskId: string) => void };
 
@@ -19,7 +20,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
   const projectTasks = s.data.tasks.filter((t) => t.projectId === task.projectId);
   const requirements = s.data.requirements.filter((r) => r.projectId === task.projectId);
   const inToday = todayTaskIds(s.data, s.now).includes(task.id);
-  const blockers = task.done ? [] : waitingOn(task, s.data).map((b) => (b.kind === "task" ? b.task.title : b.requirement.title));
+  const blockers = task.done ? [] : waitingOn(task, s.data).map((b) => blockerName(b, projectTasks, requirements));
   const color = project?.color ?? "var(--color-foreground)";
   const focused = taskFocusMinutes(task, s.data.events);
   const words = wordsFor(project);
@@ -72,10 +73,8 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
           {formatMinutes(task.estimateMin)} estimate
           {task.done && task.actualMin !== null && ` · took ${formatMinutes(task.actualMin)}`}
           {focused > 0 && ` · ${focusedLabel(focused)}`}
-          {blockers.length > 0 && (
-            <span className="text-[var(--color-accent)]"> · Waiting on: {blockers.join(", ")}</span>
-          )}
         </p>
+        <WaitingOn names={blockers} />
         {task.requirementId === null && requirements.length > 0 && (
           <select
             aria-label={`Link ${task.title} to a ${words.requirement}`}

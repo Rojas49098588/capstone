@@ -6,7 +6,52 @@ import { NOW, completed, dayKey, daysAgo, makeData, makeProject, makeRequirement
 import { renderWithStudium, savedData } from "../test/render";
 import RequirementCard from "./RequirementCard";
 
+
+// Prototype 9 and 10 each have a "Git commit"; Prototype 10 waits on Prototype 9.
+const prototypes = () =>
+  makeData({
+    requirements: [
+      makeRequirement({ id: "P9", title: "Prototype 9" }),
+      makeRequirement({ id: "P10", title: "Prototype 10", blockedBy: ["P9"] }),
+      makeRequirement({ id: "P11", title: "Prototype 11" }),
+    ],
+    tasks: [
+      makeTask({ id: "c9", requirementId: "P9", title: "Git commit" }),
+      makeTask({ id: "c10", requirementId: "P10", title: "Git commit" }),
+      makeTask({ id: "apk", requirementId: "P10", title: "APK", blockedBy: ["c9"] }),
+    ],
+  });
+
 describe("RequirementCard", () => {
+  it("shows what a requirement is waiting on", () => {
+    renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    // Under the title, and again on its locked task.
+    expect(screen.getAllByText("Waiting on Prototype 9")).toHaveLength(2);
+  });
+
+  it("edits a requirement's Blocked by, including All other requirements", async () => {
+    const { storage } = renderWithStudium(<RequirementCard requirementId="P11" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 11" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Prototype 10" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save requirement" }));
+    expect(savedData(storage).requirements.find((r) => r.id === "P11")?.blockedBy).toEqual(["P10"]);
+    screen.getByText("Waiting on Prototype 10");
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 11" }));
+    expect((screen.getByRole("checkbox", { name: "Prototype 10" }) as HTMLInputElement).checked).toBe(true);
+    await userEvent.click(screen.getByRole("checkbox", { name: "All other requirements" }));
+    expect((screen.getByRole("checkbox", { name: "Prototype 9" }) as HTMLInputElement).disabled).toBe(true);
+    await userEvent.click(screen.getByRole("button", { name: "Save requirement" }));
+    expect(savedData(storage).requirements.find((r) => r.id === "P11")).toMatchObject({ blockedByAll: true, blockedBy: [] });
+    screen.getByRole("button", { name: "Waiting on 2" });
+  });
+
+  it("doesn't offer blockers that would loop", async () => {
+    renderWithStudium(<RequirementCard requirementId="P9" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 9" }));
+    expect(screen.queryByRole("checkbox", { name: "Prototype 10" })).toBeNull();
+    screen.getByRole("checkbox", { name: "Prototype 11" });
+  });
+
   it("shows weight, progress against plan and its tasks", () => {
     renderWithStudium(<RequirementCard requirementId="webDev-r2" onRequestComplete={vi.fn()} />);
     screen.getByText(/Weight 5/);

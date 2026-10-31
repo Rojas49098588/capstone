@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { canBlockByAll, openRequirementBlockers, requirementBlockerOptions } from "../planner/blocking";
 import { estimateMultipliers, multiplierFor } from "../planner/learning";
 import { neglectDays, requirementIdleDays } from "../planner/mood";
 import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "../planner/progress";
@@ -8,6 +9,7 @@ import { BUTTON_SECONDARY, BUTTON_SMALL, CARD } from "../ui/styles";
 import RequirementForm from "./RequirementForm";
 import TaskForm from "./TaskForm";
 import TaskRow from "./TaskRow";
+import WaitingOn from "./WaitingOn";
 
 type Props = { requirementId: string; onRequestComplete: (taskId: string) => void };
 type Mode = "view" | "edit" | "confirmDelete" | "addTask";
@@ -40,6 +42,8 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
           initial={requirement}
           submitLabel={`Save ${words.requirement}`}
           words={words}
+          blockerChoices={requirementBlockerOptions(requirement.id, s.data)}
+          canWaitOnAll={canBlockByAll(requirement.id, s.data)}
           onSubmit={(values) => {
             s.updateRequirement(requirement.id, values);
             setMode("view");
@@ -53,6 +57,7 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
             <p className="text-xs font-mono text-[var(--color-muted-foreground)] mt-0.5">
               Weight {requirement.weight} · {dates}
             </p>
+            <WaitingOn names={openRequirementBlockers(requirement, s.data).map((r) => r.title)} />
           </div>
           <div className="flex gap-1 flex-shrink-0">
             <button type="button" aria-label={`Edit ${requirement.title}`} onClick={() => setMode("edit")} className={BUTTON_SMALL}>

@@ -3,7 +3,8 @@ import type { NeglectedRequirement } from "../planner/mood";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
-import type { Difficulty, Mood, Project, ProjectType, Task } from "../planner/types";
+import type { Difficulty, Mood, Project, ProjectType, Requirement, Task } from "../planner/types";
+import type { Blocker } from "../planner/blocking";
 import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
 
@@ -247,3 +248,25 @@ export const SETUP_SAMPLE_PROJECTS = [
   { name: "novel", color: "#c9501a", percent: 49 },
   { name: "history", color: "#3a7c4f", percent: 24 },
 ] as const;
+
+// ---- Blocking ----
+
+/** How a blocker is named: a requirement by its title; a task by its title, plus its requirement when another task in the project has the same title. */
+export function blockerName(b: Blocker, projectTasks: Task[], requirements: Requirement[]): string {
+  if (b.kind === "requirement") return b.requirement.title;
+  const { task } = b;
+  const repeated = projectTasks.some((t) => t.id !== task.id && t.title.trim().toLowerCase() === task.title.trim().toLowerCase());
+  if (!repeated) return task.title;
+  const req = requirements.find((r) => r.id === task.requirementId);
+  return `${task.title} (${req ? req.title : "Unlinked"})`;
+}
+
+/** "Waiting on Prototype 9" for one, "Waiting on 3" for more. */
+export function waitingLabel(names: string[]): string {
+  return names.length === 1 ? `Waiting on ${names[0]}` : `Waiting on ${names.length}`;
+}
+
+/** The "Blocked by" choice that waits on every other requirement in the project. */
+export function blockedByAllLabel(words: ProjectWords = SCHOOL_WORDS): string {
+  return `All other ${words.requirements}`;
+}

@@ -36,6 +36,8 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
           <RequirementForm
             submitLabel={`Add ${words.requirement}`}
             words={words}
+            blockerChoices={requirements.filter((r) => !r.blockedByAll)}
+            canWaitOnAll={requirements.length > 0 && !requirements.some((r) => r.blockedByAll)}
             onSubmit={(values) => {
               const { hatched } = s.createRequirement({ projectId, ...values });
               const project = s.data.projects.find((p) => p.id === projectId);
