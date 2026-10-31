@@ -1,6 +1,6 @@
 // User actions as pure functions: (data, input, now) → new data (+ result).
 // Every change that matters for history appends an event.
-import { isBlocked, wouldTaskBlockerLoop } from "../planner/blocking";
+import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
 import { projectHealth } from "../planner/mood";
@@ -71,6 +71,34 @@ function cleanBlockers(taskId: string, projectId: string, wanted: string[], task
   return result;
 }
 
+/**
+ * A requirement's blockers as they may be saved: "all others" only if allowed (and then no list);
+ * otherwise the wanted ids, in order, that are valid choices once the earlier ones are applied.
+ */
+function cleanRequirementBlockers(reqId: string, data: StudiumData, wanted: string[], all: boolean): Pick<Requirement, "blockedBy" | "blockedByAll"> {
+  const without = (blockedBy: string[]): StudiumData["requirements"] =>
+    data.requirements.map((r) => {
+      if (r.id !== reqId) return r;
+      const { blockedByAll: _drop, ...rest } = r;
+      return { ...rest, blockedBy };
+    });
+  let requirements = without([]);
+  if (all && canBlockByAll(reqId, { tasks: data.tasks, requirements })) return { blockedBy: [], blockedByAll: true };
+  const result: string[] = [];
+  for (const id of new Set(wanted)) {
+    if (!requirementBlockerOptions(reqId, { tasks: data.tasks, requirements }).some((r) => r.id === id)) continue;
+    result.push(id);
+    requirements = without([...result]);
+  }
+  return { blockedBy: result };
+}
+
+/** Sets a requirement's blockers, dropping blockedByAll when it isn't wanted. */
+function withRequirementBlockers(req: Requirement, blockers: Pick<Requirement, "blockedBy" | "blockedByAll">): Requirement {
+  const { blockedByAll: _drop, ...rest } = req;
+  return { ...rest, ...blockers };
+}
+
 function cleanRequirementId(data: StudiumData, projectId: string, requirementId: string | null): string | null {
   return data.requirements.some((r) => r.id === requirementId && r.projectId === projectId) ? requirementId : null;
 }
@@ -127,6 +155,8 @@ export type RequirementInput = {
   weight: number;
   startDate?: string | null;
   dueDate?: string | null;
+  blockedBy?: string[];
+  blockedByAll?: boolean;
 };
 
 export function createRequirement(
@@ -144,6 +174,10 @@ export function createRequirement(
     dueDate: cleanDate(input.dueDate),
     createdAt: stamp(now),
   };
+  if ((input.blockedBy?.length ?? 0) > 0 || input.blockedByAll) {
+    const withNew = { ...data, requirements: [...data.requirements, requirement] };
+    Object.assign(requirement, cleanRequirementBlockers(requirement.id, withNew, input.blockedBy ?? [], input.blockedByAll === true));
+  }
   const next: StudiumData = {
     ...data,
     requirements: [...data.requirements, requirement],
@@ -156,24 +190,34 @@ export function createRequirement(
 export function updateRequirement(
   data: StudiumData,
   id: string,
-  changes: Partial<Pick<Requirement, "title" | "weight" | "startDate" | "dueDate">>,
+  changes: Partial<Pick<Requirement, "title" | "weight" | "startDate" | "dueDate" | "blockedBy">> & { blockedByAll?: boolean },
   now: Date,
 ): StudiumData {
-  if (!data.requirements.some((r) => r.id === id)) return data;
-  const clean: Partial<Requirement> = definedOnly(changes);
+  const current = data.requirements.find((r) => r.id === id);
+  if (!current) return data;
+  const { blockedBy, blockedByAll, ...fields } = changes;
+  const clean: Partial<Requirement> = definedOnly(fields);
   if (clean.title !== undefined) clean.title = clean.title.trim();
   if (clean.weight !== undefined) clean.weight = clampWeight(clean.weight);
   if ("startDate" in clean) clean.startDate = cleanDate(clean.startDate);
   if ("dueDate" in clean) clean.dueDate = cleanDate(clean.dueDate);
+  let updated: Requirement = { ...current, ...clean };
+  if (blockedBy !== undefined || blockedByAll !== undefined) {
+    const blockers = cleanRequirementBlockers(id, data, blockedBy ?? current.blockedBy ?? [], blockedByAll ?? current.blockedByAll === true);
+    updated = withRequirementBlockers(updated, blockers);
+    Object.assign(clean, blockers);
+  }
   return {
     ...data,
-    requirements: data.requirements.map((r) => (r.id === id ? { ...r, ...clean } : r)),
+    requirements: data.requirements.map((r) => (r.id === id ? updated : r)),
     events: withEvent(data, { type: "requirement_edited", at: stamp(now), requirementId: id, changes: clean }),
   };
 }
 
 export function deleteRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks"): StudiumData {
-  const requirements = data.requirements.filter((r) => r.id !== id);
+  const requirements = data.requirements
+    .filter((r) => r.id !== id)
+    .map((r) => (r.blockedBy?.includes(id) ? { ...r, blockedBy: r.blockedBy.filter((b) => b !== id) } : r));
   if (mode === "deleteTasks") {
     const removed = new Set(data.tasks.filter((t) => t.requirementId === id).map((t) => t.id));
     return { ...data, ...withoutTasks(data, removed), requirements };
@@ -227,8 +271,16 @@ export function updateTask(
   const clean: Partial<Task> = {};
   if (changes.title !== undefined) clean.title = changes.title.trim();
   if (changes.estimateMin !== undefined) clean.estimateMin = cleanMinutes(changes.estimateMin, task.estimateMin);
-  if (changes.requirementId !== undefined) clean.requirementId = cleanRequirementId(data, task.projectId, changes.requirementId);
-  if (changes.blockedBy !== undefined) clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy, data.tasks, data.requirements);
+  if (changes.requirementId !== undefined) {
+    // A move that loops through another task's wait is refused; this task's own looping waits are dropped below.
+    const wanted = cleanRequirementId(data, task.projectId, changes.requirementId);
+    const unblocked = data.tasks.map((t) => (t.id === id ? { ...t, blockedBy: [] } : t));
+    if (!wouldRequirementChangeLoop(id, wanted, { tasks: unblocked, requirements: data.requirements })) clean.requirementId = wanted;
+  }
+  if (changes.blockedBy !== undefined || "requirementId" in clean) {
+    const moved = data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t));
+    clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy ?? task.blockedBy, moved, data.requirements);
+  }
   return {
     ...data,
     tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),

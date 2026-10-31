@@ -316,3 +316,97 @@ describe("pet lifecycle", () => {
     expect(d.projects[0].stage).toBeUndefined();
   });
 });
+
+// Prototype 9 (two commits) and Prototype 10 (one commit). P10 waits on P9 where a test says so.
+function prototypes(p10BlockedBy: string[] = ["P9"]) {
+  return makeData({
+    requirements: [
+      makeRequirement({ id: "P9", title: "Prototype 9" }),
+      makeRequirement({ id: "P10", title: "Prototype 10", blockedBy: p10BlockedBy }),
+    ],
+    tasks: [
+      makeTask({ id: "c9a", requirementId: "P9" }),
+      makeTask({ id: "c9b", requirementId: "P9" }),
+      makeTask({ id: "c10", requirementId: "P10" }),
+    ],
+  });
+}
+const reqOf = (data: ReturnType<typeof makeData>, id: string) => data.requirements.find((r) => r.id === id);
+
+describe("requirement blockers", () => {
+  it("saves a requirement's blockers, dropping unknown, other-project and looping ones", () => {
+    const d = prototypes([]);
+    d.projects.push({ ...d.projects[0], id: "p2" });
+    d.requirements.push(makeRequirement({ id: "X", projectId: "p2" }));
+    const next = updateRequirement(d, "P10", { blockedBy: ["P9", "gone", "X", "P10"] }, NOW);
+    expect(reqOf(next, "P10")?.blockedBy).toEqual(["P9"]);
+    // P9 waiting on P10 would loop now.
+    expect(reqOf(updateRequirement(next, "P9", { blockedBy: ["P10"] }, NOW), "P9")?.blockedBy).toEqual([]);
+    const created = createRequirement(next, { projectId: "p1", title: "Prototype 11", weight: 5, blockedBy: ["P10", "X"] }, NOW);
+    expect(created.requirement.blockedBy).toEqual(["P10"]);
+    expect(isValidData(created.data)).toBe(true);
+  });
+
+  it("sets blockedByAll only when allowed, and clears it with false", () => {
+    const d = updateRequirement(prototypes([]), "P10", { blockedByAll: true, blockedBy: ["P9"] }, NOW);
+    expect(reqOf(d, "P10")).toMatchObject({ blockedByAll: true, blockedBy: [] });
+    // Only one per project.
+    expect(reqOf(updateRequirement(d, "P9", { blockedByAll: true }, NOW), "P9")?.blockedByAll).toBeUndefined();
+    const cleared = updateRequirement(d, "P10", { blockedByAll: false }, NOW);
+    expect(reqOf(cleared, "P10")).not.toHaveProperty("blockedByAll");
+    expect(isValidData(cleared)).toBe(true);
+  });
+
+  it("won't let Prototype 10's tasks be completed until Prototype 9 is finished", () => {
+    let d = prototypes();
+    expect(completeTask(d, "c10", null, NOW).payout).toBeNull();
+    d = completeTask(d, "c9a", null, NOW).data;
+    d = completeTask(d, "c9b", null, NOW).data;
+    expect(completeTask(d, "c10", null, NOW).payout).not.toBeNull();
+  });
+
+  it("relocks after reopening a blocker's task but keeps done tasks done", () => {
+    let d = prototypes();
+    d = completeTask(d, "c9a", null, NOW).data;
+    d = completeTask(d, "c9b", null, NOW).data;
+    d = completeTask(d, "c10", null, NOW).data;
+    d = createTask(d, { projectId: "p1", requirementId: "P10", title: "Commit 2", estimateMin: 30 }, NOW).data;
+    d = reopenTask(d, "c9a", NOW);
+    expect(d.tasks.find((t) => t.id === "c10")?.done).toBe(true);
+    const later = d.tasks.find((t) => t.title === "Commit 2")!;
+    expect(completeTask(d, later.id, null, NOW).payout).toBeNull();
+  });
+
+  it("refuses a requirement change that would loop, and keeps the old requirement", () => {
+    // X is unlinked and c9a (in P9) waits on it. In P10, X would wait on P9, which waits on c9a, which waits on X.
+    let d = prototypes();
+    d = createTask(d, { projectId: "p1", requirementId: null, title: "X", estimateMin: 30 }, NOW).data;
+    const x = d.tasks.find((t) => t.title === "X")!;
+    d = updateTask(d, "c9a", { blockedBy: [x.id] }, NOW);
+    expect(d.tasks.find((t) => t.id === "c9a")?.blockedBy).toEqual([x.id]);
+    const next = updateTask(d, x.id, { requirementId: "P10" }, NOW);
+    expect(next.tasks.find((t) => t.id === x.id)?.requirementId).toBeNull();
+    expect(updateTask(d, x.id, { requirementId: "P9" }, NOW).tasks.find((t) => t.id === x.id)?.requirementId).toBe("P9");
+  });
+
+  it("drops a task's own blockers that would loop after its requirement changes", () => {
+    // c9x waits on c10; moved into P9 that wait would loop (P10 waits on P9), so the wait is dropped.
+    let d = prototypes();
+    d = createTask(d, { projectId: "p1", requirementId: null, title: "c9x", estimateMin: 30, blockedBy: ["c10"] }, NOW).data;
+    const c9x = d.tasks.find((t) => t.title === "c9x")!;
+    expect(c9x.blockedBy).toEqual(["c10"]);
+    const next = updateTask(d, c9x.id, { requirementId: "P9" }, NOW);
+    expect(next.tasks.find((t) => t.id === c9x.id)).toMatchObject({ requirementId: "P9", blockedBy: [] });
+    // c9b moving into P10 may wait on c10 there: no loop once it has left P9.
+    const kept = updateTask(prototypes(), "c9b", { requirementId: "P10", blockedBy: ["c10"] }, NOW);
+    expect(kept.tasks.find((t) => t.id === "c9b")).toMatchObject({ requirementId: "P10", blockedBy: ["c10"] });
+  });
+
+  it("removes a deleted requirement from other requirements' blockers", () => {
+    for (const mode of ["deleteTasks", "unlinkTasks"] as const) {
+      const d = deleteRequirement(prototypes(), "P9", mode);
+      expect(reqOf(d, "P10")?.blockedBy).toEqual([]);
+      expect(completeTask(d, "c10", null, NOW).payout).not.toBeNull();
+    }
+  });
+});
