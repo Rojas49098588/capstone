@@ -81,13 +81,24 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
       {options.length > 0 && (
         <fieldset>
           <legend className={LABEL}>Blocked by</legend>
-          <div className="flex flex-col gap-1 max-h-32 overflow-y-auto">
-            {options.map((t) => (
-              <label key={t.id} className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={blockedBy.includes(t.id)} onChange={() => toggleBlocker(t.id)} />
-                {t.title}
-              </label>
-            ))}
+          <div className="flex flex-col gap-2 max-h-48 overflow-y-auto">
+            {[...requirements.map((r) => ({ id: r.id, title: r.title })), { id: null, title: "Unlinked" }].map((group) => {
+              const inGroup = options.filter((t) => t.requirementId === group.id);
+              if (inGroup.length === 0) return null;
+              return (
+                <fieldset key={group.id ?? "unlinked"}>
+                  <legend className="text-xs font-semibold text-[var(--color-muted-foreground)]">{group.title}</legend>
+                  <div className="flex flex-col gap-1 pl-2">
+                    {inGroup.map((t) => (
+                      <label key={t.id} className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={blockedBy.includes(t.id)} onChange={() => toggleBlocker(t.id)} />
+                        {t.title}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              );
+            })}
           </div>
         </fieldset>
       )}
