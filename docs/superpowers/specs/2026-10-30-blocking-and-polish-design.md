@@ -1,6 +1,6 @@
 # Requirement blocking, clearer "Blocked by", and three small changes
 
-Date: 2026-10-30. Status: draft, builder-checked.
+Date: 2026-10-30. Status: approved 2026-10-30.
 Applies to Studium (`web/`), so it is in both the browser version and the desktop app, plus one small
 change to the pet code (see 5).
 
@@ -114,13 +114,28 @@ selected type, changing as the user picks, like the Difficulty hint does now. Th
 type changes, using `projectWords`, e.g. "Writing: requirements are chapters and tasks are scenes."
 Exact wording is the builder's, kept to one short line each.
 
+### 7. Duplicate a requirement (added at the user's request)
+
+A "Duplicate" action on a requirement makes the next one in a series, for the weekly prototypes.
+All of these are my calls; the user liked the idea and approved the design without the details:
+
+- **Name:** if the title ends in a number, the copy gets the next number ("Prototype 9" →
+  "Prototype 10"); otherwise " (copy)" is added. The user can rename it.
+- **Copied:** weight and every task (title, estimate, priority), all not done, with no actual time
+  and no focus time. Task blockers between tasks inside the requirement are copied to point at the
+  new copies; blockers on tasks outside it are kept as they are.
+- **Blocked by:** the copy is blocked by the original, so Prototype 10 waits for Prototype 9 without
+  setting it up. (The original's own requirement blockers are not copied.)
+- **Dates:** start and due move forward by the original's length (due − start + 1 day, or 7 days if
+  either is unset), so next week's prototype lands in next week. Unset dates stay unset.
+- It counts as a new requirement for hatching an egg, like any requirement the user adds.
+- It appears right after the original.
+
 ## Not doing
 
 - Blocking across projects.
 - Partial unlocking (e.g. "after 3 of Prototype 9's commits").
 - Changing task-to-task blocking, earning rules or shop prices.
-- Copying a requirement with its tasks (a "duplicate Prototype 9 as Prototype 10" button). The user
-  didn't ask for it here; worth raising later.
 
 ## Anti-goals
 
@@ -132,7 +147,7 @@ Exact wording is the builder's, kept to one short line each.
 
 Vitest in the existing style: the new blocking rules (finished, blocked, "all other requirements",
 loops, reopening, deleting), the starting balance for new versus old data, loading old data, and
-component tests for the grouped "Blocked by", "Waiting on N", the custom color and the type hint.
+duplicating (name, tasks, blockers, dates), component tests for the grouped "Blocked by", "Waiting on N", the custom color and the type hint.
 
 ## Left to the builder
 
