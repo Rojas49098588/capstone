@@ -36,6 +36,15 @@ npm run dist       # Windows installer in your home folder's StudiumBuilds\
 - `desktop/node_modules` holds the Electron program. Like `web/node_modules`, it's best kept out of OneDrive sync. On a new PC, OneDrive may leave these folders "online-only", which makes tests time out; right-click them → **Always keep on this device**.
 - The pets run the extension's own code (`extension/content/`): the desktop app loads it into a see-through window over the screen (`desktop/src/overlay/`) and into the Studium window for habitats.
 
+### Pet sounds
+
+On Moderate, desktop pets make their sounds out loud (Settings → **Pet sounds** turns this off). The
+files are `extension/assets/sounds/<sound>.wav`: `meow`, `bark`, `ribbit`, `coo`, `sneeze`, `sniffle`,
+`cough` and `sigh`. They are placeholders synthesized by `desktop/scripts/makeSounds.js` (no
+recordings, so there are no licences to track). To use a real clip, replace a file with one of the same
+name, a short `.wav` under a second, and list its source here. Use only clips you may share, such as
+CC0.
+
 ## Load the extension
 
 1. Open `chrome://extensions`.

@@ -220,6 +220,8 @@ export const INVOLVEMENT_HINTS: Record<PetInvolvement, string> = {
 /** The desktop app's Start with computer setting. */
 export const START_WITH_COMPUTER_LABEL = "Start Studium when your computer starts";
 export const START_WITH_COMPUTER_HINT = "Your pets are there as soon as you log in.";
+export const PET_SOUNDS_LABEL = "Pet sounds";
+export const PET_SOUNDS_HINT = "On Moderate, pets make their sounds out loud, at most one every 30 seconds.";
 export const START_OPEN_LABEL = "Open the window";
 export const START_QUIETLY_LABEL = "Start quietly in the tray";
 export const START_QUIETLY_HINT = "Studium waits in the tray by the clock (Windows may tuck it under the ^) until you open it.";

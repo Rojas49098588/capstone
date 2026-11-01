@@ -204,13 +204,20 @@ describe("pet stages", () => {
 
 describe("interaction level and nickname", () => {
   it("prefsFromSettings reads the interaction level and nickname", () => {
-    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate", nickname: " Abby " }))).toEqual({ involvement: "moderate", nickname: "Abby" });
-    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "notMuch" }))).toEqual({ involvement: "minimal", nickname: "" });
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate", nickname: " Abby " }))).toEqual({ involvement: "moderate", nickname: "Abby", sounds: true });
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "notMuch" }))).toEqual({ involvement: "minimal", nickname: "", sounds: true });
     expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "very" })).involvement).toBe("mild");
     expect(L.prefsFromSettings(JSON.stringify({ nickname: "A".repeat(25) })).nickname).toBe("A".repeat(20));
-    expect(L.prefsFromSettings("{broken")).toEqual({ involvement: "mild", nickname: "" });
-    expect(L.prefsFromSettings(null)).toEqual({ involvement: "mild", nickname: "" });
-    expect(L.cleanPrefs({ involvement: "wild", nickname: 3 })).toEqual({ involvement: "mild", nickname: "" });
+    expect(L.prefsFromSettings("{broken")).toEqual({ involvement: "mild", nickname: "", sounds: true });
+    expect(L.prefsFromSettings(null)).toEqual({ involvement: "mild", nickname: "", sounds: true });
+    expect(L.cleanPrefs({ involvement: "wild", nickname: 3 })).toEqual({ involvement: "mild", nickname: "", sounds: true });
+  });
+
+  it("prefsFromSettings reads Pet sounds: on unless turned off", () => {
+    expect(L.prefsFromSettings(JSON.stringify({ petSounds: false })).sounds).toBe(false);
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate" })).sounds).toBe(true);
+    expect(L.cleanPrefs({ involvement: "moderate", sounds: "no" }).sounds).toBe(true);
+    expect(L.cleanPrefs({ involvement: "moderate", sounds: false }).sounds).toBe(false);
   });
 
   it("keeps the nickname limit equal to Studium's", () => {

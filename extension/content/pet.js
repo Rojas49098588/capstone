@@ -329,7 +329,9 @@
 
     // What a pet says on its own (sounds, naps, reminders). Quiet while another pet naps.
     function chatter(text, ms) {
-      if (!env.quiet()) say(text, ms);
+      if (env.quiet()) return;
+      say(text, ms);
+      env.sound?.(text); // desktop: out loud too ("Meow!", "*cough*")
     }
 
     function hop(factor = 1) {
@@ -969,6 +971,7 @@
   const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
   const habitatId = (v) => (typeof v === 'string' && v ? v : null);
   let chaser = null; // the pet chasing the mouse right now (one at a time)
+  let lastSoundAt = 0; // when a pet last made a real sound (desktop)
   const env = {
     quiet: () => L.isQuiet(away),
     onMenu: openMenu,
@@ -983,6 +986,15 @@
       chaser = pet;
     },
     cursor: () => Promise.resolve(globalThis.petBridge?.cursor?.() ?? null).catch(() => null),
+    // Real sounds (desktop overlay, Moderate, Pet sounds on): at most one every soundGapMs across all pets.
+    sound: (text) => {
+      const key = L.soundKey(text);
+      const now = Date.now();
+      if (!key || SURFACE !== 'overlay' || !prefs.sounds || !globalThis.PetSound) return;
+      if (!L.mischiefAllowed({ prefs, petAway: away, checkIn, hidden }) || !L.soundAllowed(lastSoundAt, now, timing)) return;
+      lastSoundAt = now;
+      globalThis.PetSound.play(key);
+    },
   };
 
   // ---- Storage ----

@@ -602,7 +602,7 @@
   const OLD_INVOLVEMENT = { notMuch: 'minimal', very: 'mild' }; // saved before setup existed
   // Same value as Studium's NICKNAME_MAX (web/src/planner/tuning.ts), checked by petLogic.test.ts.
   const NICKNAME_MAX = 20;
-  const DEFAULT_PREFS = { involvement: 'mild', nickname: '' };
+  const DEFAULT_PREFS = { involvement: 'mild', nickname: '', sounds: true }; // sounds: Pet sounds (desktop app)
 
   function cleanNickname(v) {
     return typeof v === 'string' ? v.trim().slice(0, NICKNAME_MAX).trim() : '';
@@ -614,6 +614,7 @@
     return {
       involvement: INVOLVEMENTS.includes(v.involvement) ? v.involvement : DEFAULT_PREFS.involvement,
       nickname: cleanNickname(v.nickname),
+      sounds: v.sounds !== false,
     };
   }
 
@@ -628,7 +629,11 @@
       }
     }
     if (!isObject(value)) return { ...DEFAULT_PREFS };
-    return cleanPrefs({ involvement: OLD_INVOLVEMENT[value.petInvolvement] ?? value.petInvolvement, nickname: value.nickname });
+    return cleanPrefs({
+      involvement: OLD_INVOLVEMENT[value.petInvolvement] ?? value.petInvolvement,
+      nickname: value.nickname,
+      sounds: value.petSounds,
+    });
   }
 
   /** A Minimal pet stays in its spot and keeps quiet on web pages. In its own habitat it behaves as usual. */

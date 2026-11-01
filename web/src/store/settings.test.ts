@@ -17,6 +17,7 @@ describe("settings", () => {
       shopTutorialDone: false,
       startWithComputer: true,
       startQuietly: false,
+      petSounds: true,
     });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
@@ -40,6 +41,7 @@ describe("settings", () => {
       shopTutorialDone: false,
       startWithComputer: true,
       startQuietly: false,
+      petSounds: true,
     });
     expect(parseSettings(JSON.stringify({ projectType: "poetry", setupDone: "yes" }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, petOrder: "random", progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
@@ -69,6 +71,10 @@ describe("settings", () => {
     expect(parseSettings(JSON.stringify({ petInvolvement: "mild" })).startWithComputer).toBe(true);
     expect(parseSettings(JSON.stringify({ startWithComputer: "no" })).startWithComputer).toBe(true);
     expect(parseSettings(JSON.stringify({ startWithComputer: false })).startWithComputer).toBe(false);
+    // Pet sounds (desktop app): on unless turned off.
+    expect(parseSettings(JSON.stringify({ petInvolvement: "moderate" })).petSounds).toBe(true);
+    expect(parseSettings(JSON.stringify({ petSounds: "no" })).petSounds).toBe(true);
+    expect(parseSettings(JSON.stringify({ petSounds: false })).petSounds).toBe(false);
     expect(parseSettings(JSON.stringify({ petInvolvement: "mild" })).startQuietly).toBe(false);
     expect(parseSettings(JSON.stringify({ startQuietly: "yes" })).startQuietly).toBe(false);
     expect(parseSettings(JSON.stringify({ startQuietly: true })).startQuietly).toBe(true);
