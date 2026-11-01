@@ -68,6 +68,7 @@ After editing extension files, click the reload icon on the extension's card, th
   - **Sleep** sends the pet away for 1 or 2 hours and records nothing.
   - **Open project** opens that project in Studium.
 - An away pet lies asleep in its Studium habitat, with a **Wake** button. You can also wake it from the toolbar icon's right-click menu.
+- **Blocking:** a task can wait on other tasks, and a requirement on other requirements (or on all the others). A waiting requirement's tasks can't be checked off until every task in what it waits on is done; it shows "Waiting on …" (hover or tap "Waiting on 3" for the list). **Duplicate** on a requirement makes the next one in a series ("Prototype 9" → "Prototype 10") with its tasks unchecked, waiting on the original.
 - Pets hop when you complete a task in Studium, and celebrate bigger for a project's first task and for a finished requirement.
 - Right-click the toolbar icon and choose **Show / hide pet** to toggle it everywhere.
 - Chrome blocks extensions on `chrome://` pages and the Chrome Web Store, so the pet can't appear there.
@@ -92,6 +93,10 @@ After editing extension files, click the reload icon on the extension's card, th
 | Egg looks and descriptions | `web/src/pets/eggs.ts` |
 | Each difficulty's thresholds | `DIFFICULTY_RULES` in `web/src/planner/tuning.ts` |
 | Each project type's words | `projectWords` in `web/src/ui/format.ts` |
+| The hint under each project type | `PROJECT_TYPE_HINTS` in `web/src/ui/format.ts` |
+| What blocks what (tasks and requirements, "All other requirements", loop checks) | `web/src/planner/blocking.ts` |
+| How many tokens a new user starts with | `STARTING_TOKENS` in `web/src/planner/tuning.ts` (data saved before 2026-10-30 started with `LEGACY_STARTING_TOKENS`, 650) |
+| Readable text on a project color | `web/src/ui/color.ts` (and `textOn` in `extension/content/logic.js` for the pet's name label) |
 | Setup's questions and wording | `web/src/components/Setup.tsx`, `SETUP_COPY` in `web/src/ui/format.ts` |
 | Sticky notes: how often (by mood), what they say | `NOTE_GAP_MINUTES`, `SICK_NOTES`, `UPSET_NOTES`, `WORRIED_NOTES`, `noteText` and `chooseNote` in `extension/content/logic.js` |
 | How many requirements hatch an egg, and the juvenile size | `HATCH_REQUIREMENTS` and `JUVENILE_SCALE` in `web/src/planner/tuning.ts` (and `JUVENILE_SCALE` in `extension/content/logic.js`; a test keeps them equal) |

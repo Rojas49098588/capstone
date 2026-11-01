@@ -53,6 +53,14 @@ describe("ProjectModal", () => {
     expect((screen.getByLabelText("Pick a custom color") as HTMLInputElement).value).toBe("#ff99cc");
   });
 
+  it("explains the picked project type", async () => {
+    renderWithStudium(<ProjectModal onClose={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Writing" }));
+    screen.getByText("Requirements are chapters and tasks are scenes.");
+    await userEvent.click(screen.getByRole("radio", { name: "Code" }));
+    screen.getByText("Requirements are features; tasks stay tasks.");
+  });
+
   it("the short name is asked for as the pet's nickname", async () => {
     const { storage } = renderWithStudium(<ProjectModal onClose={vi.fn()} onCreated={vi.fn()} />);
     await userEvent.type(screen.getByLabelText("Project name"), "Senior Capstone");

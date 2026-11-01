@@ -1,3 +1,5 @@
+import { PROJECT_TYPES } from "../planner/types";
+import { PROJECT_TYPE_HINTS } from "./format";
 import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
@@ -151,5 +153,12 @@ describe("projectWords", () => {
     expect(hatchHintFor(2, projectWords("writing"))).toBe("Add 2 more chapters to hatch");
     expect(hatchHintFor(1, projectWords("writing"))).toBe("Add 1 more chapter to hatch");
     expect(hatchHintFor(2)).toBe("Add 2 more requirements to hatch");
+  });
+});
+
+describe("PROJECT_TYPE_HINTS", () => {
+  it("explains every project type in one line", () => {
+    for (const t of PROJECT_TYPES) expect(PROJECT_TYPE_HINTS[t]).toMatch(/^[A-Z].+\.$/);
+    expect(PROJECT_TYPE_HINTS.writing).toBe("Requirements are chapters and tasks are scenes.");
   });
 });

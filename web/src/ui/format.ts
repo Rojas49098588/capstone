@@ -193,6 +193,16 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   other: "Something else",
 };
 
+/** One line under the type choice: what picking it changes (only the words). */
+export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
+  school: "Requirements and tasks, like an assignment sheet.",
+  writing: "Requirements are chapters and tasks are scenes.",
+  art: "Requirements are pieces and tasks are steps.",
+  code: "Requirements are features; tasks stay tasks.",
+  music: "Requirements are tracks; tasks stay tasks.",
+  other: "Requirements are milestones; tasks stay tasks.",
+};
+
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = { gentle: "Gentle", steady: "Steady", strict: "Strict" };
 export const DIFFICULTY_HINTS: Record<Difficulty, string> = {
   gentle: "Forgiving. Worried only when you're well behind, and slow to get sick.",

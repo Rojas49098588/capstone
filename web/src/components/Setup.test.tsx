@@ -44,6 +44,13 @@ describe("Setup", () => {
     expect(onFinish).toHaveBeenCalled();
   });
 
+  it("explains the picked project type", async () => {
+    renderSetup();
+    screen.getByText("Requirements and tasks, like an assignment sheet.");
+    await userEvent.click(radio("Writing"));
+    screen.getByText("Requirements are chapters and tasks are scenes.");
+  });
+
   it("saves nothing until the last step", async () => {
     const { storage } = renderSetup();
     const before = storage?.getItem(SETTINGS_KEY);
