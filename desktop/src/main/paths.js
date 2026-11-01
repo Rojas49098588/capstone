@@ -10,18 +10,26 @@ const DEV_URL = 'http://localhost:5173/';
  * folder (see electron-builder.yml); in development they are read from the repo.
  */
 function resolvePaths({ packaged, resourcesPath, desktopDir }) {
+  // petsRoot: the pet code and art shared with the extension (content/*.js, assets/pets/).
+  // overlayDir: the pet overlay page (desktop/src/overlay).
   if (packaged) {
     const webDist = path.resolve(resourcesPath, 'web');
+    const petsRoot = path.resolve(resourcesPath, 'extension');
     return {
       webDist,
-      logicJs: path.resolve(resourcesPath, 'extension', 'logic.js'),
+      petsRoot,
+      overlayDir: path.resolve(resourcesPath, 'overlay'),
+      logicJs: path.join(petsRoot, 'content', 'logic.js'),
       trayIcon: path.join(webDist, 'pets', 'egg.png'),
     };
   }
   const repo = path.resolve(desktopDir, '..');
+  const petsRoot = path.join(repo, 'extension');
   return {
     webDist: path.join(repo, 'web', 'dist'),
-    logicJs: path.join(repo, 'extension', 'content', 'logic.js'),
+    petsRoot,
+    overlayDir: path.join(path.resolve(desktopDir), 'src', 'overlay'),
+    logicJs: path.join(petsRoot, 'content', 'logic.js'),
     trayIcon: path.join(repo, 'web', 'public', 'pets', 'egg.png'),
   };
 }

@@ -47,7 +47,7 @@ if (!app.requestSingleInstanceLock() || args.quit) {
 
   app.whenReady().then(() => {
     const paths = resolvePaths({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, desktopDir: path.join(__dirname, '..', '..') });
-    handleStudiumScheme(paths.webDist);
+    handleStudiumScheme({ app: paths.webDist, pets: paths.petsRoot, overlay: paths.overlayDir });
     // The pets' rules, shared with the extension. A plain script that sets globalThis.PetLogic.
     require(paths.logicJs);
     const L = globalThis.PetLogic;
