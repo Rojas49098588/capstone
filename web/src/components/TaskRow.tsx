@@ -7,6 +7,7 @@ import { blockerName, focusedLabel, formatMinutes, wordsFor } from "../ui/format
 import { BUTTON_SMALL } from "../ui/styles";
 import TaskForm from "./TaskForm";
 import WaitingOn from "./WaitingOn";
+import { textOn } from "../ui/color";
 
 type Props = { taskId: string; onRequestComplete: (taskId: string) => void };
 
@@ -56,7 +57,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         style={{ borderColor: task.done ? color : "var(--color-border)", backgroundColor: task.done ? color : "transparent" }}
       >
         {task.done && (
-          <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className="w-2.5 h-2.5" style={{ color: project ? textOn(project.color) : "white" }} fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
           </svg>
         )}

@@ -24,6 +24,9 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
   const [deadline, setDeadline] = useState(project?.deadline ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0]);
+  // The custom swatch's color: the project's own if it isn't one of the six.
+  const [custom, setCustom] = useState(project && !PROJECT_COLORS.includes(project.color) && /^#[0-9a-f]{6}$/i.test(project.color) ? project.color : "#e0609a");
+  const isCustom = !PROJECT_COLORS.includes(color);
   const [petKind, setPetKind] = useState<PetKind | null>(null);
   const [type, setType] = useState<ProjectType>(project ? projectType(project) : s.settings.projectType);
   const [difficulty, setDifficulty] = useState<Difficulty>(project ? projectDifficulty(project) : s.settings.difficulty);
@@ -139,6 +142,30 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
                   style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : "none", outlineOffset: "2px" }}
                 />
               ))}
+              <span
+                role="radio"
+                aria-checked={isCustom}
+                aria-label="Custom color"
+                title="Pick any color"
+                className="relative w-7 h-7 rounded-sm overflow-hidden"
+                style={{
+                  background: isCustom ? color : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
+                  outline: isCustom ? `2px solid ${color}` : "none",
+                  outlineOffset: "2px",
+                }}
+              >
+                <input
+                  type="color"
+                  aria-label="Pick a custom color"
+                  value={custom}
+                  onClick={() => setColor(custom)}
+                  onChange={(e) => {
+                    setCustom(e.target.value);
+                    setColor(e.target.value);
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </span>
             </div>
           </fieldset>
           {radioGroup("Type", PROJECT_TYPES, PROJECT_TYPE_LABELS, type, setType)}

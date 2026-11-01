@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { textIn } from "../ui/color";
 import { inventory } from "../planner/history";
 import { petStage, requirementsToHatch } from "../planner/lifecycle";
 import type { DecorSlot } from "../planner/types";
@@ -88,7 +89,7 @@ export default function Habitat({ projectId, onOpenShop, placing = null, onPickS
           {away ? (
             <div className="absolute top-3 inset-x-0 flex flex-wrap items-center justify-center gap-2 px-3 text-sm">
               <p>
-                <strong style={{ color: project.color }}>{`${project.shortName} ${awayLabel(away, s.now).title}`}</strong> ·{" "}
+                <strong style={{ color: textIn(project.color) }}>{`${project.shortName} ${awayLabel(away, s.now).title}`}</strong> ·{" "}
                 {awayLabel(away, s.now).detail}
               </p>
               <button
