@@ -14,7 +14,7 @@ const { loginItemSettings } = require('./loginItem');
 const { quitTask } = require('./taskbar');
 const { createOverlayWindow, setOverlayMouse } = require('./overlayWindow');
 const { createHabitatTracker } = require('./habitat');
-const { readPetState, cleanPetWrite, changesFor, handlePetMessage } = require('./petChannel');
+const { readPetState, cleanPetWrite, changesFor, changeTargets, handlePetMessage } = require('./petChannel');
 const { habitatFiles, habitatScript } = require('./petScripts');
 
 const OVERLAY_URL = 'studium://overlay/index.html';
@@ -87,9 +87,8 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     // ---- The pets' windows (the overlay, and the habitat pet in the Studium window) ----
     // window.petBridge in every window; what each may do is decided below, by sender.
     session.defaultSession.registerPreloadScript({ type: 'frame', id: 'studium-pet-bridge', filePath: path.join(__dirname, '..', 'preload', 'petBridge.js') });
-    const live = (w) => w && !w.isDestroyed() && !w.webContents.isLoading();
     const broadcast = (changes) => {
-      for (const w of [overlay, win]) if (live(w)) w.webContents.send('pets:changed', changes);
+      for (const w of changeTargets([overlay, win])) w.webContents.send('pets:changed', changes);
     };
     const habitat = createHabitatTracker((id) => broadcast({ petHabitat: { newValue: id } }));
     store.onChange((keys, state) => {

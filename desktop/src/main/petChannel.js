@@ -37,6 +37,14 @@ function changesFor(keys, state) {
   return out;
 }
 
+/**
+ * The windows to send pets:changed to. A window still loading is included: its pet code may
+ * already have read the state (pets:get), and a change dropped now would leave it stale.
+ */
+function changeTargets(windows) {
+  return windows.filter((w) => w && !w.isDestroyed());
+}
+
 /** chrome.runtime.sendMessage from a pet window. from: 'overlay' or 'studium'. */
 function handlePetMessage(msg, from, { L, runner, open, reportHabitat }) {
   if (isPlainObject(msg) && msg.type === 'habitat') {
@@ -50,4 +58,4 @@ function handlePetMessage(msg, from, { L, runner, open, reportHabitat }) {
   else runner.request(request);
 }
 
-module.exports = { READABLE_KEYS, readPetState, cleanPetWrite, changesFor, handlePetMessage };
+module.exports = { READABLE_KEYS, readPetState, cleanPetWrite, changesFor, changeTargets, handlePetMessage };

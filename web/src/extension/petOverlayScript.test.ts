@@ -15,7 +15,9 @@ const pet = (projectId: string) => ({
 
 it("shows every pet except the one in the Studium habitat, and never copies Studium's data", async () => {
   const statuses = { updatedAt: new Date().toISOString(), pets: [pet("a"), pet("b")] };
-  const store: Record<string, unknown> = { petStatuses: statuses, petHabitat: "a" };
+  // a is back from a nap and asks how it went, but it's in its Studium habitat right now.
+  const checkIn = { projectId: "a", taskId: null, taskTitle: null, minutes: 15, at: new Date().toISOString() };
+  const store: Record<string, unknown> = { petStatuses: statuses, petHabitat: "a", petCheckIn: checkIn };
   const sets: Record<string, unknown>[] = [];
   const listeners: Listener[] = [];
   const g = globalThis as unknown as { chrome: unknown; PetSurface: string };
@@ -48,11 +50,18 @@ it("shows every pet except the one in the Studium habitat, and never copies Stud
       .map((el, i) => (el.style.display !== "none" ? i : -1))
       .filter((i) => i >= 0);
   expect(shownPets()).toEqual([1]);
+  // The habitat asks; b on the desktop doesn't ask about a too.
+  const asking = () =>
+    [...(document.getElementById("capstone-pet-host")?.shadowRoot?.querySelectorAll<HTMLElement>(".pet") ?? [])]
+      .map((el, i) => (el.querySelector(".talk.show") ? i : -1))
+      .filter((i) => i >= 0);
+  expect(asking()).toEqual([]);
 
   // The Studium window closed: its pet comes back to the desktop.
   await (g.chrome as { storage: { local: { set: (v: unknown) => Promise<void> } } }).storage.local.set({ petHabitat: null });
   await new Promise((r) => setTimeout(r, 0));
   expect(shownPets()).toEqual([0, 1]);
+  expect(asking()).toEqual([0]); // back on the desktop, a asks itself
 
   for (const s of sets) {
     expect(Object.keys(s)).not.toContain("petStatuses");

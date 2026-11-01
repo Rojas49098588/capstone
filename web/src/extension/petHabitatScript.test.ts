@@ -15,7 +15,9 @@ const pet = (projectId: string) => ({
 
 it("shows only the pet whose habitat box is on the page, reports the box, and saves nothing", async () => {
   const statuses = { updatedAt: new Date().toISOString(), pets: [pet("a"), pet("b")] };
-  const store: Record<string, unknown> = { petStatuses: statuses };
+  // a is back from a nap and asks how it went; it's on the desktop, not in this page's habitat.
+  const checkIn = { projectId: "a", taskId: null, taskTitle: null, minutes: 15, at: new Date().toISOString() };
+  const store: Record<string, unknown> = { petStatuses: statuses, petCheckIn: checkIn };
   const sets: Record<string, unknown>[] = [];
   const messages: unknown[] = [];
   const listeners: Listener[] = [];
@@ -63,6 +65,8 @@ it("shows only the pet whose habitat box is on the page, reports the box, and sa
   expect(shownPets()).toEqual([1]);
   expect(messages[messages.length - 1]).toEqual({ type: "habitat", projectId: "b" });
   expect(box.hasAttribute("data-pet-attached")).toBe(true);
+  // b, in the habitat, doesn't ask about a's nap (a asks on the desktop).
+  expect(document.getElementById("capstone-pet-host")?.shadowRoot?.querySelector(".talk.show")).toBeNull();
 
   box.remove();
   await new Promise((r) => setTimeout(r, 0));

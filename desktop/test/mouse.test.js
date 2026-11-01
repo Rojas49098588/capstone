@@ -11,16 +11,19 @@ describe('wantsMouse', () => {
 });
 
 describe('createMouseGate', () => {
-  it('starts letting clicks through and tells the main process only about changes', () => {
+  it('always sends its first value, then only changes', () => {
+    // The window keeps its click-through setting across a reload (after a crash, say), so a fresh
+    // page must say so even when it wants what a fresh page usually has.
     const sent = [];
     const gate = createMouseGate((v) => sent.push(v));
     gate.update(false);
-    expect(sent).toEqual([]);
-    gate.update(true);
-    gate.update(true);
-    expect(sent).toEqual([true]);
     gate.update(false);
-    expect(sent).toEqual([true, false]);
+    expect(sent).toEqual([false]);
+    gate.update(true);
+    gate.update(true);
+    expect(sent).toEqual([false, true]);
+    gate.update(false);
+    expect(sent).toEqual([false, true, false]);
   });
 });
 

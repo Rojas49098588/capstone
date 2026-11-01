@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import '../../extension/content/logic.js';
-import { READABLE_KEYS, changesFor, cleanPetWrite, handlePetMessage, readPetState } from '../src/main/petChannel.js';
+import { READABLE_KEYS, changeTargets, changesFor, cleanPetWrite, handlePetMessage, readPetState } from '../src/main/petChannel.js';
 
 // logic.js is a plain script that sets globalThis.PetLogic.
 const L = globalThis.PetLogic;
@@ -51,6 +51,20 @@ describe('cleanPetWrite', () => {
 describe('changesFor', () => {
   it('gives storage-style changes for readable keys only', () => {
     expect(changesFor(['petAway', 'focusOutbox'], { petAway: { a: 1 }, focusOutbox: {} })).toEqual({ petAway: { newValue: { a: 1 } } });
+  });
+});
+
+describe('changeTargets', () => {
+  const w = (destroyed, loading) => ({ isDestroyed: () => destroyed, webContents: { isLoading: () => loading } });
+
+  it('includes a window that is still loading, so a change between its first read and the end of its load is not lost', () => {
+    const loading = w(false, true);
+    const ready = w(false, false);
+    expect(changeTargets([loading, ready])).toEqual([loading, ready]);
+  });
+
+  it('leaves out missing and destroyed windows', () => {
+    expect(changeTargets([null, undefined, w(true, false)])).toEqual([]);
   });
 });
 

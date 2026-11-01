@@ -970,7 +970,10 @@
     for (const pet of pets) pet.clearTalk();
     if (!checkIn) return;
     const shown = pets.filter((pet) => pet.isShown() && !pet.isAway());
-    const target = shown.find((pet) => pet.id === checkIn.projectId) ?? shown[0];
+    let target = shown.find((pet) => pet.id === checkIn.projectId);
+    // Another pet asks for it, except in the desktop app where it is shown somewhere else: the
+    // habitat copy only asks for its own pet, and the overlay leaves the habitat pet's to the habitat.
+    if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && checkIn.projectId === liveHabitat)) target = shown[0];
     if (!target) return;
     const prompt = L.checkInPrompt(checkIn);
     target.talk(prompt.text, prompt.buttons, (answer) => send({ type: 'checkIn', answer }));

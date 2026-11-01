@@ -10,9 +10,13 @@ function wantsMouse({ overPet, menuOpen, pressing }) {
   return Boolean(overPet || menuOpen || pressing);
 }
 
-/** Calls send(wants) only when it changes. Starts letting clicks through. */
+/**
+ * Calls send(wants) the first time, then only when it changes. The first value is always sent:
+ * the window keeps its setting across a reload (after a crash, say), so it may still be taking
+ * the mouse.
+ */
 function createMouseGate(send) {
-  let current = false;
+  let current = null;
   return {
     update(wants) {
       if (wants === current) return;
