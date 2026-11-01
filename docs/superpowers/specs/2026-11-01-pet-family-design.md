@@ -26,9 +26,13 @@ Two things came up together:
    applies to today's juveniles too, counted from their `hatchedAt`, so none grows up the moment
    this ships unless that much work has happened since it hatched. Growing up is saved when it
    happens, like hatching: adding tasks later never turns an adult back into a juvenile.
-2. **Eggs in the Shop.** A new Shop item, an egg, about **400 tokens** (my call: Shop items cost 35 to
-   180 and new users start with 100, so an egg is a goal). When buying, the user chooses the project
-   and the egg's look (the same egg picker a new project uses). **At most 4 pets per project**,
+2. **Eggs in the Shop, in a new "Pets" tab** (user's request, 2026-11-01). The tab lists **one egg
+   per kind of pet** (cat, dog, frog, pigeon, turtle), each about **400 tokens** (my call: Shop items
+   cost 35 to 180 and new users start with 100, so an egg is a goal). An egg hatches into its kind, so
+   the user picks the kind by picking the egg; when buying, they choose the project it goes to. The
+   tab is laid out by kind so **later styles of each kind** (the user plans different styles within
+   today's kinds) can be added as more eggs under the same kind without changing how buying works.
+   **At most 4 pets per project**,
    counting the first and any unhatched eggs; a project with 4 can't get another egg. My calls:
    - **One unhatched bought egg per project at a time**: another can be bought once it hatches. So
      one burst of work never hatches several eggs at once.
