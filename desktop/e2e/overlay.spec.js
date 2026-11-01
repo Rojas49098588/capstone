@@ -88,6 +88,27 @@ test('Nap from the menu, Wake from the tray, then the check-in', async () => {
   await app.close();
 });
 
+test('checking off the nap\'s task in Studium wakes the pet early with congrats', async () => {
+  const app = await launch({ userData: tempUserData() });
+  const studium = await studiumPage(app);
+  await seedPets(app, studium, [testPet('p1', { napTasks: [{ taskId: 't1', title: 'Push', estimateMin: 30, group: 'today' }] })]);
+  const overlay = await overlayPage(app);
+  const pet = overlay.locator('#capstone-pet-host .pet');
+  await expect(pet).toBeVisible();
+
+  // Nap, choosing the task.
+  await pet.click({ button: 'right' });
+  await overlay.getByRole('menuitem', { name: /^Nap/ }).click();
+  await overlay.locator('#capstone-pet-host .talk.show').getByRole('button', { name: /^Push/ }).click();
+  await expect.poll(async () => (await store(app)).petAway?.p1?.taskId).toBe('t1');
+
+  // Studium checks it off (what useStudium's completeTask announces).
+  await studium.evaluate(() => window.dispatchEvent(new CustomEvent('studium:task-done', { detail: 't1' })));
+  await expect.poll(async () => (await store(app)).petAway?.p1).toBeUndefined();
+  await expect(overlay.locator('#capstone-pet-host .talk.show')).toContainText('Congrats! You finished Push!');
+  await app.close();
+});
+
 test('Show/Hide pets from the tray', async () => {
   const { app, overlay } = await start();
   const host = overlay.locator('#capstone-pet-host');

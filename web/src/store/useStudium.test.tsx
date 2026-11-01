@@ -10,6 +10,7 @@ import {
   PET_STATUS_KEY,
   PET_STATUS_REFRESH_MS,
   STUDIUM_READY_EVENT,
+  TASK_DONE_EVENT,
 } from "./petStatus";
 import { buildSeed } from "./seed";
 import { STORAGE_KEY, saveData } from "./storage";
@@ -45,6 +46,22 @@ describe("useStudium", () => {
     expect(saved.tasks.find((t) => t.id === "webDev-t5")?.done).toBe(true);
     expect(saved.events.slice(-1)[0].at).toBe(NOW.toISOString());
     expect(result.current.data).toEqual(saved);
+  });
+
+  it("announces a checked-off task, so a pet napping on it can wake up", () => {
+    const storage = seededStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const done: unknown[] = [];
+    const listen = (e: Event) => done.push((e as CustomEvent).detail);
+    window.addEventListener(TASK_DONE_EVENT, listen);
+    act(() => {
+      result.current.completeTask("webDev-t5", 180);
+    });
+    act(() => {
+      result.current.completeTask("no-such-task", 10);
+    });
+    window.removeEventListener(TASK_DONE_EVENT, listen);
+    expect(done).toEqual(["webDev-t5"]);
   });
 
   it("reports a failed save but keeps working", () => {

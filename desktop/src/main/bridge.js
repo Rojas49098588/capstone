@@ -2,7 +2,7 @@
 // (src/preload/studium.js). Pure apart from the dependencies passed in.
 const { startQuietlyFrom, startWithComputerFrom } = require('./loginItem');
 
-const CHANNELS = ['studium:statuses', 'studium:settings', 'studium:ready', 'studium:delivered', 'studium:wake'];
+const CHANNELS = ['studium:statuses', 'studium:settings', 'studium:ready', 'studium:delivered', 'studium:wake', 'studium:task-done'];
 
 function handleStudium(channel, payload, { store, runner, L, sendSessions, applyLoginItem }) {
   switch (channel) {
@@ -24,6 +24,12 @@ function handleStudium(channel, payload, { store, runner, L, sendSessions, apply
     case 'studium:delivered': {
       const request = L.parseRequest({ type: 'delivered', ids: payload });
       if (request && request.ids.length > 0) runner.request(request);
+      return;
+    }
+    case 'studium:task-done': {
+      // A pet napping on this task wakes up early, with congrats.
+      const request = L.parseRequest({ type: 'taskDone', taskId: payload });
+      if (request) runner.request(request);
       return;
     }
     case 'studium:wake': {

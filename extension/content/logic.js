@@ -22,6 +22,7 @@
   const FOCUS_RECEIVED_EVENT = 'studium:focus-received';
   const READY_EVENT = 'studium:ready';
   const WAKE_PET_EVENT = 'studium:wake-pet';
+  const TASK_DONE_EVENT = 'studium:task-done'; // Studium: a task was checked off; detail is its id
   const PET_AWAY_ATTR = 'data-pet-away';
   const CELEBRATION_KINDS = ['task', 'firstTask', 'requirement'];
 
@@ -294,7 +295,8 @@
   function parseCheckIn(raw) {
     if (!isObject(raw) || !text(raw.projectId) || !textOrNull(raw.taskId) || !textOrNull(raw.taskTitle)) return null;
     if (!Number.isFinite(raw.minutes) || raw.minutes < 0 || !text(raw.at)) return null;
-    return { projectId: raw.projectId, taskId: raw.taskId, taskTitle: raw.taskTitle, minutes: raw.minutes, at: raw.at };
+    const clean = { projectId: raw.projectId, taskId: raw.taskId, taskTitle: raw.taskTitle, minutes: raw.minutes, at: raw.at };
+    return raw.finished === true ? { ...clean, finished: true } : clean;
   }
 
   /** petTimingOverride ({ napMinutes }) only exists so the browser check doesn't wait 15 minutes. */
@@ -322,6 +324,8 @@
           : null;
       case 'checkIn':
         return ['done', 'notYet', 'later'].includes(msg.answer) ? { type: 'checkIn', answer: msg.answer } : null;
+      case 'taskDone':
+        return text(msg.taskId) ? { type: 'taskDone', taskId: msg.taskId } : null;
       case 'delivered':
         return Array.isArray(msg.ids) && msg.ids.every(text) ? { type: 'delivered', ids: [...msg.ids] } : null;
       default:
@@ -362,7 +366,8 @@
   }
 
   /** Brings a pet back. A nap becomes a focus session and a check-in; a sleep records nothing. */
-  function endAway(state, projectId, now) {
+  // finished: the nap's task was checked off in Studium, so it ends early and the check-in congratulates.
+  function endAway(state, projectId, now, finished = false) {
     const entry = state.petAway[projectId];
     if (!entry) return null;
     let { focusOutbox, petCheckIn } = state;
@@ -376,7 +381,7 @@
         ...focusOutbox,
         [entry.id]: { id: entry.id, projectId, taskId: entry.taskId, startedAt: entry.startedAt, at, minutes },
       };
-      petCheckIn = { projectId, taskId: entry.taskId, taskTitle: entry.taskTitle, minutes, at };
+      petCheckIn = { projectId, taskId: entry.taskId, taskTitle: entry.taskTitle, minutes, at, ...(finished ? { finished: true } : {}) };
     }
     return {
       state: { petAway: without(state.petAway, projectId), focusOutbox, petCheckIn },
@@ -422,6 +427,13 @@
           }
         }
         return { state: result.state, effects, changed: result.changed };
+      }
+      case 'taskDone': {
+        // The task a pet is napping on was checked off in Studium: the nap ends now, with congrats.
+        const projectId = Object.keys(state.petAway).find(
+          (id) => state.petAway[id].kind === 'nap' && state.petAway[id].taskId === request.taskId,
+        );
+        return (projectId && endAway(state, projectId, ctx.now, true)) || unchanged;
       }
       case 'checkIn': {
         const c = state.petCheckIn;
@@ -523,6 +535,10 @@
   }
 
   function checkInPrompt(checkIn) {
+    // The nap's task was checked off while the pet slept: it woke early to say well done.
+    if (checkIn.finished) {
+      return { text: `Congrats! You finished ${checkIn.taskTitle ?? 'your task'}! 🎉`, buttons: [{ answer: 'later', label: 'Yay!' }] };
+    }
     if (checkIn.taskId) {
       return {
         text: `Did you finish ${checkIn.taskTitle ?? 'your task'}?`,
@@ -967,6 +983,7 @@
     FOCUS_RECEIVED_EVENT,
     READY_EVENT,
     WAKE_PET_EVENT,
+    TASK_DONE_EVENT,
     PET_AWAY_ATTR,
     parseAway,
     parseOutbox,

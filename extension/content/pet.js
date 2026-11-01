@@ -1217,9 +1217,15 @@
     // habitat copy only asks for its own pet, and the overlay leaves the habitat pet's to the habitat.
     if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && checkIn.projectId === liveHabitat)) target = shown[0];
     if (!target || target === asker) return; // the check-in waits until the nap question is answered
+    // Woken early because its task was checked off: a happy hop, once, before the congrats.
+    if (checkIn.finished && congratsAt !== checkIn.at) {
+      congratsAt = checkIn.at;
+      target.celebrate('task');
+    }
     const prompt = L.checkInPrompt(checkIn);
     target.talk(prompt.text, prompt.buttons, (answer) => send({ type: 'checkIn', answer }));
   }
+  let congratsAt = null; // the finished check-in already celebrated
 
   // ---- Celebrations: a task completed in Studium ----
   // A tab in the background keeps them until you come back to it, so you see the hop.

@@ -22,6 +22,8 @@ export const FOCUS_RECEIVED_EVENT = "studium:focus-received";
 export const STUDIUM_READY_EVENT = "studium:ready";
 /** The habitat's Wake button; `detail` is the project id. */
 export const WAKE_PET_EVENT = "studium:wake-pet";
+/** A task was checked off; `detail` is its id. A pet napping on it wakes up early with congrats. */
+export const TASK_DONE_EVENT = "studium:task-done";
 /** Set by the extension on the habitat box while its pet is away: "<nap|sleep>:<ISO time it returns>". */
 export const PET_AWAY_ATTR = "data-pet-away";
 

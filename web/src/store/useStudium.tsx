@@ -18,6 +18,7 @@ import {
   FOCUS_SESSIONS_EVENT,
   PET_STATUS_REFRESH_MS,
   STUDIUM_READY_EVENT,
+  TASK_DONE_EVENT,
   publishPetStatuses,
 } from "./petStatus";
 import { SETTINGS_KEY, loadSettings, parseSettings, saveSettings, type Settings } from "./settings";
@@ -180,11 +181,15 @@ export function useStudium(options: StudiumOptions = {}) {
         change((d, at) => A.updateTask(d, id, changes, at)),
       deleteTask: (id: string) => change((d) => A.deleteTask(d, id)),
       togglePriority: (id: string) => change((d) => A.togglePriority(d, id)),
-      completeTask: (id: string, actualMin: number | null) =>
-        apply((d, at) => {
+      completeTask: (id: string, actualMin: number | null) => {
+        const payout = apply((d, at) => {
           const r = A.completeTask(d, id, actualMin, at);
           return { data: r.data, result: r.payout };
-        }),
+        });
+        // The desktop app wakes a pet napping on this task, with congrats.
+        if (payout && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(TASK_DONE_EVENT, { detail: id }));
+        return payout;
+      },
       reopenTask: (id: string) => change((d, at) => A.reopenTask(d, id, at)),
       addToToday: (id: string) => change((d, at) => A.addToToday(d, id, at)),
       removeFromToday: (id: string) => change((d, at) => A.removeFromToday(d, id, at)),
