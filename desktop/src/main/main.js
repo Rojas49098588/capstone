@@ -1,5 +1,6 @@
 // Studium desktop app: main process. This file only wires the pieces together; the rules live in
 // the modules next to it, which have unit tests.
+const fs = require('node:fs');
 const path = require('node:path');
 const { app, ipcMain, screen, session } = require('electron');
 const { parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
@@ -14,6 +15,7 @@ const { quitTask } = require('./taskbar');
 const { createOverlayWindow, setOverlayMouse } = require('./overlayWindow');
 const { createHabitatTracker } = require('./habitat');
 const { readPetState, cleanPetWrite, changesFor, handlePetMessage } = require('./petChannel');
+const { habitatFiles, habitatScript } = require('./petScripts');
 
 const OVERLAY_URL = 'studium://overlay/index.html';
 
@@ -121,6 +123,24 @@ if (!app.requestSingleInstanceLock() || args.quit) {
       show: !args.hidden,
       isAllowed: (url) => isStudiumPage(url, args.dev),
     });
+    // Habitats: the pet code runs in the Studium window too, drawing only a project page's pet.
+    // Its box counts only while the window shows (src/main/habitat.js).
+    win.webContents.on('did-finish-load', () => {
+      if (!isStudiumPage(win.webContents.getURL(), args.dev)) return;
+      habitat.reset();
+      const sources = habitatFiles(paths).map((file) => fs.readFileSync(file, 'utf8'));
+      win.webContents.executeJavaScript(habitatScript(sources)).catch((e) => console.error('Could not start the habitat pets', e));
+    });
+    win.webContents.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) habitat.reset();
+    });
+    win.webContents.on('render-process-gone', () => habitat.reset());
+    const windowState = () => {
+      if (!win.isDestroyed()) habitat.setWindow({ visible: win.isVisible(), minimized: win.isMinimized() });
+    };
+    for (const event of ['show', 'hide', 'minimize', 'restore']) win.on(event, windowState);
+    windowState();
+
     overlay = createOverlayWindow({ url: OVERLAY_URL, screen });
     Object.assign(globalThis.studiumTest, { win, overlay, habitat, overlayMouse: () => overlayMouse });
     tray = createTray({
