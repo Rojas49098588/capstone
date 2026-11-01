@@ -3,7 +3,7 @@
 // through src/preload/petBridge.js. Pure apart from the dependencies passed in.
 
 // What pet.js reads. petHabitat is live (src/main/habitat.js), never saved.
-const READABLE_KEYS = ['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat'];
+const READABLE_KEYS = ['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat', 'petTimingOverride'];
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 

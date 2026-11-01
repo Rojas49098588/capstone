@@ -708,7 +708,7 @@
    * to say, the one in the worst mood writes (project order breaks ties), once noteGapMs(its mood) has
    * passed since the last note.
    */
-  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen, pageVisible = true, random = Math.random }) {
+  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen, pageVisible = true, gapMs, random = Math.random }) {
     const p = cleanPrefs(prefs);
     // Only the tab you're looking at leaves one, so notes don't pile up unseen in background tabs.
     if (p.involvement !== 'moderate' || onStudium || noteOpen || !pageVisible || isQuiet(petAway ?? {})) return null;
@@ -718,7 +718,9 @@
       .sort((a, b) => rank(a) - rank(b));
     const writer = writers[0];
     if (!writer) return null;
-    if (Number.isFinite(lastNoteAt) && now - lastNoteAt < noteGapMs(writer.mood)) return null;
+    // gapMs: the desktop's dev override (mischiefTiming), in place of the mood's wait.
+    const gap = Number.isFinite(gapMs) ? gapMs : noteGapMs(writer.mood);
+    if (Number.isFinite(lastNoteAt) && now - lastNoteAt < gap) return null;
     return {
       projectId: writer.projectId,
       text: noteText(writer, p.nickname, today, random),

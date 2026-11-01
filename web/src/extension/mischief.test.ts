@@ -128,3 +128,12 @@ describe("soundAllowed", () => {
     expect(L.soundAllowed(10000, 40000, t)).toBe(true);
   });
 });
+
+describe("chooseNote with a gap override", () => {
+  it("gapMs replaces the mood's wait between notes", () => {
+    const s = { projectId: "a", shortName: "a", name: "A", color: "#2d3a8c", petKind: "cat", mood: "Worried", idleRequirement: { title: "Base colors", days: 5 } };
+    const args = { statuses: [s], shown: new Set(["a"]), prefs: moderate, petAway: {}, lastNoteAt: T, now: T + 2000, today: "2026-11-02", onStudium: false, noteOpen: false };
+    expect(L.chooseNote(args)).toBeNull(); // Worried waits 30 minutes
+    expect(L.chooseNote({ ...args, gapMs: 1000 })).not.toBeNull();
+  });
+});

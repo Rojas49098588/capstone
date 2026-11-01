@@ -57,6 +57,7 @@
   const MIN_BOUNCE_SPEED = 200; // slower floor hits than this stop bouncing
   const MAX_TILT_DEG = 25;      // lean while flying sideways
   const SAVE_EVERY_MS = 2000;
+  const NOTE_CARRY_MAX_MS = 8000; // a carried note is dropped by then even if the pet hasn't arrived
 
   // How each kind of animal looks and behaves (before its mood is applied). Ranges are [min, max].
   //   height/aspect: display size in px (aspect = width / height of the art)
@@ -181,6 +182,12 @@
       font: 600 12px/1.3 system-ui, sans-serif; white-space: normal; pointer-events: auto; cursor: default;
     }
     .talk.show { display: block; }
+    /* A note carried in from the screen edge (desktop), held above the pet's head. */
+    .carried {
+      position: absolute; left: 50%; width: 22px; height: 18px; transform: translateX(-50%) rotate(-6deg);
+      background: color-mix(in srgb, var(--n, #f2c94c) 22%, #fffdf3); border-top: 3px solid var(--n, #f2c94c);
+      box-shadow: 0 1px 3px rgba(0,0,0,.3); border-radius: 2px;
+    }
     .talk button {
       margin: 5px 4px 0 0; padding: 2px 8px; border: 1px solid #c9cdd6; border-radius: 6px;
       background: #f4f5f8; color: inherit; font: 600 11px/1.4 system-ui, sans-serif; cursor: pointer;
@@ -265,6 +272,7 @@
       <div class="ring"></div>
       <div class="bubble" style="bottom:${h + 4}px"></div>
       <div class="talk" style="bottom:${h + 4}px"></div>
+      <div class="carried" style="bottom:${h + 2}px" hidden></div>
       <div class="body"><div class="anim">
         <img class="sprite" alt="" src="${chrome.runtime.getURL(`assets/pets/${status.petKind}.png`)}">
         ${kind.mouth ? `<div class="tongue" style="left:${kind.mouth.x * 100}%;top:${kind.mouth.y * 100}%"></div>` : ''}
@@ -276,6 +284,16 @@
     const ringEl = petEl.querySelector('.ring');
     const bubbleEl = petEl.querySelector('.bubble');
     const talkEl = petEl.querySelector('.talk');
+    const carriedEl = petEl.querySelector('.carried');
+    let carry = null; // { onArrive, timer } while carrying a note in (desktop)
+    function finishCarry() {
+      if (!carry) return;
+      const { onArrive, timer } = carry;
+      carry = null;
+      clearTimeout(timer);
+      carriedEl.hidden = true;
+      onArrive();
+    }
     root.appendChild(petEl);
 
     const state = {
@@ -466,6 +484,7 @@
       refreshWorld();
       stayAtFurniture();
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
+      if (carry && state.mode !== 'walk') finishCarry(); // arrived (or was picked up): drop the note
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
       if (kind.sound && !busy && !keepsQuiet() && now > state.nextSoundAt) {
@@ -763,6 +782,21 @@
         state.facing = state.targetX >= state.x ? 1 : -1;
         state.mode = 'walk';
       },
+      // Desktop: walk in from the screen edge on that side holding a small note, then drop it
+      // (onArrive). Dropped after NOTE_CARRY_MAX_MS anyway, or at once if the pet is busy.
+      carryIn(side, color, onArrive) {
+        if (state.mode !== 'idle' && state.mode !== 'walk') {
+          onArrive();
+          return;
+        }
+        finishCarry();
+        carriedEl.style.setProperty('--n', color || '');
+        carriedEl.hidden = false;
+        carry = { onArrive, timer: setTimeout(finishCarry, NOTE_CARRY_MAX_MS) };
+        state.x = side === 'left' ? 0 : maxX();
+        state.y = 0;
+        api.walkTo(side === 'left' ? 0.1 : 0.9);
+      },
       // A bubble with buttons that stays until it's cleared. onAnswer gets the button's answer.
       talk(text, buttons, onAnswer) {
         clearTalk();
@@ -855,6 +889,7 @@
   let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
   let checkIn = null; // petCheckIn: the question a returning pet asks
   let liveHabitat = null; // petHabitat (desktop app): the project whose habitat shows in the Studium window
+  let timing = L.mischiefTiming(null); // mischief gaps (desktop app), shortened by petTimingOverride.mischiefMinutes
   let seenCelebrations = null; // { [projectId]: at } already seen by this tab (null until the first statuses)
   let pendingCelebrations = [];
 
@@ -891,10 +926,11 @@
 
   async function load() {
     if (stale()) return;
-    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat']);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat', 'petTimingOverride']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
     liveHabitat = habitatId(stored.petHabitat);
+    timing = L.mischiefTiming(stored.petTimingOverride);
     away = L.parseAway(stored.petAway, Date.now());
     petScreen = L.cleanScreen(stored.petScreen);
     prefs = L.cleanPrefs(stored.petPrefs);
@@ -946,14 +982,23 @@
     if (changes.petPrefs) prefs = L.cleanPrefs(changes.petPrefs.newValue);
     if (changes.petNoteAt && Number.isFinite(changes.petNoteAt.newValue)) lastNoteAt = changes.petNoteAt.newValue;
     if (changes.petHabitat) liveHabitat = habitatId(changes.petHabitat.newValue);
+    if (changes.petTimingOverride) timing = L.mischiefTiming(changes.petTimingOverride.newValue);
     if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
     if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });
 
   // ---- Sticky notes (Moderate) ----
   function closeNote() {
+    clearTimeout(note?.timer);
     note?.el.remove();
     note = null;
+  }
+
+  // Puts the note on screen. On the desktop there are no tabs to leave, so it goes after NOTE_STAY_MS.
+  function placeNote(n) {
+    if (note !== n) return; // closed (or replaced) while it was being carried in
+    root.appendChild(n.el);
+    if (SURFACE === 'overlay') n.timer = setTimeout(() => note === n && closeNote(), L.MISCHIEF.NOTE_STAY_MS);
   }
 
   function checkNote() {
@@ -963,6 +1008,7 @@
     const choice = L.chooseNote({
       statuses: statuses?.pets ?? [], shown, prefs, petAway: away, lastNoteAt, now,
       today: L.todayKey(new Date(now)), onStudium, noteOpen: note !== null, pageVisible: document.visibilityState === 'visible',
+      gapMs: SURFACE === 'overlay' ? timing.noteGapMs ?? undefined : undefined,
     });
     if (!choice) return;
     lastNoteAt = now;
@@ -985,15 +1031,21 @@
     signEl.className = 'sign';
     signEl.textContent = choice.signature;
     el.append(textEl, signEl, close);
-    root.appendChild(el);
-    note = { projectId: choice.projectId, el };
+    const n = { projectId: choice.projectId, el, timer: null };
+    note = n;
+    // On the desktop a pet now and then carries its note in from the screen edge and drops it.
+    if (SURFACE === 'overlay' && pet && L.noteCarries()) {
+      pet.carryIn(side, choice.color, () => placeNote(n));
+      return;
+    }
+    placeNote(n);
     pet?.walkTo(side === 'left' ? 0.1 : 0.9);
   }
 
   setInterval(checkNote, L.NOTE_CHECK_MS);
-  // A note belongs to the moment it was left: it goes when you leave the tab.
+  // In a tab, a note belongs to the moment it was left: it goes when you leave the tab.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') closeNote();
+    if (SURFACE !== 'overlay' && document.visibilityState !== 'visible') closeNote();
   });
 
   // ---- The pet menu ----
