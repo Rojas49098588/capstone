@@ -12,6 +12,8 @@ import { NICKNAME_MAX } from "../planner/tuning";
 import {
   DIFFICULTY_HINTS,
   INVOLVEMENT_HINTS,
+  PET_SOUNDS_HINT,
+  PET_SOUNDS_LABEL,
   START_OPEN_LABEL,
   START_QUIETLY_HINT,
   START_QUIETLY_LABEL,
@@ -162,6 +164,15 @@ export default function Settings({ onReplayTutorial }: Props) {
           settings.petInvolvement,
           (petInvolvement) => change({ petInvolvement }),
           INVOLVEMENT_HINTS[settings.petInvolvement],
+        )}
+        {window.studiumDesktop?.desktop && (
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={settings.petSounds} onChange={(e) => change({ petSounds: e.target.checked })} />
+              {PET_SOUNDS_LABEL}
+            </label>
+            <p className={`text-xs mt-2 ${MUTED}`}>{PET_SOUNDS_HINT}</p>
+          </div>
         )}
         {window.studiumDesktop?.desktop && (
           <div>

@@ -14,6 +14,8 @@ extraResources:
   - from: ../extension/content
     to: extension/content
     filter: ['*.js']
+  - from: ../extension/assets/sounds
+    to: extension/assets/sounds
   - from: ../extension/assets/pets
     to: extension/assets/pets
   - from: src/overlay

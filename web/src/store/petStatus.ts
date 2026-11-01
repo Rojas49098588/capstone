@@ -22,10 +22,16 @@ export const FOCUS_RECEIVED_EVENT = "studium:focus-received";
 export const STUDIUM_READY_EVENT = "studium:ready";
 /** The habitat's Wake button; `detail` is the project id. */
 export const WAKE_PET_EVENT = "studium:wake-pet";
+/** A task was checked off; `detail` is its id. A pet napping on it wakes up early with congrats. */
+export const TASK_DONE_EVENT = "studium:task-done";
 /** Set by the extension on the habitat box while its pet is away: "<nap|sleep>:<ISO time it returns>". */
 export const PET_AWAY_ATTR = "data-pet-away";
 
 export type PetSuggestion = { taskId: string; title: string; estimateMin: number };
+/** A task the pet offers when it's sent to nap ("What are you going to work on while I nap?"). */
+export type NapTask = PetSuggestion & { group: "today" | "suggested" };
+/** How many of Suggested next's tasks a nap offers, after the project's Today tasks. */
+export const NAP_SUGGESTED_MAX = 5;
 /** "firstTask" (the project's first completed task) and "requirement" celebrate bigger. */
 export type CelebrationKind = "task" | "firstTask" | "requirement";
 export type PetCelebration = { at: string; kind: CelebrationKind };
@@ -40,6 +46,7 @@ export type PetStatus = {
   recovering: boolean;
   idleRequirement: { title: string; days: number } | null;
   suggestion: PetSuggestion | null; // what "What should I work on?" names
+  napTasks: NapTask[]; // what a nap offers to focus on: this project's Today tasks, then suggestions
   celebration: PetCelebration | null; // the project's latest completion
   furniture: PetFurniture[]; // what the pet can use in its habitat
   deadline: string; // the project's "YYYY-MM-DD" due date, for "Which pets show first"
@@ -62,6 +69,27 @@ function suggestionsByProject(data: StudiumData, now: Date): Map<string, PetSugg
     if (t && !t.done && t.requirementId !== null && !isBlocked(t, data)) add(t);
   }
   for (const s of suggestNext(data, now, Infinity)) add(s.task);
+  return out;
+}
+
+/**
+ * Each project's nap choices: its open, linked, unblocked Today tasks in Today's order, then up to
+ * NAP_SUGGESTED_MAX of Suggested next's tasks for it (which already leaves Today's out).
+ */
+function napTasksByProject(data: StudiumData, now: Date): Map<string, NapTask[]> {
+  const out = new Map<string, NapTask[]>();
+  const add = (t: { id: string; projectId: string; title: string; estimateMin: number }, group: NapTask["group"]) => {
+    const list = out.get(t.projectId) ?? [];
+    if (group === "suggested" && list.filter((n) => n.group === "suggested").length >= NAP_SUGGESTED_MAX) return;
+    list.push({ taskId: t.id, title: t.title, estimateMin: t.estimateMin, group });
+    out.set(t.projectId, list);
+  };
+  const byId = new Map(data.tasks.map((t) => [t.id, t]));
+  for (const id of todayTaskIds(data, now)) {
+    const t = byId.get(id);
+    if (t && !t.done && t.requirementId !== null && !isBlocked(t, data)) add(t, "today");
+  }
+  for (const s of suggestNext(data, now, Infinity)) add(s.task, "suggested");
   return out;
 }
 
@@ -94,6 +122,7 @@ function furnitureFor(project: Project, data: StudiumData): PetFurniture[] {
 export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
   const multipliers = estimateMultipliers(data);
   const suggestions = suggestionsByProject(data, now);
+  const napTasks = napTasksByProject(data, now);
   const celebrations = celebrationsByProject(data);
   return {
     updatedAt: now.toISOString(),
@@ -111,6 +140,7 @@ export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
         recovering: m.health.recovering,
         idleRequirement: idlest ? { title: idlest.requirement.title, days: idlest.idleDays } : null,
         suggestion: suggestions.get(p.id) ?? null,
+        napTasks: napTasks.get(p.id) ?? [],
         celebration: celebrations.get(p.id) ?? null,
         furniture: furnitureFor(p, data),
         stage: petStage(p) === "juvenile" ? "juvenile" : "adult",

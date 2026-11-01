@@ -16,6 +16,7 @@ describe('EVENTS', () => {
       FOCUS_RECEIVED_EVENT: L.FOCUS_RECEIVED_EVENT,
       READY_EVENT: L.READY_EVENT,
       WAKE_PET_EVENT: L.WAKE_PET_EVENT,
+      TASK_DONE_EVENT: L.TASK_DONE_EVENT,
     });
   });
 });
@@ -84,6 +85,14 @@ describe('installBridge', () => {
     fire('studium:wake-pet', 'webDev');
     fire('studium:wake-pet', '');
     expect(sent).toEqual([['studium:wake', 'webDev']]);
+  });
+
+  it('forwards a checked-off task (a pet napping on it wakes up)', () => {
+    install();
+    sent = [];
+    fire('studium:task-done', 't1');
+    fire('studium:task-done', '');
+    expect(sent).toEqual([['studium:task-done', 't1']]);
   });
 
   it('hands finished naps to Studium as JSON text', () => {

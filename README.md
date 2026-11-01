@@ -17,7 +17,7 @@ It runs at http://localhost:5173 (the port is fixed because the extension opens 
 
 ## Desktop app (in progress)
 
-Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer and opens its window (Settings can turn that off, or start it quietly in the tray instead), and naps and sleep run in the app. Week 2 is done: hatched pets walk along the top of the taskbar, on top of every app, even with Studium closed. Clicks pass through to whatever is underneath except on a pet, so you can drag, throw and click them, and right-click one for its menu (What should I work on?, Nap, Sleep, Open project). A project page in Studium shows its pet in the habitat; that pet leaves the desktop until the window is closed or minimized. **Hide pets** / **Show pets** is in the tray menu. Pet notes on the desktop and the other Moderate mischief come in Week 3.
+Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer and opens its window (Settings can turn that off, or start it quietly in the tray instead), and naps and sleep run in the app. Week 2 is done: hatched pets walk along the top of the taskbar, on top of every app, even with Studium closed. Clicks pass through to whatever is underneath except on a pet, so you can drag, throw and click them, and right-click one for its menu (What should I work on?, Nap, Sleep, Open project). A project page in Studium shows its pet in the habitat; that pet leaves the desktop until the window is closed or minimized. **Hide pets** / **Show pets** is in the tray menu. Week 3 is done: on Moderate, pets leave sticky notes anywhere on the desktop (gone after 15 minutes, some carried in from the screen edge), chase the mouse now and then, make their sounds out loud (Settings → **Pet sounds**), and an upset or sick pet brings Studium up at its project page without taking your keyboard focus. None of this happens during a nap, while a pet asks how a nap went, or on Mild or Minimal.
 
 ```sh
 cd desktop
@@ -35,6 +35,15 @@ npm run dist       # Windows installer in your home folder's StudiumBuilds\
 - The installer is built outside the repo (set `STUDIUM_RELEASE_DIR` to change where): built inside OneDrive, the installer step timed out while OneDrive synced the 120 MB file.
 - `desktop/node_modules` holds the Electron program. Like `web/node_modules`, it's best kept out of OneDrive sync. On a new PC, OneDrive may leave these folders "online-only", which makes tests time out; right-click them → **Always keep on this device**.
 - The pets run the extension's own code (`extension/content/`): the desktop app loads it into a see-through window over the screen (`desktop/src/overlay/`) and into the Studium window for habitats.
+
+### Pet sounds
+
+On Moderate, desktop pets make their sounds out loud (Settings → **Pet sounds** turns this off). The
+files are `extension/assets/sounds/<sound>.wav`: `meow`, `bark`, `ribbit`, `coo`, `sneeze`, `sniffle`,
+`cough` and `sigh`. They are placeholders synthesized by `desktop/scripts/makeSounds.js` (no
+recordings, so there are no licences to track). To use a real clip, replace a file with one of the same
+name, a short `.wav` under a second, and list its source here. Use only clips you may share, such as
+CC0.
 
 ## Load the extension
 

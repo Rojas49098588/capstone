@@ -46,6 +46,7 @@ describe("Settings", () => {
       shopTutorialDone: true,
       startWithComputer: true,
       startQuietly: false,
+      petSounds: true,
     });
   });
 
@@ -59,6 +60,15 @@ describe("Settings", () => {
   describe("in the desktop app", () => {
     afterEach(() => {
       delete window.studiumDesktop;
+    });
+
+    it("can turn pet sounds off", async () => {
+      window.studiumDesktop = { desktop: true };
+      const { storage } = renderWithStudium(<Settings />);
+      const box = screen.getByRole("checkbox", { name: "Pet sounds" }) as HTMLInputElement;
+      expect(box.checked).toBe(true);
+      await userEvent.click(box);
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ petSounds: false });
     });
 
     it("can stop Studium from starting with the computer", async () => {
@@ -91,5 +101,6 @@ describe("Settings", () => {
   it("doesn't offer starting with the computer in a browser", () => {
     renderWithStudium(<Settings />);
     expect(screen.queryByRole("checkbox", { name: "Start Studium when your computer starts" })).toBeNull();
+    expect(screen.queryByRole("checkbox", { name: "Pet sounds" })).toBeNull();
   });
 });

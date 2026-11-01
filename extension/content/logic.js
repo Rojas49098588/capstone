@@ -14,6 +14,7 @@
   // Pet interactions (spec 2026-10-19-pet-interactions-design.md). Studium's store/petStatus.ts
   // uses the same event and attribute names.
   const NAP_MINUTES = 15;
+  const NAP_ASK_MS = 60 * 1000; // an unanswered "What are you going to work on?" goes away after this
   const SLEEP_HOURS = [1, 2];
   const MAX_AWAY_MS = 2 * 3600000; // an away entry further ahead than this is damaged
   const SUGGESTION_BUBBLE_MS = 6000;
@@ -21,6 +22,7 @@
   const FOCUS_RECEIVED_EVENT = 'studium:focus-received';
   const READY_EVENT = 'studium:ready';
   const WAKE_PET_EVENT = 'studium:wake-pet';
+  const TASK_DONE_EVENT = 'studium:task-done'; // Studium: a task was checked off; detail is its id
   const PET_AWAY_ATTR = 'data-pet-away';
   const CELEBRATION_KINDS = ['task', 'firstTask', 'requirement'];
 
@@ -79,6 +81,19 @@
       : null;
   }
 
+  const NAP_GROUPS = ['today', 'suggested'];
+
+  /** What a nap offers to focus on (Studium's napTasks): valid entries only (old statuses: none). */
+  function cleanNapTasks(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const t of list) {
+      const s = cleanSuggestion(t);
+      if (s && NAP_GROUPS.includes(t.group)) out.push({ ...s, group: t.group });
+    }
+    return out;
+  }
+
   function cleanCelebration(c) {
     return isObject(c) && text(c.at) && CELEBRATION_KINDS.includes(c.kind) ? { at: c.at, kind: c.kind } : null;
   }
@@ -107,6 +122,7 @@
         idle && text(idle.title) && Number.isFinite(idle.days) ? { title: idle.title, days: Math.round(idle.days) } : null,
       // Missing in statuses from older Studium builds.
       suggestion: cleanSuggestion(p.suggestion),
+      napTasks: cleanNapTasks(p.napTasks),
       celebration: cleanCelebration(p.celebration),
       furniture: cleanFurniture(p.furniture),
       deadline: isDateKey(p.deadline) ? p.deadline : null, // missing in statuses from older Studium builds
@@ -159,12 +175,12 @@
   }
 
   /**
-   * Same pets with the same looks and moods. The time stamp, suggestions and celebrations don't
-   * matter: they change with every task but don't change how a pet looks, so they mustn't rebuild pets.
-   * Furniture does count, so the habitat pet learns what it can use.
+   * Same pets with the same looks and moods. The time stamp, suggestions, nap choices and
+   * celebrations don't matter: they change with every task but don't change how a pet looks, so they
+   * mustn't rebuild pets. Furniture does count, so the habitat pet learns what it can use.
    */
   function statusesEqual(a, b) {
-    const looks = (s) => s?.pets?.map(({ suggestion, celebration, ...rest }) => rest) ?? null;
+    const looks = (s) => s?.pets?.map(({ suggestion, napTasks, celebration, ...rest }) => rest) ?? null;
     return JSON.stringify(looks(a)) === JSON.stringify(looks(b));
   }
 
@@ -279,7 +295,8 @@
   function parseCheckIn(raw) {
     if (!isObject(raw) || !text(raw.projectId) || !textOrNull(raw.taskId) || !textOrNull(raw.taskTitle)) return null;
     if (!Number.isFinite(raw.minutes) || raw.minutes < 0 || !text(raw.at)) return null;
-    return { projectId: raw.projectId, taskId: raw.taskId, taskTitle: raw.taskTitle, minutes: raw.minutes, at: raw.at };
+    const clean = { projectId: raw.projectId, taskId: raw.taskId, taskTitle: raw.taskTitle, minutes: raw.minutes, at: raw.at };
+    return raw.finished === true ? { ...clean, finished: true } : clean;
   }
 
   /** petTimingOverride ({ napMinutes }) only exists so the browser check doesn't wait 15 minutes. */
@@ -293,6 +310,11 @@
     if (!isObject(msg)) return null;
     switch (msg.type) {
       case 'nap':
+        // taskId: the task picked from napPrompt, or null for "Just nap". Without it (older
+        // callers), the nap takes the pet's suggestion.
+        if (!text(msg.projectId)) return null;
+        if (!('taskId' in msg)) return { type: 'nap', projectId: msg.projectId };
+        return textOrNull(msg.taskId) ? { type: 'nap', projectId: msg.projectId, taskId: msg.taskId } : null;
       case 'wake':
       case 'openProject':
         return text(msg.projectId) ? { type: msg.type, projectId: msg.projectId } : null;
@@ -302,6 +324,8 @@
           : null;
       case 'checkIn':
         return ['done', 'notYet', 'later'].includes(msg.answer) ? { type: 'checkIn', answer: msg.answer } : null;
+      case 'taskDone':
+        return text(msg.taskId) ? { type: 'taskDone', taskId: msg.taskId } : null;
       case 'delivered':
         return Array.isArray(msg.ids) && msg.ids.every(text) ? { type: 'delivered', ids: [...msg.ids] } : null;
       default:
@@ -342,7 +366,8 @@
   }
 
   /** Brings a pet back. A nap becomes a focus session and a check-in; a sleep records nothing. */
-  function endAway(state, projectId, now) {
+  // finished: the nap's task was checked off in Studium, so it ends early and the check-in congratulates.
+  function endAway(state, projectId, now, finished = false) {
     const entry = state.petAway[projectId];
     if (!entry) return null;
     let { focusOutbox, petCheckIn } = state;
@@ -356,7 +381,7 @@
         ...focusOutbox,
         [entry.id]: { id: entry.id, projectId, taskId: entry.taskId, startedAt: entry.startedAt, at, minutes },
       };
-      petCheckIn = { projectId, taskId: entry.taskId, taskTitle: entry.taskTitle, minutes, at };
+      petCheckIn = { projectId, taskId: entry.taskId, taskTitle: entry.taskTitle, minutes, at, ...(finished ? { finished: true } : {}) };
     }
     return {
       state: { petAway: without(state.petAway, projectId), focusOutbox, petCheckIn },
@@ -377,8 +402,11 @@
     const unchanged = { state, effects: [], changed: false };
     switch (request.type) {
       case 'nap': {
-        const suggestion = statusFor(ctx.statuses, request.projectId)?.suggestion ?? null;
-        return startNap(state, request.projectId, suggestion, ctx) ?? unchanged;
+        const status = statusFor(ctx.statuses, request.projectId);
+        let task = status?.suggestion ?? null;
+        // A picked task counts only if it's still offered (not finished or deleted meanwhile).
+        if ('taskId' in request) task = (status?.napTasks ?? []).find((t) => t.taskId === request.taskId) ?? null;
+        return startNap(state, request.projectId, task, ctx) ?? unchanged;
       }
       case 'sleep':
         if (!canStart(state, request.projectId, ctx)) return unchanged;
@@ -399,6 +427,13 @@
           }
         }
         return { state: result.state, effects, changed: result.changed };
+      }
+      case 'taskDone': {
+        // The task a pet is napping on was checked off in Studium: the nap ends now, with congrats.
+        const projectId = Object.keys(state.petAway).find(
+          (id) => state.petAway[id].kind === 'nap' && state.petAway[id].taskId === request.taskId,
+        );
+        return (projectId && endAway(state, projectId, ctx.now, true)) || unchanged;
       }
       case 'checkIn': {
         const c = state.petCheckIn;
@@ -479,7 +514,31 @@
       : "Nothing to suggest: everything's done or waiting on something.";
   }
 
+  /**
+   * The question a pet asks when it's sent to nap: its project's Today tasks, then suggestions,
+   * each a button, and "Just nap" for no task. Null when there's nothing to offer (it just naps).
+   */
+  function napPrompt(napTasks) {
+    const sections = [
+      { label: 'Today', group: 'today' },
+      { label: 'Suggested', group: 'suggested' },
+    ]
+      .map(({ label, group }) => ({
+        label,
+        items: (napTasks ?? [])
+          .filter((t) => t.group === group)
+          .map((t) => ({ taskId: t.taskId, label: t.title, hint: formatMinutes(t.estimateMin) })),
+      }))
+      .filter((s) => s.items.length > 0);
+    if (sections.length === 0) return null;
+    return { text: 'What are you going to work on while I nap?', sections, skipLabel: 'Just nap' };
+  }
+
   function checkInPrompt(checkIn) {
+    // The nap's task was checked off while the pet slept: it woke early to say well done.
+    if (checkIn.finished) {
+      return { text: `Congrats! You finished ${checkIn.taskTitle ?? 'your task'}! 🎉`, buttons: [{ answer: 'later', label: 'Yay!' }] };
+    }
     if (checkIn.taskId) {
       return {
         text: `Did you finish ${checkIn.taskTitle ?? 'your task'}?`,
@@ -559,7 +618,7 @@
   const OLD_INVOLVEMENT = { notMuch: 'minimal', very: 'mild' }; // saved before setup existed
   // Same value as Studium's NICKNAME_MAX (web/src/planner/tuning.ts), checked by petLogic.test.ts.
   const NICKNAME_MAX = 20;
-  const DEFAULT_PREFS = { involvement: 'mild', nickname: '' };
+  const DEFAULT_PREFS = { involvement: 'mild', nickname: '', sounds: true }; // sounds: Pet sounds (desktop app)
 
   function cleanNickname(v) {
     return typeof v === 'string' ? v.trim().slice(0, NICKNAME_MAX).trim() : '';
@@ -571,6 +630,7 @@
     return {
       involvement: INVOLVEMENTS.includes(v.involvement) ? v.involvement : DEFAULT_PREFS.involvement,
       nickname: cleanNickname(v.nickname),
+      sounds: v.sounds !== false,
     };
   }
 
@@ -585,7 +645,11 @@
       }
     }
     if (!isObject(value)) return { ...DEFAULT_PREFS };
-    return cleanPrefs({ involvement: OLD_INVOLVEMENT[value.petInvolvement] ?? value.petInvolvement, nickname: value.nickname });
+    return cleanPrefs({
+      involvement: OLD_INVOLVEMENT[value.petInvolvement] ?? value.petInvolvement,
+      nickname: value.nickname,
+      sounds: value.petSounds,
+    });
   }
 
   /** A Minimal pet stays in its spot and keeps quiet on web pages. In its own habitat it behaves as usual. */
@@ -665,7 +729,7 @@
    * to say, the one in the worst mood writes (project order breaks ties), once noteGapMs(its mood) has
    * passed since the last note.
    */
-  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen, pageVisible = true, random = Math.random }) {
+  function chooseNote({ statuses, shown, prefs, petAway, lastNoteAt, now, today, onStudium, noteOpen, pageVisible = true, gapMs, random = Math.random }) {
     const p = cleanPrefs(prefs);
     // Only the tab you're looking at leaves one, so notes don't pile up unseen in background tabs.
     if (p.involvement !== 'moderate' || onStudium || noteOpen || !pageVisible || isQuiet(petAway ?? {})) return null;
@@ -675,7 +739,9 @@
       .sort((a, b) => rank(a) - rank(b));
     const writer = writers[0];
     if (!writer) return null;
-    if (Number.isFinite(lastNoteAt) && now - lastNoteAt < noteGapMs(writer.mood)) return null;
+    // gapMs: the desktop's dev override (mischiefTiming), in place of the mood's wait.
+    const gap = Number.isFinite(gapMs) ? gapMs : noteGapMs(writer.mood);
+    if (Number.isFinite(lastNoteAt) && now - lastNoteAt < gap) return null;
     return {
       projectId: writer.projectId,
       text: noteText(writer, p.nickname, today, random),
@@ -730,6 +796,82 @@
     if (where === 'overlay') return petsOnScreen(pets.filter((p) => p.projectId !== liveHabitat), petAway, screen);
     if (boxId) return new Set(has(boxId) ? [boxId] : []);
     return where === 'habitat' ? new Set() : petsOnScreen(pets, petAway, screen);
+  }
+
+  // ---- Mischief (desktop app, Moderate only): every number in one place ----
+  const MISCHIEF = {
+    NOTE_STAY_MS: 15 * 60000, // a desktop note goes after this
+    NOTE_CARRY_CHANCE: 0.3, // how often a pet carries its note in from the screen edge
+    CHASE_GAP_MS: [10 * 60000, 20 * 60000], // time between chases (halved when Proud or Delighted)
+    CHASE_MS: 10000, // how long a chase lasts
+    OPEN_GAP_MS: 2 * 3600000, // at most one "open its project" this often
+    STUDIUM_RECENT_MS: 30 * 60000, // not if Studium was showing this recently
+    SOUND_GAP_MS: 30000, // at most one sound this often, across all pets
+    SOUND_VOLUME: 0.3,
+    CURSOR_POLL_MS: 100, // how often a chasing pet looks for the cursor
+    POUNCE_STILL_MS: 500, // the cursor stops this long…
+    POUNCE_RANGE_PX: 120, // …this close to the pet: it pounces
+  };
+
+  /** The gaps, or every one of them set to petTimingOverride.mischiefMinutes (0.05 to 15) for checking by hand. */
+  function mischiefTiming(override) {
+    const m = isObject(override) ? override.mischiefMinutes : undefined;
+    if (typeof m === 'number' && m >= 0.05 && m <= 15) {
+      const ms = m * 60000;
+      return { chaseGapMs: [ms, ms], openGapMs: ms, studiumRecentMs: ms, soundGapMs: ms, noteGapMs: ms };
+    }
+    return {
+      chaseGapMs: MISCHIEF.CHASE_GAP_MS,
+      openGapMs: MISCHIEF.OPEN_GAP_MS,
+      studiumRecentMs: MISCHIEF.STUDIUM_RECENT_MS,
+      soundGapMs: MISCHIEF.SOUND_GAP_MS,
+      noteGapMs: null, // each mood's NOTE_GAP_MINUTES
+    };
+  }
+
+  /** Moderate only, and never during a nap, an open check-in, or with the pets hidden. */
+  function mischiefAllowed({ prefs, petAway, checkIn, hidden }) {
+    return cleanPrefs(prefs).involvement === 'moderate' && !isQuiet(petAway ?? {}) && !checkIn && !hidden;
+  }
+
+  /** When a pet next chases the mouse: never when Sick, sooner when Proud or Delighted. */
+  function nextChaseAt(now, mood, timing, random = Math.random) {
+    if (mood === 'Sick') return null;
+    const [lo, hi] = timing.chaseGapMs;
+    const gap = lo + random() * (hi - lo);
+    return now + (mood === 'Proud' || mood === 'Delighted' ? gap / 2 : gap);
+  }
+
+  /** A screen point in the overlay's own pixels, or null when it's off the overlay. */
+  function cursorInOverlay(point, bounds) {
+    if (!isObject(point) || !isObject(bounds)) return null;
+    const x = point.x - bounds.x;
+    const y = point.y - bounds.y;
+    return x >= 0 && y >= 0 && x < bounds.width && y < bounds.height ? { x, y } : null;
+  }
+
+  /** The upset or sick pet (sick first) that opens its project in Studium, or null. */
+  function chooseOpenProject({ statuses, prefs, petAway, checkIn, hidden, now, lastOpenAt, studiumSeenAt, timing }) {
+    if (!mischiefAllowed({ prefs, petAway, checkIn, hidden })) return null;
+    if (now - (lastOpenAt || 0) < timing.openGapMs || now - (studiumSeenAt || 0) < timing.studiumRecentMs) return null;
+    const here = (statuses ?? []).filter((s) => !petAway?.[s.projectId]);
+    return (here.find((s) => s.mood === 'Sick') ?? here.find((s) => s.mood === 'Upset'))?.projectId ?? null;
+  }
+
+  function noteCarries(random = Math.random) {
+    return random() < MISCHIEF.NOTE_CARRY_CHANCE;
+  }
+
+  const SOUND_KEYS = { meow: 'meow', bark: 'bark', ribbit: 'ribbit', coo: 'coo', achoo: 'sneeze', sniffle: 'sniffle', cough: 'cough', sigh: 'sigh' };
+
+  /** The sound file for what a pet says ("Meow!" → meow, "*cough*" → cough), or null. */
+  function soundKey(text) {
+    if (typeof text !== 'string') return null;
+    return SOUND_KEYS[text.toLowerCase().replace(/[*!?]/g, '').trim()] ?? null;
+  }
+
+  function soundAllowed(lastSoundAt, now, timing) {
+    return now - lastSoundAt >= timing.soundGapMs;
   }
 
   /** While any pet naps, the others go quiet. */
@@ -796,6 +938,15 @@
     PET_SURFACES,
     cleanSurface,
     shownPets,
+    MISCHIEF,
+    mischiefTiming,
+    mischiefAllowed,
+    nextChaseAt,
+    cursorInOverlay,
+    chooseOpenProject,
+    noteCarries,
+    soundKey,
+    soundAllowed,
     INVOLVEMENTS,
     NICKNAME_MAX,
     cleanPrefs,
@@ -825,12 +976,14 @@
     dragPosition,
     habitatClip,
     NAP_MINUTES,
+    NAP_ASK_MS,
     MAX_AWAY_MS,
     SUGGESTION_BUBBLE_MS,
     FOCUS_SESSIONS_EVENT,
     FOCUS_RECEIVED_EVENT,
     READY_EVENT,
     WAKE_PET_EVENT,
+    TASK_DONE_EVENT,
     PET_AWAY_ATTR,
     parseAway,
     parseOutbox,
@@ -844,6 +997,7 @@
     formatMinutes,
     suggestionText,
     checkInPrompt,
+    napPrompt,
     celebrationText,
     celebrationHops,
     newCelebrations,

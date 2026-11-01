@@ -5,6 +5,7 @@
 //   - Finished naps: the main process sends them (on studium:ready and when the outbox changes);
 //     Studium answers with studium:focus-received.
 //   - Wake: the habitat's Wake button dispatches studium:wake-pet.
+//   - A checked-off task: a pet napping on it wakes up early with congrats.
 // Only strings cross safely between this isolated world and the page, so `detail` is JSON text.
 
 // Copied from extension/content/logic.js: a sandboxed preload can only require('electron').
@@ -18,6 +19,7 @@ const EVENTS = {
   FOCUS_RECEIVED_EVENT: 'studium:focus-received',
   READY_EVENT: 'studium:ready',
   WAKE_PET_EVENT: 'studium:wake-pet',
+  TASK_DONE_EVENT: 'studium:task-done',
 };
 
 function installBridge({ win, storage, ipc, signal }) {
@@ -53,6 +55,14 @@ function installBridge({ win, storage, ipc, signal }) {
     EVENTS.WAKE_PET_EVENT,
     (e) => {
       if (typeof e.detail === 'string' && e.detail) ipc.send('studium:wake', e.detail);
+    },
+    { signal },
+  );
+
+  win.addEventListener(
+    EVENTS.TASK_DONE_EVENT,
+    (e) => {
+      if (typeof e.detail === 'string' && e.detail) ipc.send('studium:task-done', e.detail);
     },
     { signal },
   );

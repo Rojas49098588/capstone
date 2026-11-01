@@ -2,7 +2,8 @@
 // window.petBridge, which the pet code's chrome stand-in (src/overlay/chromeShim.js) talks through.
 // The main process decides, per window, what it accepts (src/main/petChannel.js); a page that
 // isn't the overlay or Studium gets nothing back.
-// Channels: pets:get (invoke), pets:set, pets:message, overlay:mouse (send), pets:changed (from main).
+// Channels: pets:get and overlay:cursor (invoke), pets:set, pets:message, overlay:mouse (send),
+// pets:changed (from main).
 
 function installPetBridge({ ipc, expose }) {
   expose('petBridge', {
@@ -11,6 +12,7 @@ function installPetBridge({ ipc, expose }) {
     send: (msg) => ipc.send('pets:message', msg),
     onChanged: (fn) => ipc.on('pets:changed', (_event, changes) => fn(changes)),
     setMouse: (wants) => ipc.send('overlay:mouse', wants === true),
+    cursor: () => ipc.invoke('overlay:cursor'),
   });
 }
 

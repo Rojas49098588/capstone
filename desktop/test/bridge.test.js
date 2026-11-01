@@ -66,6 +66,12 @@ describe('handleStudium', () => {
     expect(requests).toEqual([{ type: 'delivered', ids: ['a'] }, { type: 'wake', projectId: 'webDev' }]);
   });
 
+  it('passes a checked-off task to the nap runner', () => {
+    handleStudium('studium:task-done', 't1', deps);
+    handleStudium('studium:task-done', '', deps);
+    expect(requests).toEqual([{ type: 'taskDone', taskId: 't1' }]);
+  });
+
   it('ignores bad requests and unknown channels', () => {
     handleStudium('studium:delivered', [1], deps);
     handleStudium('studium:wake', '', deps);

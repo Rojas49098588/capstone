@@ -29,6 +29,7 @@ describe('readPetState', () => {
 
   it('lists petHabitat as readable', () => {
     expect(READABLE_KEYS).toContain('petHabitat');
+    expect(READABLE_KEYS).toContain('petTimingOverride'); // the dev override for mischief timings
   });
 });
 

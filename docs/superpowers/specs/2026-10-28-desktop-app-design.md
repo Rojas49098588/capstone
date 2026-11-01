@@ -210,6 +210,9 @@ About five weeks, from October 28th to December 3rd:
 2. **Week 2:** Pets in the overlay with click-through, drag/throw, menu, naps/sleep/check-ins,
    celebrations, Open project, habitats in the Studium window.
 3. **Week 3:** Notes on the desktop and the three other mischief kinds (chase, open its project, sounds).
+   Added 2026-11-01 at the user's request: **pets growing up** (juveniles becoming adults). The
+   lifecycle round left this for later; it needs its own short design (what makes a juvenile grow,
+   what the user sees) before it is built, so it is the last item of the week.
 4. **Week 4:** Mac build through GitHub Actions, an install test on a classmate's Mac, README,
    fixes from testers.
 5. **Last days:** buffer, then the stretch list.

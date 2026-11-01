@@ -32,6 +32,7 @@ export type Settings = {
   shopTutorialDone: boolean; // the same for the Shop tutorial
   startWithComputer: boolean; // desktop app only: start Studium when the computer starts
   startQuietly: boolean; // desktop app only: at that start, stay in the tray instead of opening the window
+  petSounds: boolean; // desktop app only: Moderate pets make their sounds out loud
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -47,6 +48,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shopTutorialDone: false,
   startWithComputer: true,
   startQuietly: false,
+  petSounds: true,
 };
 
 export const DIFFICULTIES: { value: Difficulty; label: string }[] = DIFFICULTY_LEVELS.map((value) => ({ value, label: DIFFICULTY_LABELS[value] }));
@@ -100,6 +102,7 @@ export function parseSettings(raw: string | null): Settings {
     shopTutorialDone: o.shopTutorialDone === undefined ? o.tutorialDone === true : o.shopTutorialDone === true,
     startWithComputer: o.startWithComputer !== false,
     startQuietly: o.startQuietly === true,
+    petSounds: o.petSounds !== false,
   };
 }
 

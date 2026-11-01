@@ -57,6 +57,7 @@
   const MIN_BOUNCE_SPEED = 200; // slower floor hits than this stop bouncing
   const MAX_TILT_DEG = 25;      // lean while flying sideways
   const SAVE_EVERY_MS = 2000;
+  const NOTE_CARRY_MAX_MS = 8000; // a carried note is dropped by then even if the pet hasn't arrived
 
   // How each kind of animal looks and behaves (before its mood is applied). Ranges are [min, max].
   //   height/aspect: display size in px (aspect = width / height of the art)
@@ -181,11 +182,25 @@
       font: 600 12px/1.3 system-ui, sans-serif; white-space: normal; pointer-events: auto; cursor: default;
     }
     .talk.show { display: block; }
+    /* A note carried in from the screen edge (desktop), held above the pet's head. */
+    .carried {
+      position: absolute; left: 50%; width: 22px; height: 18px; transform: translateX(-50%) rotate(-6deg);
+      background: color-mix(in srgb, var(--n, #f2c94c) 22%, #fffdf3); border-top: 3px solid var(--n, #f2c94c);
+      box-shadow: 0 1px 3px rgba(0,0,0,.3); border-radius: 2px;
+    }
     .talk button {
       margin: 5px 4px 0 0; padding: 2px 8px; border: 1px solid #c9cdd6; border-radius: 6px;
       background: #f4f5f8; color: inherit; font: 600 11px/1.4 system-ui, sans-serif; cursor: pointer;
     }
     .talk button:hover { background: #e6e8ee; }
+    /* The nap question: one scrolling list of tasks under Today / Suggested, then Just nap. */
+    .talk .choices { max-height: 170px; overflow-y: auto; margin-top: 2px; }
+    .talk .group {
+      margin: 6px 0 0; font: 700 9px/1.2 system-ui, sans-serif; letter-spacing: .06em;
+      text-transform: uppercase; color: #8a8e98;
+    }
+    .talk button.task { display: block; width: 100%; margin: 4px 0 0; text-align: left; }
+    .talk button.task small { display: block; font-weight: 400; font-size: 10px; color: #6b6f7a; }
     .pet:hover .name { opacity: 1; }
 
     @keyframes bob { 50% { transform: translateY(-3px) scaleY(.96); } }
@@ -257,6 +272,7 @@
       <div class="ring"></div>
       <div class="bubble" style="bottom:${h + 4}px"></div>
       <div class="talk" style="bottom:${h + 4}px"></div>
+      <div class="carried" style="bottom:${h + 2}px" hidden></div>
       <div class="body"><div class="anim">
         <img class="sprite" alt="" src="${chrome.runtime.getURL(`assets/pets/${status.petKind}.png`)}">
         ${kind.mouth ? `<div class="tongue" style="left:${kind.mouth.x * 100}%;top:${kind.mouth.y * 100}%"></div>` : ''}
@@ -268,6 +284,16 @@
     const ringEl = petEl.querySelector('.ring');
     const bubbleEl = petEl.querySelector('.bubble');
     const talkEl = petEl.querySelector('.talk');
+    const carriedEl = petEl.querySelector('.carried');
+    let carry = null; // { onArrive, timer } while carrying a note in (desktop)
+    function finishCarry() {
+      if (!carry) return;
+      const { onArrive, timer } = carry;
+      carry = null;
+      clearTimeout(timer);
+      carriedEl.hidden = true;
+      onArrive();
+    }
     root.appendChild(petEl);
 
     const state = {
@@ -303,7 +329,9 @@
 
     // What a pet says on its own (sounds, naps, reminders). Quiet while another pet naps.
     function chatter(text, ms) {
-      if (!env.quiet()) say(text, ms);
+      if (env.quiet()) return;
+      say(text, ms);
+      env.sound?.(text); // desktop: out loud too ("Meow!", "*cough*")
     }
 
     function hop(factor = 1) {
@@ -311,6 +339,45 @@
       state.vx = 0;
       state.vy = (kind.hopSpeed ?? HOP_SPEED) * factor;
       state.mode = 'fall';
+    }
+
+    // ---- Chasing the mouse (desktop overlay, Moderate) ----
+    // The cursor comes from the main process (env.cursor), polled while the chase lasts.
+    let chase = null; // { until, target, last, stillSince, lost, timer }
+    function startChase() {
+      clearPlan();
+      chase = { until: Date.now() + L.MISCHIEF.CHASE_MS, target: null, last: null, stillSince: 0, lost: false, timer: null };
+      const c = chase;
+      const poll = async () => {
+        const p = await env.cursor();
+        if (chase !== c) return;
+        if (!p) {
+          c.lost = true; // off the overlay: the taskbar or another screen
+          return;
+        }
+        const moved = !c.last || Math.hypot(p.x - c.last.x, p.y - c.last.y) > 4;
+        if (moved) c.stillSince = 0;
+        else if (!c.stillSince) c.stillSince = Date.now();
+        c.last = p;
+        c.target = p;
+      };
+      c.timer = setInterval(poll, L.MISCHIEF.CURSOR_POLL_MS);
+      poll();
+      env.setChaser(api);
+      state.mode = 'chase';
+      petEl.classList.add('chasing');
+    }
+    function stopChase() {
+      if (!chase) return false;
+      clearInterval(chase.timer);
+      chase = null;
+      petEl.classList.remove('chasing');
+      env.setChaser(null);
+      state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
+      return true;
+    }
+    function endChase(now) {
+      if (stopChase() && state.mode === 'chase') goIdle(now);
     }
 
     function lick() {
@@ -325,7 +392,9 @@
     const spotFor = (entry) => L.furnitureSpot(entry, world, w);
 
     // Speed on the way to furniture: the pigeon flies to its perch, everyone else walks.
-    const gotoSpeed = (entry) => (entry.use === 'perch' ? kind.riseSpeed ?? 150 : kind.walkSpeed ?? 120);
+    // Frogs hop rather than walk, so they have no walkSpeed: they move along the floor at this speed.
+    const floorSpeed = kind.walkSpeed ?? 120;
+    const gotoSpeed = (entry) => (entry.use === 'perch' ? kind.riseSpeed ?? 150 : floorSpeed);
 
     function goTo(entry, activity, now) {
       state.plan = { activity, entry };
@@ -458,6 +527,14 @@
       refreshWorld();
       stayAtFurniture();
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
+      if (carry && state.mode !== 'walk') finishCarry(); // arrived (or was picked up): drop the note
+      // A chase ends when its time is up, the cursor leaves the overlay, the pet is picked up, or
+      // mischief stops being allowed (a nap starts, a check-in opens, pets are hidden).
+      if (chase && (state.mode !== 'chase' || chase.lost || Date.now() > chase.until || !env.mayChase(api))) endChase(now);
+      if (!chase && env.chases && (state.mode === 'idle' || state.mode === 'walk')) {
+        if (state.nextChaseAt === undefined) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
+        if (state.nextChaseAt !== null && Date.now() >= state.nextChaseAt && !keepsQuiet() && env.mayChase(api)) startChase();
+      }
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
       if (kind.sound && !busy && !keepsQuiet() && now > state.nextSoundAt) {
@@ -518,9 +595,33 @@
         case 'use':
           if (now > state.useUntil) settle(now);
           break;
+        case 'chase': {
+          if (!chase) {
+            goIdle(now); // its chase was stopped while it wasn't stepping (hidden, unshown)
+            break;
+          }
+          if (!chase.target) break;
+          // Run along the floor toward the cursor at twice walking speed (pigeons stay on the ground).
+          const goal = clamp(chase.target.x - w / 2, 0, maxX());
+          const dist = goal - state.x;
+          if (Math.abs(dist) > 1) {
+            state.facing = Math.sign(dist);
+            state.x += Math.sign(dist) * Math.min(Math.abs(dist), floorSpeed * 2 * dt);
+            dirty = true;
+          }
+          // The cursor stopped close by: pounce on it.
+          const still = chase.stillSince && Date.now() - chase.stillSince >= L.MISCHIEF.POUNCE_STILL_MS;
+          if (still && Math.abs(dist) <= L.MISCHIEF.POUNCE_RANGE_PX && state.y === 0) {
+            const dir = Math.sign(dist) || state.facing;
+            endChase(now);
+            hop(1.4);
+            state.vx = dir * 120;
+          }
+          break;
+        }
         case 'walk': {
           const dist = state.targetX - state.x;
-          const move = kind.walkSpeed * dt;
+          const move = floorSpeed * dt;
           if (Math.abs(dist) <= move) {
             state.x = state.targetX;
             goIdle(now);
@@ -596,7 +697,7 @@
       // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
       const flyingToPerch = state.mode === 'goto' && state.plan?.entry.use === 'perch';
-      petEl.classList.toggle('walking', state.mode === 'walk' || (state.mode === 'goto' && !flyingToPerch));
+      petEl.classList.toggle('walking', state.mode === 'walk' || state.mode === 'chase' || (state.mode === 'goto' && !flyingToPerch));
       const using = state.mode === 'use' ? state.plan?.entry.use : null;
       petEl.classList.toggle('scratching', using === 'scratch');
       petEl.classList.toggle('basking', using === 'bask');
@@ -698,9 +799,11 @@
         state.targetX = clamp(state.targetX, 0, maxX());
       },
       remove() {
+        stopChase(); // replaced (a rebuild): its cursor polling stops too
         petEl.remove();
       },
       setShown(value) {
+        if (!value) stopChase(); // a pet that isn't shown doesn't step: end its chase now
         shown = value;
         petEl.style.display = value ? '' : 'none';
       },
@@ -729,6 +832,7 @@
       setAway(value) {
         if (value === (state.mode === 'away')) return;
         if (value) {
+          stopChase(); // an away pet doesn't step: end its chase (and cursor polling) now
           wake();
           clearPlan();
           // Asleep in its bed if the habitat has one.
@@ -748,12 +852,31 @@
         render();
       },
       isAway: () => state.mode === 'away',
+      stopChase,
+      replanChase() {
+        if (!chase) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
+      },
       // Stroll toward a spot (0 = left edge, 1 = right edge), e.g. to leave a note there.
       walkTo(ratio) {
         if (state.mode !== 'idle' && state.mode !== 'walk') return;
         state.targetX = clamp(ratio * maxX(), 0, maxX());
         state.facing = state.targetX >= state.x ? 1 : -1;
         state.mode = 'walk';
+      },
+      // Desktop: walk in from the screen edge on that side holding a small note, then drop it
+      // (onArrive). Dropped after NOTE_CARRY_MAX_MS anyway, or at once if the pet is busy.
+      carryIn(side, color, onArrive) {
+        if (state.mode !== 'idle' && state.mode !== 'walk') {
+          onArrive();
+          return;
+        }
+        finishCarry();
+        carriedEl.style.setProperty('--n', color || '');
+        carriedEl.hidden = false;
+        carry = { onArrive, timer: setTimeout(finishCarry, NOTE_CARRY_MAX_MS) };
+        state.x = side === 'left' ? 0 : maxX();
+        state.y = 0;
+        api.walkTo(side === 'left' ? 0.1 : 0.9);
       },
       // A bubble with buttons that stays until it's cleared. onAnswer gets the button's answer.
       talk(text, buttons, onAnswer) {
@@ -776,8 +899,46 @@
         }
         talkEl.classList.add('show');
       },
+      // The nap question (PetLogic.napPrompt): onPick gets the chosen taskId, or null for Just nap.
+      ask(prompt, onPick) {
+        clearTalk();
+        bubbleEl.classList.remove('show');
+        const line = document.createElement('div');
+        line.textContent = prompt.text;
+        const list = document.createElement('div');
+        list.className = 'choices';
+        const button = (label, hint, value, className) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          if (className) btn.className = className;
+          btn.textContent = label;
+          if (hint) {
+            const small = document.createElement('small');
+            small.textContent = hint;
+            btn.appendChild(small);
+          }
+          btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onPick(value);
+          });
+          return btn;
+        };
+        for (const section of prompt.sections) {
+          const label = document.createElement('div');
+          label.className = 'group';
+          label.textContent = section.label;
+          list.appendChild(label);
+          for (const item of section.items) list.appendChild(button(item.label, item.hint, item.taskId, 'task'));
+        }
+        // Scrolling the list mustn't scroll the page under it.
+        list.addEventListener('wheel', (e) => e.stopPropagation());
+        talkEl.append(line, list, button(prompt.skipLabel, '', null, ''));
+        talkEl.classList.add('show');
+      },
       clearTalk,
       isTalking: () => talkEl.classList.contains('show'),
+      talkHeight: () => talkEl.offsetHeight,
       // A task was completed in Studium: hop (twice, higher, for a first task or a finished requirement).
       celebrate(celebrationKind) {
         if (state.mode === 'away' || keepsQuiet()) return;
@@ -809,6 +970,7 @@
   let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
   let checkIn = null; // petCheckIn: the question a returning pet asks
   let liveHabitat = null; // petHabitat (desktop app): the project whose habitat shows in the Studium window
+  let timing = L.mischiefTiming(null); // mischief gaps (desktop app), shortened by petTimingOverride.mischiefMinutes
   let seenCelebrations = null; // { [projectId]: at } already seen by this tab (null until the first statuses)
   let pendingCelebrations = [];
 
@@ -817,7 +979,35 @@
   };
   const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
   const habitatId = (v) => (typeof v === 'string' && v ? v : null);
-  const env = { quiet: () => L.isQuiet(away), onMenu: openMenu, prefs: () => prefs };
+  let chaser = null; // the pet chasing the mouse right now (one at a time)
+  let lastSoundAt = 0; // when a pet last made a real sound (desktop)
+  const env = {
+    quiet: () => L.isQuiet(away),
+    onMenu: openMenu,
+    prefs: () => prefs,
+    timing: () => timing,
+    // Mischief happens only in the desktop overlay.
+    chases: SURFACE === 'overlay',
+    mayChase: (pet) =>
+      SURFACE === 'overlay' && pet.isShown() && (chaser === null || chaser === pet) &&
+      // Not while it asks something (nap question, check-in) or a pet menu is open: the buttons
+      // would run away from the click.
+      !pet.isTalking() && globalThis.PetMenu?.isOpen() !== true &&
+      L.mischiefAllowed({ prefs, petAway: away, checkIn, hidden }),
+    setChaser: (pet) => {
+      chaser = pet;
+    },
+    cursor: () => Promise.resolve(globalThis.petBridge?.cursor?.() ?? null).catch(() => null),
+    // Real sounds (desktop overlay, Moderate, Pet sounds on): at most one every soundGapMs across all pets.
+    sound: (text) => {
+      const key = L.soundKey(text);
+      const now = Date.now();
+      if (!key || SURFACE !== 'overlay' || !prefs.sounds || !globalThis.PetSound) return;
+      if (!L.mischiefAllowed({ prefs, petAway: away, checkIn, hidden }) || !L.soundAllowed(lastSoundAt, now, timing)) return;
+      lastSoundAt = now;
+      globalThis.PetSound.play(key);
+    },
+  };
 
   // ---- Storage ----
   // After the extension is reloaded, old content scripts lose access to chrome.*.
@@ -829,6 +1019,7 @@
   // changed); otherwise every pet goes to its saved position.
   function rebuild(next, keepPlaces) {
     globalThis.PetMenu?.close();
+    endNapAsk(); // its pet is replaced
     if (keepPlaces) for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
     pets.forEach((pet) => pet.remove());
     statuses = next;
@@ -844,10 +1035,11 @@
 
   async function load() {
     if (stale()) return;
-    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat']);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat', 'petTimingOverride']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
     liveHabitat = habitatId(stored.petHabitat);
+    timing = L.mischiefTiming(stored.petTimingOverride);
     away = L.parseAway(stored.petAway, Date.now());
     petScreen = L.cleanScreen(stored.petScreen);
     prefs = L.cleanPrefs(stored.petPrefs);
@@ -877,6 +1069,7 @@
 
   function setHidden(value) {
     hidden = Boolean(value);
+    if (hidden) for (const pet of pets) pet.stopChase(); // hidden pets don't step, so end their chase here
     host.style.display = hidden ? 'none' : '';
     markAttached();
   }
@@ -899,14 +1092,28 @@
     if (changes.petPrefs) prefs = L.cleanPrefs(changes.petPrefs.newValue);
     if (changes.petNoteAt && Number.isFinite(changes.petNoteAt.newValue)) lastNoteAt = changes.petNoteAt.newValue;
     if (changes.petHabitat) liveHabitat = habitatId(changes.petHabitat.newValue);
+    if (changes.petTimingOverride) {
+      timing = L.mischiefTiming(changes.petTimingOverride.newValue);
+      for (const pet of pets) pet.replanChase(); // the new gaps apply now, not after the next chase
+    }
+    // A note goes when its own pet naps or sleeps, or Moderate is turned off. Other projects' notes
+    // stay while a pet naps (user's decision, 2026-11-01); no new note is left during a nap.
     if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
     if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });
 
   // ---- Sticky notes (Moderate) ----
   function closeNote() {
+    clearTimeout(note?.timer);
     note?.el.remove();
     note = null;
+  }
+
+  // Puts the note on screen. On the desktop there are no tabs to leave, so it goes after NOTE_STAY_MS.
+  function placeNote(n) {
+    if (note !== n) return; // closed (or replaced) while it was being carried in
+    root.appendChild(n.el);
+    if (SURFACE === 'overlay') n.timer = setTimeout(() => note === n && closeNote(), L.MISCHIEF.NOTE_STAY_MS);
   }
 
   function checkNote() {
@@ -916,6 +1123,7 @@
     const choice = L.chooseNote({
       statuses: statuses?.pets ?? [], shown, prefs, petAway: away, lastNoteAt, now,
       today: L.todayKey(new Date(now)), onStudium, noteOpen: note !== null, pageVisible: document.visibilityState === 'visible',
+      gapMs: SURFACE === 'overlay' ? timing.noteGapMs ?? undefined : undefined,
     });
     if (!choice) return;
     lastNoteAt = now;
@@ -938,15 +1146,21 @@
     signEl.className = 'sign';
     signEl.textContent = choice.signature;
     el.append(textEl, signEl, close);
-    root.appendChild(el);
-    note = { projectId: choice.projectId, el };
+    const n = { projectId: choice.projectId, el, timer: null };
+    note = n;
+    // On the desktop a pet now and then carries its note in from the screen edge and drops it.
+    if (SURFACE === 'overlay' && pet && L.noteCarries()) {
+      pet.carryIn(side, choice.color, () => placeNote(n));
+      return;
+    }
+    placeNote(n);
     pet?.walkTo(side === 'left' ? 0.1 : 0.9);
   }
 
   setInterval(checkNote, L.NOTE_CHECK_MS);
-  // A note belongs to the moment it was left: it goes when you leave the tab.
+  // In a tab, a note belongs to the moment it was left: it goes when you leave the tab.
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState !== 'visible') closeNote();
+    if (SURFACE !== 'overlay' && document.visibilityState !== 'visible') closeNote();
   });
 
   // ---- The pet menu ----
@@ -958,26 +1172,60 @@
   function pick(pet, id) {
     const projectId = pet.id;
     if (id === 'suggest') pet.say(L.suggestionText(statusOf(projectId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
-    else if (id === 'nap') send({ type: 'nap', projectId });
+    else if (id === 'nap') askNap(pet);
     else if (id === 'sleep1') send({ type: 'sleep', projectId, hours: 1 });
     else if (id === 'sleep2') send({ type: 'sleep', projectId, hours: 2 });
     else if (id === 'open') send({ type: 'openProject', projectId });
     else if (id === 'wake') send({ type: 'wake', projectId });
   }
 
+  // ---- Nap: the pet first asks what you'll work on (its project's Today tasks, then suggestions) ----
+  let napAsk = null; // { projectId, timer } while a pet is asking
+  function endNapAsk() {
+    if (!napAsk) return;
+    clearTimeout(napAsk.timer);
+    pets.find((p) => p.id === napAsk.projectId)?.clearTalk();
+    napAsk = null;
+  }
+
+  function askNap(pet) {
+    endNapAsk();
+    const projectId = pet.id;
+    const prompt = L.napPrompt(statusOf(projectId)?.napTasks ?? []);
+    if (!prompt) {
+      send({ type: 'nap', projectId, taskId: null }); // nothing to offer: it just naps
+      return;
+    }
+    // Unanswered, the question goes away and no nap starts; right-click to ask again.
+    napAsk = { projectId, timer: setTimeout(endNapAsk, L.NAP_ASK_MS) };
+    pet.ask(prompt, (taskId) => {
+      endNapAsk();
+      send({ type: 'nap', projectId, taskId });
+    });
+  }
+
   // ---- Check-in: the pet back from a nap asks how it went, in every tab until it's answered ----
   function showCheckIn() {
-    for (const pet of pets) pet.clearTalk();
+    // A pet still asking about a nap keeps its question; one that left (asleep, hidden) drops it.
+    const asker = napAsk && pets.find((p) => p.id === napAsk.projectId && p.isShown() && !p.isAway());
+    if (napAsk && !asker) endNapAsk();
+    for (const pet of pets) if (pet !== asker) pet.clearTalk();
     if (!checkIn) return;
     const shown = pets.filter((pet) => pet.isShown() && !pet.isAway());
     let target = shown.find((pet) => pet.id === checkIn.projectId);
     // Another pet asks for it, except in the desktop app where it is shown somewhere else: the
     // habitat copy only asks for its own pet, and the overlay leaves the habitat pet's to the habitat.
     if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && checkIn.projectId === liveHabitat)) target = shown[0];
-    if (!target) return;
+    if (!target || target === asker) return; // the check-in waits until the nap question is answered
+    // Woken early because its task was checked off: a happy hop, once, before the congrats.
+    if (checkIn.finished && congratsAt !== checkIn.at) {
+      congratsAt = checkIn.at;
+      target.celebrate('task');
+    }
     const prompt = L.checkInPrompt(checkIn);
     target.talk(prompt.text, prompt.buttons, (answer) => send({ type: 'checkIn', answer }));
   }
+  let congratsAt = null; // the finished check-in already celebrated
 
   // ---- Celebrations: a task completed in Studium ----
   // A tab in the background keeps them until you come back to it, so you see the hop.
@@ -1124,7 +1372,7 @@
     const inside = habitatPet();
     host.style.clipPath =
       inside && !globalThis.PetMenu?.isOpen()
-        ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight, inside.isTalking() ? 90 : 40)
+        ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight, inside.isTalking() ? Math.max(90, inside.talkHeight() + 20) : 40)
         : '';
     requestAnimationFrame(loop);
   }

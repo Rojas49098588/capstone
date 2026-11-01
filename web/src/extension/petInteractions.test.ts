@@ -452,3 +452,99 @@ describe("habitat furniture", () => {
     expect(L.furnitureSpot({ use: "lounge", slot: "floorRight" }, world, 46).y).toBeCloseTo(31.36);
   });
 });
+
+describe("choosing a task for a nap", () => {
+  const napTasks = [
+    { taskId: "t1", title: "Pet nap logic", estimateMin: 45, group: "today" },
+    { taskId: "t2", title: "Apple developer license", estimateMin: 20, group: "today" },
+    { taskId: "t3", title: "Mac build workflow", estimateMin: 90, group: "suggested" },
+  ];
+  const withChoices = () =>
+    L.parseStatuses({ pets: [pet({ projectId: "appDev", suggestion: { taskId: "t1", title: "Pet nap logic", estimateMin: 45 }, napTasks })] });
+  const napFor = (taskId: unknown) =>
+    L.applyAwayRequest(empty(), { type: "nap", projectId: "appDev", taskId }, ctx(T, withChoices())).state.petAway.appDev;
+
+  it("statuses keep usable nap choices and drop the rest", () => {
+    const bad = [{ taskId: "", title: "x", estimateMin: 1, group: "today" }, { taskId: "t9", title: "x", estimateMin: 1, group: "later" }, null];
+    const s = L.parseStatuses({ pets: [pet({ napTasks: [...napTasks, ...bad] })] });
+    expect(s.pets[0].napTasks).toEqual(napTasks);
+    expect(L.parseStatuses({ pets: [pet()] }).pets[0].napTasks).toEqual([]);
+  });
+
+  it("a change in nap choices alone doesn't rebuild the pets", () => {
+    expect(L.statusesEqual(withChoices(), L.parseStatuses({ pets: [pet({ projectId: "appDev", napTasks: [] })] }))).toBe(true);
+  });
+
+  it("parseRequest takes the chosen task, or null for Just nap", () => {
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "t2" })).toEqual({ type: "nap", projectId: "a", taskId: "t2" });
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: null })).toEqual({ type: "nap", projectId: "a", taskId: null });
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "" })).toBeNull();
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: 5 })).toBeNull();
+  });
+
+  it("the nap is for the task you picked, not the first one", () => {
+    expect(napFor("t2")).toMatchObject({ taskId: "t2", taskTitle: "Apple developer license" });
+    expect(napFor("t3")).toMatchObject({ taskId: "t3", taskTitle: "Mac build workflow" });
+  });
+
+  it("Just nap, or a task no longer offered (done or deleted meanwhile), naps with no task", () => {
+    expect(napFor(null)).toMatchObject({ kind: "nap", taskId: null, taskTitle: null });
+    expect(napFor("gone")).toMatchObject({ kind: "nap", taskId: null, taskTitle: null });
+  });
+
+  it("napPrompt groups the choices under Today and Suggested, with Just nap last", () => {
+    expect(L.napPrompt(withChoices().pets[0].napTasks)).toEqual({
+      text: "What are you going to work on while I nap?",
+      sections: [
+        {
+          label: "Today",
+          items: [
+            { taskId: "t1", label: "Pet nap logic", hint: "45 min" },
+            { taskId: "t2", label: "Apple developer license", hint: "20 min" },
+          ],
+        },
+        { label: "Suggested", items: [{ taskId: "t3", label: "Mac build workflow", hint: "1 h 30 min" }] },
+      ],
+      skipLabel: "Just nap",
+    });
+  });
+
+  it("napPrompt leaves out an empty group, and is null with nothing to offer", () => {
+    expect(L.napPrompt([napTasks[2]]).sections.map((s: { label: string }) => s.label)).toEqual(["Suggested"]);
+    expect(L.napPrompt([])).toBeNull();
+  });
+});
+
+describe("finishing the nap's task ends the nap early", () => {
+  const napOn = (taskId: string | null) => ({
+    ...empty(),
+    petAway: { appDev: { kind: "nap", id: "n1", startedAt: iso(T), until: iso(T + 15 * MIN), taskId, taskTitle: taskId ? "Push" : null } },
+  });
+
+  it("parseRequest takes taskDone with a task id", () => {
+    expect(L.parseRequest({ type: "taskDone", taskId: "t1" })).toEqual({ type: "taskDone", taskId: "t1" });
+    expect(L.parseRequest({ type: "taskDone", taskId: "" })).toBeNull();
+    expect(L.parseRequest({ type: "taskDone" })).toBeNull();
+  });
+
+  it("wakes the pet napping on that task, records the focus time, and asks nothing but says congrats", () => {
+    const now = T + 6 * MIN;
+    const r = L.applyAwayRequest(napOn("t1"), { type: "taskDone", taskId: "t1" }, ctx(now));
+    expect(r.state.petAway).toEqual({});
+    expect(r.state.focusOutbox.n1).toMatchObject({ projectId: "appDev", taskId: "t1", minutes: 6 });
+    expect(r.state.petCheckIn).toEqual({ projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 6, at: iso(now), finished: true });
+    expect(r.effects).toEqual([{ type: "clearAlarm", name: "away:appDev" }]);
+  });
+
+  it("another task, or a nap with no task, keeps napping", () => {
+    expect(L.applyAwayRequest(napOn("t1"), { type: "taskDone", taskId: "t2" }, ctx()).changed).toBe(false);
+    expect(L.applyAwayRequest(napOn(null), { type: "taskDone", taskId: "t1" }, ctx()).changed).toBe(false);
+  });
+
+  it("a finished check-in is kept, and its prompt congratulates with one button", () => {
+    const c = { projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 6, at: iso(T), finished: true };
+    expect(L.parseCheckIn(c)).toEqual(c);
+    expect(L.parseCheckIn({ ...c, finished: "yes" })).not.toHaveProperty("finished");
+    expect(L.checkInPrompt(c)).toEqual({ text: "Congrats! You finished Push! 🎉", buttons: [{ answer: "later", label: "Yay!" }] });
+  });
+});

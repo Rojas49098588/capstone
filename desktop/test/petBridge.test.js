@@ -52,6 +52,12 @@ describe('installPetBridge', () => {
     ]);
   });
 
+  it('cursor asks the main process where the cursor is', async () => {
+    const { ipc, exposed } = install();
+    await expect(exposed.api.cursor()).resolves.toEqual({ answer: undefined });
+    expect(ipc.invoked).toEqual([['overlay:cursor', undefined]]);
+  });
+
   it('onChanged listeners get the changes the main process sends', () => {
     const { ipc, exposed } = install();
     const got = [];
