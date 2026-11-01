@@ -1096,10 +1096,9 @@
       timing = L.mischiefTiming(changes.petTimingOverride.newValue);
       for (const pet of pets) pet.replanChase(); // the new gaps apply now, not after the next chase
     }
-    // A note goes when its pet naps or sleeps, or Moderate is turned off; on the desktop, any nap
-    // (focus time: nothing during a nap).
-    const napping = SURFACE === 'overlay' && L.isQuiet(away);
-    if (note && (away[note.projectId] || napping || prefs.involvement !== 'moderate')) closeNote();
+    // A note goes when its own pet naps or sleeps, or Moderate is turned off. Other projects' notes
+    // stay while a pet naps (user's decision, 2026-11-01); no new note is left during a nap.
+    if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
     if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });
 

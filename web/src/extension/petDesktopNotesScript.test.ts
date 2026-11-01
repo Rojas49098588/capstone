@@ -75,8 +75,11 @@ it("a desktop note stays when nothing is 'left', goes after 15 minutes, and the 
   expect(carried()?.hidden).toBe(true);
   expect(note()).not.toBeNull();
 
-  // Another pet's nap is focus time: the note goes too (nothing during a nap).
+  // Another project's pet naps: this note stays (user's decision, 2026-11-01).
   const until = new Date(Date.now() + 15 * 60000).toISOString();
   await set({ petAway: { other: { kind: "nap", id: "n", startedAt: new Date().toISOString(), until, taskId: null, taskTitle: null } } });
+  expect(note()).not.toBeNull();
+  // Its own pet naps: it goes.
+  await set({ petAway: { portraits: { kind: "nap", id: "n2", startedAt: new Date().toISOString(), until, taskId: null, taskTitle: null } } });
   expect(note()).toBeNull();
 });
