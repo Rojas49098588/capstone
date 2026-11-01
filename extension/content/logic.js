@@ -14,6 +14,7 @@
   // Pet interactions (spec 2026-10-19-pet-interactions-design.md). Studium's store/petStatus.ts
   // uses the same event and attribute names.
   const NAP_MINUTES = 15;
+  const NAP_ASK_MS = 60 * 1000; // an unanswered "What are you going to work on?" goes away after this
   const SLEEP_HOURS = [1, 2];
   const MAX_AWAY_MS = 2 * 3600000; // an away entry further ahead than this is damaged
   const SUGGESTION_BUBBLE_MS = 6000;
@@ -79,6 +80,19 @@
       : null;
   }
 
+  const NAP_GROUPS = ['today', 'suggested'];
+
+  /** What a nap offers to focus on (Studium's napTasks): valid entries only (old statuses: none). */
+  function cleanNapTasks(list) {
+    if (!Array.isArray(list)) return [];
+    const out = [];
+    for (const t of list) {
+      const s = cleanSuggestion(t);
+      if (s && NAP_GROUPS.includes(t.group)) out.push({ ...s, group: t.group });
+    }
+    return out;
+  }
+
   function cleanCelebration(c) {
     return isObject(c) && text(c.at) && CELEBRATION_KINDS.includes(c.kind) ? { at: c.at, kind: c.kind } : null;
   }
@@ -107,6 +121,7 @@
         idle && text(idle.title) && Number.isFinite(idle.days) ? { title: idle.title, days: Math.round(idle.days) } : null,
       // Missing in statuses from older Studium builds.
       suggestion: cleanSuggestion(p.suggestion),
+      napTasks: cleanNapTasks(p.napTasks),
       celebration: cleanCelebration(p.celebration),
       furniture: cleanFurniture(p.furniture),
       deadline: isDateKey(p.deadline) ? p.deadline : null, // missing in statuses from older Studium builds
@@ -159,12 +174,12 @@
   }
 
   /**
-   * Same pets with the same looks and moods. The time stamp, suggestions and celebrations don't
-   * matter: they change with every task but don't change how a pet looks, so they mustn't rebuild pets.
-   * Furniture does count, so the habitat pet learns what it can use.
+   * Same pets with the same looks and moods. The time stamp, suggestions, nap choices and
+   * celebrations don't matter: they change with every task but don't change how a pet looks, so they
+   * mustn't rebuild pets. Furniture does count, so the habitat pet learns what it can use.
    */
   function statusesEqual(a, b) {
-    const looks = (s) => s?.pets?.map(({ suggestion, celebration, ...rest }) => rest) ?? null;
+    const looks = (s) => s?.pets?.map(({ suggestion, napTasks, celebration, ...rest }) => rest) ?? null;
     return JSON.stringify(looks(a)) === JSON.stringify(looks(b));
   }
 
@@ -293,6 +308,11 @@
     if (!isObject(msg)) return null;
     switch (msg.type) {
       case 'nap':
+        // taskId: the task picked from napPrompt, or null for "Just nap". Without it (older
+        // callers), the nap takes the pet's suggestion.
+        if (!text(msg.projectId)) return null;
+        if (!('taskId' in msg)) return { type: 'nap', projectId: msg.projectId };
+        return textOrNull(msg.taskId) ? { type: 'nap', projectId: msg.projectId, taskId: msg.taskId } : null;
       case 'wake':
       case 'openProject':
         return text(msg.projectId) ? { type: msg.type, projectId: msg.projectId } : null;
@@ -377,8 +397,11 @@
     const unchanged = { state, effects: [], changed: false };
     switch (request.type) {
       case 'nap': {
-        const suggestion = statusFor(ctx.statuses, request.projectId)?.suggestion ?? null;
-        return startNap(state, request.projectId, suggestion, ctx) ?? unchanged;
+        const status = statusFor(ctx.statuses, request.projectId);
+        let task = status?.suggestion ?? null;
+        // A picked task counts only if it's still offered (not finished or deleted meanwhile).
+        if ('taskId' in request) task = (status?.napTasks ?? []).find((t) => t.taskId === request.taskId) ?? null;
+        return startNap(state, request.projectId, task, ctx) ?? unchanged;
       }
       case 'sleep':
         if (!canStart(state, request.projectId, ctx)) return unchanged;
@@ -477,6 +500,26 @@
     return suggestion
       ? `Next up: ${suggestion.title} (~${formatMinutes(suggestion.estimateMin)})`
       : "Nothing to suggest: everything's done or waiting on something.";
+  }
+
+  /**
+   * The question a pet asks when it's sent to nap: its project's Today tasks, then suggestions,
+   * each a button, and "Just nap" for no task. Null when there's nothing to offer (it just naps).
+   */
+  function napPrompt(napTasks) {
+    const sections = [
+      { label: 'Today', group: 'today' },
+      { label: 'Suggested', group: 'suggested' },
+    ]
+      .map(({ label, group }) => ({
+        label,
+        items: (napTasks ?? [])
+          .filter((t) => t.group === group)
+          .map((t) => ({ taskId: t.taskId, label: t.title, hint: formatMinutes(t.estimateMin) })),
+      }))
+      .filter((s) => s.items.length > 0);
+    if (sections.length === 0) return null;
+    return { text: 'What are you going to work on while I nap?', sections, skipLabel: 'Just nap' };
   }
 
   function checkInPrompt(checkIn) {
@@ -825,6 +868,7 @@
     dragPosition,
     habitatClip,
     NAP_MINUTES,
+    NAP_ASK_MS,
     MAX_AWAY_MS,
     SUGGESTION_BUBBLE_MS,
     FOCUS_SESSIONS_EVENT,
@@ -844,6 +888,7 @@
     formatMinutes,
     suggestionText,
     checkInPrompt,
+    napPrompt,
     celebrationText,
     celebrationHops,
     newCelebrations,

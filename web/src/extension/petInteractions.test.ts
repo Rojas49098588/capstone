@@ -452,3 +452,65 @@ describe("habitat furniture", () => {
     expect(L.furnitureSpot({ use: "lounge", slot: "floorRight" }, world, 46).y).toBeCloseTo(31.36);
   });
 });
+
+describe("choosing a task for a nap", () => {
+  const napTasks = [
+    { taskId: "t1", title: "Pet nap logic", estimateMin: 45, group: "today" },
+    { taskId: "t2", title: "Apple developer license", estimateMin: 20, group: "today" },
+    { taskId: "t3", title: "Mac build workflow", estimateMin: 90, group: "suggested" },
+  ];
+  const withChoices = () =>
+    L.parseStatuses({ pets: [pet({ projectId: "appDev", suggestion: { taskId: "t1", title: "Pet nap logic", estimateMin: 45 }, napTasks })] });
+  const napFor = (taskId: unknown) =>
+    L.applyAwayRequest(empty(), { type: "nap", projectId: "appDev", taskId }, ctx(T, withChoices())).state.petAway.appDev;
+
+  it("statuses keep usable nap choices and drop the rest", () => {
+    const bad = [{ taskId: "", title: "x", estimateMin: 1, group: "today" }, { taskId: "t9", title: "x", estimateMin: 1, group: "later" }, null];
+    const s = L.parseStatuses({ pets: [pet({ napTasks: [...napTasks, ...bad] })] });
+    expect(s.pets[0].napTasks).toEqual(napTasks);
+    expect(L.parseStatuses({ pets: [pet()] }).pets[0].napTasks).toEqual([]);
+  });
+
+  it("a change in nap choices alone doesn't rebuild the pets", () => {
+    expect(L.statusesEqual(withChoices(), L.parseStatuses({ pets: [pet({ projectId: "appDev", napTasks: [] })] }))).toBe(true);
+  });
+
+  it("parseRequest takes the chosen task, or null for Just nap", () => {
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "t2" })).toEqual({ type: "nap", projectId: "a", taskId: "t2" });
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: null })).toEqual({ type: "nap", projectId: "a", taskId: null });
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "" })).toBeNull();
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: 5 })).toBeNull();
+  });
+
+  it("the nap is for the task you picked, not the first one", () => {
+    expect(napFor("t2")).toMatchObject({ taskId: "t2", taskTitle: "Apple developer license" });
+    expect(napFor("t3")).toMatchObject({ taskId: "t3", taskTitle: "Mac build workflow" });
+  });
+
+  it("Just nap, or a task no longer offered (done or deleted meanwhile), naps with no task", () => {
+    expect(napFor(null)).toMatchObject({ kind: "nap", taskId: null, taskTitle: null });
+    expect(napFor("gone")).toMatchObject({ kind: "nap", taskId: null, taskTitle: null });
+  });
+
+  it("napPrompt groups the choices under Today and Suggested, with Just nap last", () => {
+    expect(L.napPrompt(withChoices().pets[0].napTasks)).toEqual({
+      text: "What are you going to work on while I nap?",
+      sections: [
+        {
+          label: "Today",
+          items: [
+            { taskId: "t1", label: "Pet nap logic", hint: "45 min" },
+            { taskId: "t2", label: "Apple developer license", hint: "20 min" },
+          ],
+        },
+        { label: "Suggested", items: [{ taskId: "t3", label: "Mac build workflow", hint: "1 h 30 min" }] },
+      ],
+      skipLabel: "Just nap",
+    });
+  });
+
+  it("napPrompt leaves out an empty group, and is null with nothing to offer", () => {
+    expect(L.napPrompt([napTasks[2]]).sections.map((s: { label: string }) => s.label)).toEqual(["Suggested"]);
+    expect(L.napPrompt([])).toBeNull();
+  });
+});

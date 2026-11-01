@@ -186,6 +186,14 @@
       background: #f4f5f8; color: inherit; font: 600 11px/1.4 system-ui, sans-serif; cursor: pointer;
     }
     .talk button:hover { background: #e6e8ee; }
+    /* The nap question: one scrolling list of tasks under Today / Suggested, then Just nap. */
+    .talk .choices { max-height: 170px; overflow-y: auto; margin-top: 2px; }
+    .talk .group {
+      margin: 6px 0 0; font: 700 9px/1.2 system-ui, sans-serif; letter-spacing: .06em;
+      text-transform: uppercase; color: #8a8e98;
+    }
+    .talk button.task { display: block; width: 100%; margin: 4px 0 0; text-align: left; }
+    .talk button.task small { display: block; font-weight: 400; font-size: 10px; color: #6b6f7a; }
     .pet:hover .name { opacity: 1; }
 
     @keyframes bob { 50% { transform: translateY(-3px) scaleY(.96); } }
@@ -776,8 +784,46 @@
         }
         talkEl.classList.add('show');
       },
+      // The nap question (PetLogic.napPrompt): onPick gets the chosen taskId, or null for Just nap.
+      ask(prompt, onPick) {
+        clearTalk();
+        bubbleEl.classList.remove('show');
+        const line = document.createElement('div');
+        line.textContent = prompt.text;
+        const list = document.createElement('div');
+        list.className = 'choices';
+        const button = (label, hint, value, className) => {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          if (className) btn.className = className;
+          btn.textContent = label;
+          if (hint) {
+            const small = document.createElement('small');
+            small.textContent = hint;
+            btn.appendChild(small);
+          }
+          btn.addEventListener('pointerdown', (e) => e.stopPropagation());
+          btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            onPick(value);
+          });
+          return btn;
+        };
+        for (const section of prompt.sections) {
+          const label = document.createElement('div');
+          label.className = 'group';
+          label.textContent = section.label;
+          list.appendChild(label);
+          for (const item of section.items) list.appendChild(button(item.label, item.hint, item.taskId, 'task'));
+        }
+        // Scrolling the list mustn't scroll the page under it.
+        list.addEventListener('wheel', (e) => e.stopPropagation());
+        talkEl.append(line, list, button(prompt.skipLabel, '', null, ''));
+        talkEl.classList.add('show');
+      },
       clearTalk,
       isTalking: () => talkEl.classList.contains('show'),
+      talkHeight: () => talkEl.offsetHeight,
       // A task was completed in Studium: hop (twice, higher, for a first task or a finished requirement).
       celebrate(celebrationKind) {
         if (state.mode === 'away' || keepsQuiet()) return;
@@ -829,6 +875,7 @@
   // changed); otherwise every pet goes to its saved position.
   function rebuild(next, keepPlaces) {
     globalThis.PetMenu?.close();
+    endNapAsk(); // its pet is replaced
     if (keepPlaces) for (const pet of pets) if (!pet.boxEl()) positions[pet.id] = { xRatio: pet.xRatio() };
     pets.forEach((pet) => pet.remove());
     statuses = next;
@@ -958,23 +1005,51 @@
   function pick(pet, id) {
     const projectId = pet.id;
     if (id === 'suggest') pet.say(L.suggestionText(statusOf(projectId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
-    else if (id === 'nap') send({ type: 'nap', projectId });
+    else if (id === 'nap') askNap(pet);
     else if (id === 'sleep1') send({ type: 'sleep', projectId, hours: 1 });
     else if (id === 'sleep2') send({ type: 'sleep', projectId, hours: 2 });
     else if (id === 'open') send({ type: 'openProject', projectId });
     else if (id === 'wake') send({ type: 'wake', projectId });
   }
 
+  // ---- Nap: the pet first asks what you'll work on (its project's Today tasks, then suggestions) ----
+  let napAsk = null; // { projectId, timer } while a pet is asking
+  function endNapAsk() {
+    if (!napAsk) return;
+    clearTimeout(napAsk.timer);
+    pets.find((p) => p.id === napAsk.projectId)?.clearTalk();
+    napAsk = null;
+  }
+
+  function askNap(pet) {
+    endNapAsk();
+    const projectId = pet.id;
+    const prompt = L.napPrompt(statusOf(projectId)?.napTasks ?? []);
+    if (!prompt) {
+      send({ type: 'nap', projectId, taskId: null }); // nothing to offer: it just naps
+      return;
+    }
+    // Unanswered, the question goes away and no nap starts; right-click to ask again.
+    napAsk = { projectId, timer: setTimeout(endNapAsk, L.NAP_ASK_MS) };
+    pet.ask(prompt, (taskId) => {
+      endNapAsk();
+      send({ type: 'nap', projectId, taskId });
+    });
+  }
+
   // ---- Check-in: the pet back from a nap asks how it went, in every tab until it's answered ----
   function showCheckIn() {
-    for (const pet of pets) pet.clearTalk();
+    // A pet still asking about a nap keeps its question; one that left (asleep, hidden) drops it.
+    const asker = napAsk && pets.find((p) => p.id === napAsk.projectId && p.isShown() && !p.isAway());
+    if (napAsk && !asker) endNapAsk();
+    for (const pet of pets) if (pet !== asker) pet.clearTalk();
     if (!checkIn) return;
     const shown = pets.filter((pet) => pet.isShown() && !pet.isAway());
     let target = shown.find((pet) => pet.id === checkIn.projectId);
     // Another pet asks for it, except in the desktop app where it is shown somewhere else: the
     // habitat copy only asks for its own pet, and the overlay leaves the habitat pet's to the habitat.
     if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && checkIn.projectId === liveHabitat)) target = shown[0];
-    if (!target) return;
+    if (!target || target === asker) return; // the check-in waits until the nap question is answered
     const prompt = L.checkInPrompt(checkIn);
     target.talk(prompt.text, prompt.buttons, (answer) => send({ type: 'checkIn', answer }));
   }
@@ -1124,7 +1199,7 @@
     const inside = habitatPet();
     host.style.clipPath =
       inside && !globalThis.PetMenu?.isOpen()
-        ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight, inside.isTalking() ? 90 : 40)
+        ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight, inside.isTalking() ? Math.max(90, inside.talkHeight() + 20) : 40)
         : '';
     requestAnimationFrame(loop);
   }

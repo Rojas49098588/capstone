@@ -96,6 +96,48 @@ describe("pet suggestions", () => {
   });
 });
 
+describe("nap choices", () => {
+  const choices = (data: ReturnType<typeof makeData>) => buildPetStatuses(data, NOW).pets[0].napTasks;
+
+  it("lists the project's Today tasks first, then its suggestions", () => {
+    const list = choices(suggestData(["f"]));
+    expect(list[0]).toEqual({ taskId: "f", title: "Task", estimateMin: 60, group: "today" });
+    expect(list.filter((t) => t.group === "today").map((t) => t.taskId)).toEqual(["f"]);
+    const suggested = list.filter((t) => t.group === "suggested").map((t) => t.taskId);
+    expect(suggested[0]).toBe("g"); // pinned first, as in Suggested next
+    expect([...suggested].sort()).toEqual(["a", "b", "g"]);
+  });
+
+  it("keeps Today's order and leaves out done, blocked and unlinked tasks", () => {
+    const today = choices(suggestData(["b", "d", "c", "e", "f"])).filter((t) => t.group === "today");
+    expect(today.map((t) => t.taskId)).toEqual(["b", "f"]);
+  });
+
+  it("offers at most 5 suggestions", () => {
+    const tasks = Array.from({ length: 8 }, (_, i) => makeTask({ id: `t${i}` }));
+    const data = makeData({ requirements: [makeRequirement()], tasks, today: { date: dayKey(0), taskIds: [] } });
+    expect(choices(data).filter((t) => t.group === "suggested")).toHaveLength(5);
+  });
+
+  it("only offers the pet's own project's tasks", () => {
+    const other = makeProject({ id: "other" });
+    const data = makeData({
+      projects: [makeProject(), other],
+      requirements: [makeRequirement(), makeRequirement({ id: "r-other", projectId: "other" })],
+      tasks: [makeTask({ id: "mine" }), makeTask({ id: "theirs", projectId: "other", requirementId: "r-other" })],
+      today: { date: dayKey(0), taskIds: ["theirs", "mine"] },
+    });
+    const pets = buildPetStatuses(data, NOW).pets;
+    expect(pets[0].napTasks.map((t) => t.taskId)).toEqual(["mine"]);
+    expect(pets[1].napTasks.map((t) => t.taskId)).toEqual(["theirs"]);
+  });
+
+  it("is empty when there's nothing to work on", () => {
+    const data = makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "x", done: true })] });
+    expect(choices(data)).toEqual([]);
+  });
+});
+
 describe("pet celebrations", () => {
   const hours = (n: number) => new Date(NOW.getTime() + n * 3_600_000);
   const three = () =>

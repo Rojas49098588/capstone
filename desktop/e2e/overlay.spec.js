@@ -40,16 +40,18 @@ test('clicks pass through except on a pet', async () => {
   const { app, overlay, pet } = await start();
   expect(await mouse(app)).toBe(false);
 
-  const box = await pet.boundingBox();
-  await overlay.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await expect.poll(() => mouse(app)).toBe(true);
+  // Pets walk, so aim at where the pet is now on every try.
+  const hoverPet = async () => {
+    const box = await pet.boundingBox();
+    await overlay.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    return mouse(app);
+  };
+  await expect.poll(hoverPet).toBe(true);
   await overlay.mouse.move(5, 5);
   await expect.poll(() => mouse(app)).toBe(false);
 
   // Hiding the pets under a still pointer gives the mouse back without a move.
-  const again = await pet.boundingBox();
-  await overlay.mouse.move(again.x + again.width / 2, again.y + again.height / 2);
-  await expect.poll(() => mouse(app)).toBe(true);
+  await expect.poll(hoverPet).toBe(true);
   await trayClick(app, 'toggle-pets');
   await expect.poll(() => mouse(app)).toBe(false);
   await app.close();
