@@ -339,6 +339,45 @@
       state.mode = 'fall';
     }
 
+    // ---- Chasing the mouse (desktop overlay, Moderate) ----
+    // The cursor comes from the main process (env.cursor), polled while the chase lasts.
+    let chase = null; // { until, target, last, stillSince, lost, timer }
+    function startChase() {
+      clearPlan();
+      chase = { until: Date.now() + L.MISCHIEF.CHASE_MS, target: null, last: null, stillSince: 0, lost: false, timer: null };
+      const c = chase;
+      const poll = async () => {
+        const p = await env.cursor();
+        if (chase !== c) return;
+        if (!p) {
+          c.lost = true; // off the overlay: the taskbar or another screen
+          return;
+        }
+        const moved = !c.last || Math.hypot(p.x - c.last.x, p.y - c.last.y) > 4;
+        if (moved) c.stillSince = 0;
+        else if (!c.stillSince) c.stillSince = Date.now();
+        c.last = p;
+        c.target = p;
+      };
+      c.timer = setInterval(poll, L.MISCHIEF.CURSOR_POLL_MS);
+      poll();
+      env.setChaser(api);
+      state.mode = 'chase';
+      petEl.classList.add('chasing');
+    }
+    function stopChase() {
+      if (!chase) return false;
+      clearInterval(chase.timer);
+      chase = null;
+      petEl.classList.remove('chasing');
+      env.setChaser(null);
+      state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
+      return true;
+    }
+    function endChase(now) {
+      if (stopChase() && state.mode === 'chase') goIdle(now);
+    }
+
     function lick() {
       if (!kind.mouth) return;
       petEl.classList.remove('licking');
@@ -485,6 +524,13 @@
       stayAtFurniture();
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       if (carry && state.mode !== 'walk') finishCarry(); // arrived (or was picked up): drop the note
+      // A chase ends when its time is up, the cursor leaves the overlay, the pet is picked up, or
+      // mischief stops being allowed (a nap starts, a check-in opens, pets are hidden).
+      if (chase && (state.mode !== 'chase' || chase.lost || Date.now() > chase.until || !env.mayChase(api))) endChase(now);
+      if (!chase && env.chases && (state.mode === 'idle' || state.mode === 'walk')) {
+        if (state.nextChaseAt === undefined) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
+        if (state.nextChaseAt !== null && Date.now() >= state.nextChaseAt && !keepsQuiet() && env.mayChase(api)) startChase();
+      }
       // Sounds, tongue flicks and reminders happen on their own timers while awake.
       const busy = state.mode === 'drag' || state.mode === 'sleep';
       if (kind.sound && !busy && !keepsQuiet() && now > state.nextSoundAt) {
@@ -545,6 +591,26 @@
         case 'use':
           if (now > state.useUntil) settle(now);
           break;
+        case 'chase': {
+          if (!chase.target) break;
+          // Run along the floor toward the cursor at twice walking speed (pigeons stay on the ground).
+          const goal = clamp(chase.target.x - w / 2, 0, maxX());
+          const dist = goal - state.x;
+          if (Math.abs(dist) > 1) {
+            state.facing = Math.sign(dist);
+            state.x += Math.sign(dist) * Math.min(Math.abs(dist), kind.walkSpeed * 2 * dt);
+            dirty = true;
+          }
+          // The cursor stopped close by: pounce on it.
+          const still = chase.stillSince && Date.now() - chase.stillSince >= L.MISCHIEF.POUNCE_STILL_MS;
+          if (still && Math.abs(dist) <= L.MISCHIEF.POUNCE_RANGE_PX && state.y === 0) {
+            const dir = Math.sign(dist) || state.facing;
+            endChase(now);
+            hop(1.4);
+            state.vx = dir * 120;
+          }
+          break;
+        }
         case 'walk': {
           const dist = state.targetX - state.x;
           const move = kind.walkSpeed * dt;
@@ -623,7 +689,7 @@
       // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
       const flyingToPerch = state.mode === 'goto' && state.plan?.entry.use === 'perch';
-      petEl.classList.toggle('walking', state.mode === 'walk' || (state.mode === 'goto' && !flyingToPerch));
+      petEl.classList.toggle('walking', state.mode === 'walk' || state.mode === 'chase' || (state.mode === 'goto' && !flyingToPerch));
       const using = state.mode === 'use' ? state.plan?.entry.use : null;
       petEl.classList.toggle('scratching', using === 'scratch');
       petEl.classList.toggle('basking', using === 'bask');
@@ -725,6 +791,7 @@
         state.targetX = clamp(state.targetX, 0, maxX());
       },
       remove() {
+        stopChase(); // replaced (a rebuild): its cursor polling stops too
         petEl.remove();
       },
       setShown(value) {
@@ -898,7 +965,22 @@
   };
   const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
   const habitatId = (v) => (typeof v === 'string' && v ? v : null);
-  const env = { quiet: () => L.isQuiet(away), onMenu: openMenu, prefs: () => prefs };
+  let chaser = null; // the pet chasing the mouse right now (one at a time)
+  const env = {
+    quiet: () => L.isQuiet(away),
+    onMenu: openMenu,
+    prefs: () => prefs,
+    timing: () => timing,
+    // Mischief happens only in the desktop overlay.
+    chases: SURFACE === 'overlay',
+    mayChase: (pet) =>
+      SURFACE === 'overlay' && pet.isShown() && (chaser === null || chaser === pet) &&
+      L.mischiefAllowed({ prefs, petAway: away, checkIn, hidden }),
+    setChaser: (pet) => {
+      chaser = pet;
+    },
+    cursor: () => Promise.resolve(globalThis.petBridge?.cursor?.() ?? null).catch(() => null),
+  };
 
   // ---- Storage ----
   // After the extension is reloaded, old content scripts lose access to chrome.*.
