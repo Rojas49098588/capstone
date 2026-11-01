@@ -44,6 +44,20 @@ test("the packaged build's pet overlay loads the pet code and art", async () => 
     );
   expect(await artLoads('studium://pets/assets/pets/cat.png')).toBe(true);
   expect(await artLoads('studium://pets/assets/pets/no-such-pet.png')).toBe(false);
+  // The pets' sounds are packaged too.
+  const soundLoads = (src) =>
+    overlay.evaluate(
+      (url) =>
+        new Promise((resolve) => {
+          const audio = new Audio();
+          audio.oncanplaythrough = () => resolve(true);
+          audio.onerror = () => resolve(false);
+          audio.src = url;
+        }),
+      src,
+    );
+  expect(await soundLoads('studium://pets/assets/sounds/meow.wav')).toBe(true);
+  expect(await soundLoads('studium://pets/assets/sounds/no-such-sound.wav')).toBe(false);
   await app.close();
 });
 
