@@ -1,26 +1,38 @@
-// Studium's built files are served on studium://app/ rather than file://, so the page has a fixed
-// origin (its localStorage is kept across runs) and absolute paths like /decor/clock.svg work.
+// Studium's files are served on a private studium:// scheme rather than file://, so pages have a
+// fixed origin (Studium's localStorage is kept across runs) and absolute paths like /decor/clock.svg work.
+//   studium://app/      the built web app (web/dist)
+//   studium://pets/     the pet code and art shared with the extension (extension/)
+//   studium://overlay/  the pet overlay page (desktop/src/overlay)
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
+/** A file inside root for this URL path, or null if it's outside, malformed, or has no extension. */
+function fileInside(pathname, root) {
+  // Treat backslashes as separators too, so an encoded "..\" can't climb out on Windows.
+  const resolved = path.resolve(root, '.' + pathname.replace(/\\/g, '/'));
+  const rel = path.relative(root, resolved);
+  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  if (!path.extname(resolved)) return null;
+  return resolved;
+}
+
 /**
- * The file in webDist to answer a studium:// request with. Anything outside webDist, malformed, or
- * without a file extension (an app route) gets index.html.
+ * The file to answer a studium:// request with, or null (404). roots: { app, pets, overlay }.
+ * For app, anything unusable (an app route, a bad path) gets index.html.
  */
-function fileForRequest(url, webDist) {
-  const index = path.join(webDist, 'index.html');
+function fileForRequest(url, roots) {
+  let host;
   let pathname;
   try {
-    pathname = decodeURIComponent(new URL(url).pathname);
+    const parsed = new URL(url);
+    host = parsed.host;
+    pathname = decodeURIComponent(parsed.pathname);
   } catch {
-    return index;
+    return roots.app ? path.join(roots.app, 'index.html') : null;
   }
-  // Treat backslashes as separators too, so an encoded "..\" can't climb out on Windows.
-  const resolved = path.resolve(webDist, '.' + pathname.replace(/\\/g, '/'));
-  const rel = path.relative(webDist, resolved);
-  if (rel === '' || rel.startsWith('..') || path.isAbsolute(rel)) return index;
-  if (!path.extname(resolved)) return index;
-  return resolved;
+  if (host === 'app') return fileInside(pathname, roots.app) ?? path.join(roots.app, 'index.html');
+  if (host === 'pets' || host === 'overlay') return fileInside(pathname, roots[host]);
+  return null;
 }
 
 /** Must run before the app is ready. */
@@ -31,10 +43,14 @@ function registerStudiumScheme() {
   ]);
 }
 
-/** Runs after the app is ready. */
-function handleStudiumScheme(webDist) {
+/** Runs after the app is ready. roots: { app, pets, overlay }. */
+function handleStudiumScheme(roots) {
   const { protocol, net } = require('electron');
-  protocol.handle('studium', (request) => net.fetch(pathToFileURL(fileForRequest(request.url, webDist)).toString()));
+  protocol.handle('studium', (request) => {
+    const file = fileForRequest(request.url, roots);
+    if (!file) return new Response('Not found', { status: 404 });
+    return net.fetch(pathToFileURL(file).toString());
+  });
 }
 
 module.exports = { fileForRequest, registerStudiumScheme, handleStudiumScheme };

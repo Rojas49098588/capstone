@@ -22,6 +22,13 @@
 //
 // In its Studium habitat a pet uses its furniture (status.furniture, from Studium's habitat decor):
 // it naps in the bed, and now and then uses the piece made for its kind (furnitureChance below).
+//
+// The desktop app (desktop/) runs this same file in two more places, chosen by
+// globalThis.PetSurface: 'overlay' (the transparent window over the whole screen; every pet roams
+// except the one whose habitat shows in the Studium window, given as petHabitat) and 'habitat' (the
+// Studium window: only the habitat box's pet, which it reports with a { type: 'habitat' } message;
+// it saves nothing). There, `chrome` is a stand-in (desktop/src/overlay/chromeShim.js). Missing
+// means 'page': the extension, unchanged.
 
 (() => {
   if (window.top !== window) return;
@@ -35,6 +42,9 @@
   if (typeof chrome === 'undefined' || !chrome.storage || !chrome.runtime?.id) return;
 
   const L = globalThis.PetLogic; // content/logic.js, loaded just before this file
+  // Where this copy runs (PetLogic.PET_SURFACES): a web page (the extension), the desktop app's
+  // overlay, or the desktop app's Studium window, where it only draws the habitat pet.
+  const SURFACE = L.cleanSurface(globalThis.PetSurface);
 
   // Shared physics. Each kind below can override the ones marked "per kind".
   const GRAVITY = 1400;         // px/s², per kind
@@ -798,6 +808,7 @@
   let petScreen = L.cleanScreen(null); // petScreen: { limit, order } for the pets around the page (User Settings)
   let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
   let checkIn = null; // petCheckIn: the question a returning pet asks
+  let liveHabitat = null; // petHabitat (desktop app): the project whose habitat shows in the Studium window
   let seenCelebrations = null; // { [projectId]: at } already seen by this tab (null until the first statuses)
   let pendingCelebrations = [];
 
@@ -805,6 +816,7 @@
     if (!stale()) chrome.runtime.sendMessage(msg).catch(() => {});
   };
   const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
+  const habitatId = (v) => (typeof v === 'string' && v ? v : null);
   const env = { quiet: () => L.isQuiet(away), onMenu: openMenu, prefs: () => prefs };
 
   // ---- Storage ----
@@ -832,9 +844,10 @@
 
   async function load() {
     if (stale()) return;
-    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt']);
+    const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
+    liveHabitat = habitatId(stored.petHabitat);
     away = L.parseAway(stored.petAway, Date.now());
     petScreen = L.cleanScreen(stored.petScreen);
     prefs = L.cleanPrefs(stored.petPrefs);
@@ -853,6 +866,8 @@
   }
 
   function save() {
+    // The Studium window's habitat copy never saves: the overlay owns the desktop positions.
+    if (SURFACE === 'habitat') return;
     // Only the tab you're looking at writes, so background tabs don't fight over positions.
     if (!dirty || stale() || document.visibilityState !== 'visible') return;
     dirty = false;
@@ -883,8 +898,9 @@
     if (changes.petScreen) petScreen = L.cleanScreen(changes.petScreen.newValue);
     if (changes.petPrefs) prefs = L.cleanPrefs(changes.petPrefs.newValue);
     if (changes.petNoteAt && Number.isFinite(changes.petNoteAt.newValue)) lastNoteAt = changes.petNoteAt.newValue;
+    if (changes.petHabitat) liveHabitat = habitatId(changes.petHabitat.newValue);
     if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
-    if (changes.petAway || changes.petCheckIn || changes.petScreen) applyHabitat();
+    if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });
 
   // ---- Sticky notes (Moderate) ----
@@ -954,7 +970,10 @@
     for (const pet of pets) pet.clearTalk();
     if (!checkIn) return;
     const shown = pets.filter((pet) => pet.isShown() && !pet.isAway());
-    const target = shown.find((pet) => pet.id === checkIn.projectId) ?? shown[0];
+    let target = shown.find((pet) => pet.id === checkIn.projectId);
+    // Another pet asks for it, except in the desktop app where it is shown somewhere else: the
+    // habitat copy only asks for its own pet, and the overlay leaves the habitat pet's to the habitat.
+    if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && checkIn.projectId === liveHabitat)) target = shown[0];
     if (!target) return;
     const prompt = L.checkInPrompt(checkIn);
     target.talk(prompt.text, prompt.buttons, (answer) => send({ type: 'checkIn', answer }));
@@ -979,7 +998,8 @@
   }
 
   // ---- On the Studium page: copy its pet statuses for every tab ----
-  const onStudium = L.isStudiumUrl(location.href);
+  // The habitat surface is Studium too: no notes there, and it watches for the habitat box.
+  const onStudium = SURFACE === 'habitat' || (SURFACE === 'page' && L.isStudiumUrl(location.href));
 
   function copyStatusesFromStudium() {
     if (stale()) return;
@@ -1006,7 +1026,8 @@
     chrome.storage.local.set({ petScreen: L.screenFromSettings(raw), petPrefs: L.prefsFromSettings(raw) }).catch(() => {});
   }
 
-  if (onStudium) {
+  // In the desktop app, the Studium window's preload copies these instead.
+  if (SURFACE === 'page' && onStudium) {
     window.addEventListener(L.PET_STATUS_EVENT, copyStatusesFromStudium);
     window.addEventListener(L.SETTINGS_EVENT, copySettingsFromStudium);
     copyStatusesFromStudium();
@@ -1045,11 +1066,18 @@
   // shows its own pet.
   function applyHabitat() {
     const inside = habitatPet();
-    const onScreen = L.petsOnScreen(pets.map((pet) => statusOf(pet.id) ?? { projectId: pet.id }), away, petScreen);
+    const shown = L.shownPets({
+      surface: SURFACE,
+      pets: pets.map((pet) => statusOf(pet.id) ?? { projectId: pet.id }),
+      petAway: away,
+      screen: petScreen,
+      boxId: habitatEl?.dataset.petHabitat ?? null,
+      liveHabitat,
+    });
     for (const pet of pets) {
       const inBox = pet === inside;
       const isAway = Boolean(away[pet.id]);
-      pet.setShown(isAway || habitatEl ? inBox : onScreen.has(pet.id));
+      pet.setShown(shown.has(pet.id));
       if (inBox && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
       if (!inBox && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
       pet.setAway(isAway);
@@ -1070,6 +1098,8 @@
       habitatEl.removeAttribute(L.PET_AWAY_ATTR);
     }
     habitatEl = el;
+    // The desktop app hides this pet from its overlay while the box is showing.
+    if (SURFACE === 'habitat') send({ type: 'habitat', projectId: el?.dataset.petHabitat ?? null });
     applyHabitat();
   }
 

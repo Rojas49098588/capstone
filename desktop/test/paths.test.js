@@ -8,13 +8,17 @@ describe('resolvePaths', () => {
     expect(p.webDist).toBe(path.resolve('/r/web/dist'));
     expect(p.logicJs).toBe(path.resolve('/r/extension/content/logic.js'));
     expect(p.trayIcon).toBe(path.resolve('/r/web/public/pets/egg.png'));
+    expect(p.petsRoot).toBe(path.resolve('/r/extension'));
+    expect(p.overlayDir).toBe(path.resolve('/r/desktop/src/overlay'));
   });
 
   it('resolves packaged paths in resources', () => {
     const p = resolvePaths({ packaged: true, resourcesPath: '/app/res', desktopDir: 'ignored' });
     expect(p.webDist).toBe(path.resolve('/app/res/web'));
-    expect(p.logicJs).toBe(path.resolve('/app/res/extension/logic.js'));
+    expect(p.logicJs).toBe(path.resolve('/app/res/extension/content/logic.js'));
     expect(p.trayIcon).toBe(path.resolve('/app/res/web/pets/egg.png'));
+    expect(p.petsRoot).toBe(path.resolve('/app/res/extension'));
+    expect(p.overlayDir).toBe(path.resolve('/app/res/overlay'));
   });
 });
 

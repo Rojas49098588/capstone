@@ -1,0 +1,18 @@
+<!doctype html>
+<!-- The pet overlay (src/main/overlayWindow.js): the extension's pet code over the whole screen.
+     chromeShim.js stands in for chrome.*; mouse.js decides when the window takes the mouse. -->
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Studium pets</title>
+  <style>html, body { margin: 0; background: transparent; overflow: hidden; }</style>
+</head>
+<body>
+  <script src="chromeShim.js"></script>
+  <script src="studium://pets/content/logic.js"></script>
+  <script src="studium://pets/content/menu.js"></script>
+  <script>globalThis.PetSurface = 'overlay';</script>
+  <script src="studium://pets/content/pet.js"></script>
+  <script src="mouse.js"></script>
+</body>
+</html>

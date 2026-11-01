@@ -711,6 +711,27 @@
     return new Set((limit === null ? ranked : ranked.slice(0, limit)).map((p) => p.projectId));
   }
 
+  // Where pet.js runs: 'page' (the extension, on a web page), 'overlay' (the desktop app's
+  // transparent window) or 'habitat' (the desktop app's Studium window, habitat box only).
+  const PET_SURFACES = ['page', 'overlay', 'habitat'];
+
+  function cleanSurface(v) {
+    return PET_SURFACES.includes(v) ? v : 'page';
+  }
+
+  /**
+   * Which pets show. boxId: the page's habitat box (data-pet-habitat) or null. liveHabitat: the
+   * project whose habitat shows in the desktop app's Studium window, which the overlay leaves out
+   * (so the next pet can take its slot).
+   */
+  function shownPets({ surface, pets, petAway, screen, boxId, liveHabitat }) {
+    const has = (id) => pets.some((p) => p.projectId === id);
+    const where = cleanSurface(surface);
+    if (where === 'overlay') return petsOnScreen(pets.filter((p) => p.projectId !== liveHabitat), petAway, screen);
+    if (boxId) return new Set(has(boxId) ? [boxId] : []);
+    return where === 'habitat' ? new Set() : petsOnScreen(pets, petAway, screen);
+  }
+
   /** While any pet naps, the others go quiet. */
   function isQuiet(petAway) {
     return isNapping(petAway);
@@ -772,6 +793,9 @@
     screenFromSettings,
     cleanScreen,
     petsOnScreen,
+    PET_SURFACES,
+    cleanSurface,
+    shownPets,
     INVOLVEMENTS,
     NICKNAME_MAX,
     cleanPrefs,

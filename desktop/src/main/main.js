@@ -1,7 +1,8 @@
 // Studium desktop app: main process. This file only wires the pieces together; the rules live in
 // the modules next to it, which have unit tests.
+const fs = require('node:fs');
 const path = require('node:path');
-const { app, ipcMain } = require('electron');
+const { app, ipcMain, screen, session } = require('electron');
 const { parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
 const { registerStudiumScheme, handleStudiumScheme } = require('./protocol');
 const { createStudiumWindow, showStudium } = require('./studiumWindow');
@@ -11,6 +12,12 @@ const { CHANNELS, handleStudium } = require('./bridge');
 const { createTray } = require('./tray');
 const { loginItemSettings } = require('./loginItem');
 const { quitTask } = require('./taskbar');
+const { createOverlayWindow, setOverlayMouse } = require('./overlayWindow');
+const { createHabitatTracker } = require('./habitat');
+const { readPetState, cleanPetWrite, changesFor, changeTargets, handlePetMessage } = require('./petChannel');
+const { habitatFiles, habitatScript } = require('./petScripts');
+
+const OVERLAY_URL = 'studium://overlay/index.html';
 
 const args = parseArgs(process.argv);
 if (args.userData) app.setPath('userData', args.userData);
@@ -31,6 +38,7 @@ if (!app.requestSingleInstanceLock() || args.quit) {
   app.quit();
 } else {
   let win = null;
+  let overlay = null;
   let runner = null;
   let tray = null; // kept here so it isn't garbage-collected (which would remove the icon)
   app.isQuitting = false;
@@ -47,7 +55,7 @@ if (!app.requestSingleInstanceLock() || args.quit) {
 
   app.whenReady().then(() => {
     const paths = resolvePaths({ packaged: app.isPackaged, resourcesPath: process.resourcesPath, desktopDir: path.join(__dirname, '..', '..') });
-    handleStudiumScheme(paths.webDist);
+    handleStudiumScheme({ app: paths.webDist, pets: paths.petsRoot, overlay: paths.overlayDir });
     // The pets' rules, shared with the extension. A plain script that sets globalThis.PetLogic.
     require(paths.logicJs);
     const L = globalThis.PetLogic;
@@ -76,12 +84,64 @@ if (!app.requestSingleInstanceLock() || args.quit) {
       }
     });
 
+    // ---- The pets' windows (the overlay, and the habitat pet in the Studium window) ----
+    // window.petBridge in every window; what each may do is decided below, by sender.
+    session.defaultSession.registerPreloadScript({ type: 'frame', id: 'studium-pet-bridge', filePath: path.join(__dirname, '..', 'preload', 'petBridge.js') });
+    const broadcast = (changes) => {
+      for (const w of changeTargets([overlay, win])) w.webContents.send('pets:changed', changes);
+    };
+    const habitat = createHabitatTracker((id) => broadcast({ petHabitat: { newValue: id } }));
+    store.onChange((keys, state) => {
+      const changes = changesFor(keys, state);
+      if (Object.keys(changes).length > 0) broadcast(changes);
+    });
+    const from = (event) => {
+      const url = event.senderFrame?.url;
+      if (overlay && event.sender === overlay.webContents && typeof url === 'string' && url.startsWith('studium://overlay/')) return 'overlay';
+      if (win && event.sender === win.webContents && isStudiumPage(url, args.dev)) return 'studium';
+      return null;
+    };
+    let overlayMouse = false;
+    ipcMain.handle('pets:get', (event, keys) => (from(event) ? readPetState(store.get(), keys, habitat.get()) : {}));
+    ipcMain.on('pets:set', (event, patch) => {
+      if (from(event) === 'overlay') store.set(cleanPetWrite(patch, L));
+    });
+    ipcMain.on('pets:message', (event, msg) => {
+      const sender = from(event);
+      if (sender) handlePetMessage(msg, sender, { L, runner, open: (hash) => showStudium(win, hash), reportHabitat: habitat.report });
+    });
+    ipcMain.on('overlay:mouse', (event, wants) => {
+      if (from(event) !== 'overlay') return;
+      overlayMouse = wants === true;
+      setOverlayMouse(overlay, overlayMouse);
+    });
+
     win = createStudiumWindow({
       url: startUrl(args.dev),
       preload: path.join(__dirname, '..', 'preload', 'studium.js'),
       show: !args.hidden,
       isAllowed: (url) => isStudiumPage(url, args.dev),
     });
+    // Habitats: the pet code runs in the Studium window too, drawing only a project page's pet.
+    // Its box counts only while the window shows (src/main/habitat.js).
+    win.webContents.on('did-finish-load', () => {
+      if (!isStudiumPage(win.webContents.getURL(), args.dev)) return;
+      habitat.reset();
+      const sources = habitatFiles(paths).map((file) => fs.readFileSync(file, 'utf8'));
+      win.webContents.executeJavaScript(habitatScript(sources)).catch((e) => console.error('Could not start the habitat pets', e));
+    });
+    win.webContents.on('did-start-navigation', (details) => {
+      if (details.isMainFrame && !details.isSameDocument) habitat.reset();
+    });
+    win.webContents.on('render-process-gone', () => habitat.reset());
+    const windowState = () => {
+      if (!win.isDestroyed()) habitat.setWindow({ visible: win.isVisible(), minimized: win.isMinimized() });
+    };
+    for (const event of ['show', 'hide', 'minimize', 'restore']) win.on(event, windowState);
+    windowState();
+
+    overlay = createOverlayWindow({ url: OVERLAY_URL, screen });
+    Object.assign(globalThis.studiumTest, { win, overlay, habitat, overlayMouse: () => overlayMouse });
     tray = createTray({
       L,
       store,

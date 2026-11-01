@@ -11,8 +11,13 @@ files:
 extraResources:
   - from: ../web/dist
     to: web
-  - from: ../extension/content/logic.js
-    to: extension/logic.js
+  - from: ../extension/content
+    to: extension/content
+    filter: ['*.js']
+  - from: ../extension/assets/pets
+    to: extension/assets/pets
+  - from: src/overlay
+    to: overlay
 win:
   target: nsis
 nsis:
