@@ -162,6 +162,11 @@ export function useStudium(options: StudiumOptions = {}) {
           const r = A.createRequirement(d, input, at);
           return { data: r.data, result: { requirement: r.requirement, hatched: r.hatched } };
         }),
+      duplicateRequirement: (id: string) =>
+        apply((d, at) => {
+          const r = A.duplicateRequirement(d, id, at);
+          return { data: r.data, result: { requirement: r.requirement, hatched: r.hatched } };
+        }),
       updateRequirement: (id: string, changes: Parameters<typeof A.updateRequirement>[2]) =>
         change((d, at) => A.updateRequirement(d, id, changes, at)),
       deleteRequirement: (id: string, mode: "deleteTasks" | "unlinkTasks") =>

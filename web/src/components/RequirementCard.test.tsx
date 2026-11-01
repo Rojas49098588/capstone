@@ -45,6 +45,17 @@ describe("RequirementCard", () => {
     screen.getByRole("button", { name: "Waiting on 2" });
   });
 
+  it("duplicates from the card", async () => {
+    const onHatch = vi.fn();
+    const { storage } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} onHatch={onHatch} />, { data: prototypes() });
+    await userEvent.click(screen.getByRole("button", { name: "Duplicate Prototype 10" }));
+    // Prototype 11 already exists, so the copy is Prototype 12.
+    const copy = savedData(storage).requirements.find((r) => r.title === "Prototype 12");
+    expect(copy).toMatchObject({ blockedBy: ["P10"] });
+    expect(savedData(storage).tasks.filter((t) => t.requirementId === copy!.id).map((t) => t.title)).toEqual(["Git commit", "APK"]);
+    expect(onHatch).not.toHaveBeenCalled();
+  });
+
   it("doesn't offer blockers that would loop", async () => {
     renderWithStudium(<RequirementCard requirementId="P9" onRequestComplete={vi.fn()} />, { data: prototypes() });
     await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 9" }));

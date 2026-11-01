@@ -11,6 +11,8 @@ import {
   createTask,
   deleteRequirement,
   deleteTask,
+  duplicateRequirement,
+  nextRequirementTitle,
   giveMedicine,
   purchase,
   recordFocusSessions,
@@ -408,5 +410,72 @@ describe("requirement blockers", () => {
       expect(reqOf(d, "P10")?.blockedBy).toEqual([]);
       expect(completeTask(d, "c10", null, NOW).payout).not.toBeNull();
     }
+  });
+});
+
+describe("duplicating a requirement", () => {
+  it("names the copy with the next number", () => {
+    expect(nextRequirementTitle("Prototype 9")).toBe("Prototype 10");
+    expect(nextRequirementTitle("Week 09")).toBe("Week 10");
+    expect(nextRequirementTitle("Sprint 1.5")).toBe("Sprint 1.6");
+    expect(nextRequirementTitle("Final report")).toBe("Final report (copy)");
+    // Skips names already used in the project.
+    expect(nextRequirementTitle("Prototype 9", ["Prototype 10", "prototype 11"])).toBe("Prototype 12");
+    expect(nextRequirementTitle("Final report", ["Final report (copy)"])).toBe("Final report (copy 2)");
+  });
+
+  function series() {
+    return makeData({
+      requirements: [
+        makeRequirement({ id: "P9", title: "Prototype 9", weight: 4, startDate: "2026-10-26", dueDate: "2026-11-01", blockedBy: ["P8"] }),
+        makeRequirement({ id: "P8", title: "Prototype 8" }),
+        makeRequirement({ id: "Z", title: "Elsewhere" }),
+      ],
+      tasks: [
+        makeTask({ id: "x", requirementId: "Z", title: "Outside" }),
+        makeTask({ id: "c9a", requirementId: "P9", title: "Git commit", estimateMin: 30, done: true, actualMin: 25, priority: true }),
+        makeTask({ id: "c9b", requirementId: "P9", title: "EAS build", estimateMin: 90, blockedBy: ["c9a", "x"] }),
+      ],
+    });
+  }
+
+  it("copies a requirement with fresh tasks, right after the original, blocked by it", () => {
+    const { data, requirement } = duplicateRequirement(series(), "P9", NOW);
+    expect(requirement).toMatchObject({ title: "Prototype 10", weight: 4, blockedBy: ["P9"], startDate: "2026-11-02", dueDate: "2026-11-08" });
+    expect(requirement).not.toHaveProperty("blockedByAll");
+    expect(data.requirements.map((r) => r.id)).toEqual(["P9", requirement!.id, "P8", "Z"]);
+    const copies = data.tasks.filter((t) => t.requirementId === requirement!.id);
+    expect(copies.map((t) => [t.title, t.estimateMin, t.priority, t.done, t.actualMin])).toEqual([
+      ["Git commit", 30, true, false, null],
+      ["EAS build", 90, false, false, null],
+    ]);
+    expect(copies.every((t) => !["c9a", "c9b"].includes(t.id))).toBe(true);
+    expect(copies[1].blockedBy).toEqual([copies[0].id, "x"]);
+    const added = data.events.slice(-3);
+    expect(added.map((e) => e.type)).toEqual(["requirement_created", "task_created", "task_created"]);
+    expect(isValidData(data)).toBe(true);
+  });
+
+  it("shifts by 7 days when a date is missing, and leaves unset dates unset", () => {
+    const d = series();
+    d.requirements[0] = { ...d.requirements[0], startDate: null, dueDate: "2026-11-01" };
+    expect(duplicateRequirement(d, "P9", NOW).requirement).toMatchObject({ startDate: null, dueDate: "2026-11-08" });
+    d.requirements[0] = { ...d.requirements[0], startDate: null, dueDate: null };
+    expect(duplicateRequirement(d, "P9", NOW).requirement).toMatchObject({ startDate: null, dueDate: null });
+  });
+
+  it("does nothing for an unknown requirement", () => {
+    const d = series();
+    expect(duplicateRequirement(d, "nope", NOW)).toEqual({ data: d, requirement: null, hatched: false });
+  });
+
+  it("counts toward hatching", () => {
+    let data = createProject(makeData({ projects: [] }), { name: "App", shortName: "app", color: "#2d3a8c", deadline: dayKey(30), description: "", petKind: "cat" }, NOW).data;
+    const pid = data.projects[0].id;
+    const first = createRequirement(data, { projectId: pid, title: "Prototype 1", weight: 5 }, NOW);
+    data = createRequirement(first.data, { projectId: pid, title: "Prototype 2", weight: 5 }, NOW).data;
+    const r = duplicateRequirement(data, first.requirement.id, NOW);
+    expect(r.hatched).toBe(true);
+    expect(petStage(r.data.projects[0])).not.toBe("egg");
   });
 });

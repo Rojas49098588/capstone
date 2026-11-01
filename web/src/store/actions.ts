@@ -4,7 +4,7 @@ import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementCh
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
 import { projectHealth } from "../planner/mood";
-import { isDateKey, localDateKey } from "../planner/time";
+import { DAY_MS, addDays, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
 import type {
   DecorSlot,
@@ -227,6 +227,78 @@ export function deleteRequirement(data: StudiumData, id: string, mode: "deleteTa
     requirements,
     tasks: data.tasks.map((t) => (t.requirementId === id ? { ...t, requirementId: null } : t)),
   };
+}
+
+/**
+ * The name for the next requirement in a series: the trailing number plus one, keeping zero padding
+ * ("Prototype 9" → "Prototype 10", "Week 09" → "Week 10"); otherwise "<title> (copy)". Skips names in
+ * `taken` (compared without case).
+ */
+export function nextRequirementTitle(title: string, taken: string[] = []): string {
+  const used = new Set(taken.map((t) => t.trim().toLowerCase()));
+  const free = (t: string) => !used.has(t.toLowerCase());
+  const m = /^(.*?)(\d+)$/.exec(title.trim());
+  if (m) {
+    const [, prefix, digits] = m;
+    for (let n = Number(digits) + 1; ; n++) {
+      const name = `${prefix}${String(n).padStart(digits.length, "0")}`;
+      if (free(name)) return name;
+    }
+  }
+  if (free(`${title} (copy)`)) return `${title} (copy)`;
+  for (let n = 2; ; n++) if (free(`${title} (copy ${n})`)) return `${title} (copy ${n})`;
+}
+
+/**
+ * Copies a requirement as the next in its series: right after the original, waiting on it, dates
+ * moved forward by its length (7 days when a date is unset), with every task copied fresh (not done,
+ * no time). Blockers between its own tasks point at the copies; others stay as they were.
+ */
+export function duplicateRequirement(
+  data: StudiumData,
+  id: string,
+  now: Date,
+): { data: StudiumData; requirement: Requirement | null; hatched: boolean } {
+  const original = data.requirements.find((r) => r.id === id);
+  if (!original) return { data, requirement: null, hatched: false };
+  const { startDate, dueDate } = original;
+  const span = startDate && dueDate ? Math.round((startOfLocalDay(dueDate).getTime() - startOfLocalDay(startDate).getTime()) / DAY_MS) + 1 : 7;
+  const shift = (key: string | null) => (key ? localDateKey(addDays(startOfLocalDay(key), span)) : null);
+  const { blockedByAll: _drop, ...rest } = original;
+  const requirement: Requirement = {
+    ...rest,
+    id: newId(),
+    title: nextRequirementTitle(original.title, data.requirements.filter((r) => r.projectId === original.projectId).map((r) => r.title)),
+    startDate: shift(startDate),
+    dueDate: shift(dueDate),
+    blockedBy: [id],
+    createdAt: stamp(now),
+  };
+  const sources = data.tasks.filter((t) => t.requirementId === id);
+  const newIds = new Map(sources.map((t) => [t.id, newId()]));
+  const tasks: Task[] = sources.map((t) => ({
+    ...t,
+    id: newIds.get(t.id) as string,
+    requirementId: requirement.id,
+    blockedBy: t.blockedBy.map((b) => newIds.get(b) ?? b),
+    done: false,
+    actualMin: null,
+    createdAt: stamp(now),
+  }));
+  const at = stamp(now);
+  const index = data.requirements.indexOf(original);
+  const next: StudiumData = {
+    ...data,
+    requirements: [...data.requirements.slice(0, index + 1), requirement, ...data.requirements.slice(index + 1)],
+    tasks: [...data.tasks, ...tasks],
+    events: [
+      ...data.events,
+      { type: "requirement_created", at, requirementId: requirement.id },
+      ...tasks.map((t): StudiumEvent => ({ type: "task_created", at, taskId: t.id })),
+    ],
+  };
+  const { data: hatchedData, hatched } = hatchIfReady(next, original.projectId, now);
+  return { data: hatchedData, requirement, hatched };
 }
 
 // ---- Tasks ----

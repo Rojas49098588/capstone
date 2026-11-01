@@ -56,7 +56,7 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
       )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {requirements.map((r) => (
-          <RequirementCard key={r.id} requirementId={r.id} onRequestComplete={onRequestComplete} />
+          <RequirementCard key={r.id} requirementId={r.id} onRequestComplete={onRequestComplete} onHatch={onHatch} />
         ))}
       </div>
       {unlinked.length > 0 && (
