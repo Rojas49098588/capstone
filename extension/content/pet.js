@@ -392,7 +392,9 @@
     const spotFor = (entry) => L.furnitureSpot(entry, world, w);
 
     // Speed on the way to furniture: the pigeon flies to its perch, everyone else walks.
-    const gotoSpeed = (entry) => (entry.use === 'perch' ? kind.riseSpeed ?? 150 : kind.walkSpeed ?? 120);
+    // Frogs hop rather than walk, so they have no walkSpeed: they move along the floor at this speed.
+    const floorSpeed = kind.walkSpeed ?? 120;
+    const gotoSpeed = (entry) => (entry.use === 'perch' ? kind.riseSpeed ?? 150 : floorSpeed);
 
     function goTo(entry, activity, now) {
       state.plan = { activity, entry };
@@ -594,13 +596,17 @@
           if (now > state.useUntil) settle(now);
           break;
         case 'chase': {
+          if (!chase) {
+            goIdle(now); // its chase was stopped while it wasn't stepping (hidden, unshown)
+            break;
+          }
           if (!chase.target) break;
           // Run along the floor toward the cursor at twice walking speed (pigeons stay on the ground).
           const goal = clamp(chase.target.x - w / 2, 0, maxX());
           const dist = goal - state.x;
           if (Math.abs(dist) > 1) {
             state.facing = Math.sign(dist);
-            state.x += Math.sign(dist) * Math.min(Math.abs(dist), kind.walkSpeed * 2 * dt);
+            state.x += Math.sign(dist) * Math.min(Math.abs(dist), floorSpeed * 2 * dt);
             dirty = true;
           }
           // The cursor stopped close by: pounce on it.
@@ -615,7 +621,7 @@
         }
         case 'walk': {
           const dist = state.targetX - state.x;
-          const move = kind.walkSpeed * dt;
+          const move = floorSpeed * dt;
           if (Math.abs(dist) <= move) {
             state.x = state.targetX;
             goIdle(now);
@@ -797,6 +803,7 @@
         petEl.remove();
       },
       setShown(value) {
+        if (!value) stopChase(); // a pet that isn't shown doesn't step: end its chase now
         shown = value;
         petEl.style.display = value ? '' : 'none';
       },
@@ -825,6 +832,7 @@
       setAway(value) {
         if (value === (state.mode === 'away')) return;
         if (value) {
+          stopChase(); // an away pet doesn't step: end its chase (and cursor polling) now
           wake();
           clearPlan();
           // Asleep in its bed if the habitat has one.
@@ -844,6 +852,7 @@
         render();
       },
       isAway: () => state.mode === 'away',
+      stopChase,
       replanChase() {
         if (!chase) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
       },
@@ -981,6 +990,9 @@
     chases: SURFACE === 'overlay',
     mayChase: (pet) =>
       SURFACE === 'overlay' && pet.isShown() && (chaser === null || chaser === pet) &&
+      // Not while it asks something (nap question, check-in) or a pet menu is open: the buttons
+      // would run away from the click.
+      !pet.isTalking() && globalThis.PetMenu?.isOpen() !== true &&
       L.mischiefAllowed({ prefs, petAway: away, checkIn, hidden }),
     setChaser: (pet) => {
       chaser = pet;
@@ -1057,6 +1069,7 @@
 
   function setHidden(value) {
     hidden = Boolean(value);
+    if (hidden) for (const pet of pets) pet.stopChase(); // hidden pets don't step, so end their chase here
     host.style.display = hidden ? 'none' : '';
     markAttached();
   }
@@ -1083,7 +1096,10 @@
       timing = L.mischiefTiming(changes.petTimingOverride.newValue);
       for (const pet of pets) pet.replanChase(); // the new gaps apply now, not after the next chase
     }
-    if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
+    // A note goes when its pet naps or sleeps, or Moderate is turned off; on the desktop, any nap
+    // (focus time: nothing during a nap).
+    const napping = SURFACE === 'overlay' && L.isQuiet(away);
+    if (note && (away[note.projectId] || napping || prefs.involvement !== 'moderate')) closeNote();
     if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });
 

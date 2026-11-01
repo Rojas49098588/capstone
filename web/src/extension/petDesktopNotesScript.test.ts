@@ -74,4 +74,9 @@ it("a desktop note stays when nothing is 'left', goes after 15 minutes, and the 
   await vi.advanceTimersByTimeAsync(8000);
   expect(carried()?.hidden).toBe(true);
   expect(note()).not.toBeNull();
+
+  // Another pet's nap is focus time: the note goes too (nothing during a nap).
+  const until = new Date(Date.now() + 15 * 60000).toISOString();
+  await set({ petAway: { other: { kind: "nap", id: "n", startedAt: new Date().toISOString(), until, taskId: null, taskTitle: null } } });
+  expect(note()).toBeNull();
 });
