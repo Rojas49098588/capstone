@@ -3,7 +3,8 @@ import type { NeglectedRequirement } from "../planner/mood";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
-import type { Difficulty, Mood, Project, ProjectType, Task } from "../planner/types";
+import type { Difficulty, Mood, Project, ProjectType, Requirement, Task } from "../planner/types";
+import type { Blocker } from "../planner/blocking";
 import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
 
@@ -192,6 +193,16 @@ export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   other: "Something else",
 };
 
+/** One line under the type choice: what picking it changes (only the words). */
+export const PROJECT_TYPE_HINTS: Record<ProjectType, string> = {
+  school: "Requirements and tasks, like an assignment sheet.",
+  writing: "Requirements are chapters and tasks are scenes.",
+  art: "Requirements are pieces and tasks are steps.",
+  code: "Requirements are features; tasks stay tasks.",
+  music: "Requirements are tracks; tasks stay tasks.",
+  other: "Requirements are milestones; tasks stay tasks.",
+};
+
 export const DIFFICULTY_LABELS: Record<Difficulty, string> = { gentle: "Gentle", steady: "Steady", strict: "Strict" };
 export const DIFFICULTY_HINTS: Record<Difficulty, string> = {
   gentle: "Forgiving. Worried only when you're well behind, and slow to get sick.",
@@ -205,6 +216,13 @@ export const INVOLVEMENT_HINTS: Record<PetInvolvement, string> = {
   mild: "Walks around, celebrates finished tasks and checks in after naps.",
   moderate: "Mild, plus it leaves sticky notes about your work. More mischief coming in a future update.",
 };
+
+/** The desktop app's Start with computer setting. */
+export const START_WITH_COMPUTER_LABEL = "Start Studium when your computer starts";
+export const START_WITH_COMPUTER_HINT = "Your pets are there as soon as you log in.";
+export const START_OPEN_LABEL = "Open the window";
+export const START_QUIETLY_LABEL = "Start quietly in the tray";
+export const START_QUIETLY_HINT = "Studium waits in the tray by the clock (Windows may tuck it under the ^) until you open it.";
 
 /** The Overview's heading: "Abby's Projects", or "Your Projects" with no nickname. */
 export function projectsHeading(nickname: string): string {
@@ -240,3 +258,25 @@ export const SETUP_SAMPLE_PROJECTS = [
   { name: "novel", color: "#c9501a", percent: 49 },
   { name: "history", color: "#3a7c4f", percent: 24 },
 ] as const;
+
+// ---- Blocking ----
+
+/** How a blocker is named: a requirement by its title; a task by its title, plus its requirement when another task in the project has the same title. */
+export function blockerName(b: Blocker, projectTasks: Task[], requirements: Requirement[]): string {
+  if (b.kind === "requirement") return b.requirement.title;
+  const { task } = b;
+  const repeated = projectTasks.some((t) => t.id !== task.id && t.title.trim().toLowerCase() === task.title.trim().toLowerCase());
+  if (!repeated) return task.title;
+  const req = requirements.find((r) => r.id === task.requirementId);
+  return `${task.title} (${req ? req.title : "Unlinked"})`;
+}
+
+/** "Waiting on Prototype 9" for one, "Waiting on 3" for more. */
+export function waitingLabel(names: string[]): string {
+  return names.length === 1 ? `Waiting on ${names[0]}` : `Waiting on ${names.length}`;
+}
+
+/** The "Blocked by" choice that waits on every other requirement in the project. */
+export function blockedByAllLabel(words: ProjectWords = SCHOOL_WORDS): string {
+  return `All other ${words.requirements}`;
+}

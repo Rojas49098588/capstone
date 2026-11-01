@@ -31,7 +31,13 @@ describe("history", () => {
       { type: "purchase", at: daysAgo(1), productId: "medicine", price: 80 },
       completed("t2", daysAgo(0), { tokens: 12 }),
     ];
-    expect(tokenBalance(events)).toBe(650 + 30 - 80 + 12);
+    expect(tokenBalance({ events })).toBe(650 + 30 - 80 + 12);
+  });
+
+  it("starts new data at 100 and older data at 650", () => {
+    expect(tokenBalance({ events: [], startingTokens: 100 })).toBe(100);
+    expect(tokenBalance({ events: [] })).toBe(650);
+    expect(tokenBalance({ events: [{ type: "purchase", at: NOW.toISOString(), productId: "berry-bites", price: 35 }], startingTokens: 100 })).toBe(65);
   });
 
   it("counts inventory and uses up medicine when given", () => {

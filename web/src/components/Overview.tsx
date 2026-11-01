@@ -1,10 +1,11 @@
-import { isBlocked } from "../planner/blocking";
+import { isBlocked, waitingOn } from "../planner/blocking";
 import { petStage } from "../planner/lifecycle";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
 import type { Task } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeAll } from "../ui/derive";
-import { EGG_LABEL, MOOD_COLORS, NO_PROJECTS_TEXT, NO_PROJECTS_TITLE, projectsHeading, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import { blockerName, EGG_LABEL, MOOD_COLORS, NO_PROJECTS_TEXT, NO_PROJECTS_TITLE, projectsHeading, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import WaitingOn from "./WaitingOn";
 import { BUTTON_PRIMARY, CARD, LABEL, SERIF } from "../ui/styles";
 
 type Props = { onSelect: (projectId: string) => void; onRequestComplete: (taskId: string) => void; onNewProject?: () => void };
@@ -177,16 +178,29 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
                         role="checkbox"
                         aria-checked={t.done}
                         aria-label={t.done ? `Reopen ${t.title}` : `Complete ${t.title}`}
-                        disabled={!t.done && isBlocked(t, s.data.tasks)}
+                        disabled={!t.done && isBlocked(t, s.data)}
                         onClick={() => (t.done ? s.reopenTask(t.id) : onRequestComplete(t.id))}
                         className="mt-0.5 w-5 h-5 flex-shrink-0 border border-white/40 hover:border-white flex items-center justify-center text-xs disabled:opacity-40"
                       >
                         {t.done ? "✓" : ""}
                       </button>
-                      <button type="button" onClick={() => p && onSelect(p.id)} className="flex-1 text-left min-w-0">
-                        <span className="block text-xs font-mono uppercase tracking-widest text-white/50">{p?.shortName}</span>
-                        <span className={`block text-sm break-words ${t.done ? "line-through text-white/50" : ""}`}>{t.title}</span>
-                      </button>
+                      <div className="flex-1 min-w-0">
+                        <button type="button" onClick={() => p && onSelect(p.id)} className="block w-full text-left">
+                          <span className="block text-xs font-mono uppercase tracking-widest text-white/50">{p?.shortName}</span>
+                          <span className={`block text-sm break-words ${t.done ? "line-through text-white/50" : ""}`}>{t.title}</span>
+                        </button>
+                        {!t.done && (
+                          <WaitingOn
+                            names={waitingOn(t, s.data).map((b) =>
+                              blockerName(
+                                b,
+                                s.data.tasks.filter((x) => x.projectId === t.projectId),
+                                s.data.requirements.filter((r) => r.projectId === t.projectId),
+                              ),
+                            )}
+                          />
+                        )}
+                      </div>
                       <button
                         type="button"
                         aria-label={`Remove ${t.title} from today`}

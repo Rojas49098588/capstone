@@ -37,6 +37,30 @@ describe("ProjectModal", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("saves a custom color", async () => {
+    const { storage, unmount } = renderWithStudium(<ProjectModal onClose={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText("Project name"), "Pink");
+    fireEvent.change(screen.getByLabelText("Deadline"), { target: { value: dayKey(40) } });
+    await userEvent.click(screen.getAllByRole("radio", { name: /^Egg / })[0]);
+    fireEvent.change(screen.getByLabelText("Pick a custom color"), { target: { value: "#ff99cc" } });
+    expect(screen.getByRole("radio", { name: "Custom color" }).getAttribute("aria-checked")).toBe("true");
+    await userEvent.click(screen.getByRole("button", { name: "Create project" }));
+    const created = savedData(storage).projects.find((p) => p.name === "Pink")!;
+    expect(created.color).toBe("#ff99cc");
+    unmount();
+    renderWithStudium(<ProjectModal project={created} onClose={vi.fn()} />, { storage });
+    expect(screen.getByRole("radio", { name: "Custom color" }).getAttribute("aria-checked")).toBe("true");
+    expect((screen.getByLabelText("Pick a custom color") as HTMLInputElement).value).toBe("#ff99cc");
+  });
+
+  it("explains the picked project type", async () => {
+    renderWithStudium(<ProjectModal onClose={vi.fn()} onCreated={vi.fn()} />);
+    await userEvent.click(screen.getByRole("radio", { name: "Writing" }));
+    screen.getByText("Requirements are chapters and tasks are scenes.");
+    await userEvent.click(screen.getByRole("radio", { name: "Code" }));
+    screen.getByText("Requirements are features; tasks stay tasks.");
+  });
+
   it("the short name is asked for as the pet's nickname", async () => {
     const { storage } = renderWithStudium(<ProjectModal onClose={vi.fn()} onCreated={vi.fn()} />);
     await userEvent.type(screen.getByLabelText("Project name"), "Senior Capstone");

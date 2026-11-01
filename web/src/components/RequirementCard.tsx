@@ -1,18 +1,24 @@
 import { useState } from "react";
+import { canBlockByAll, openRequirementBlockers, requirementBlockerOptions } from "../planner/blocking";
 import { estimateMultipliers, multiplierFor } from "../planner/learning";
 import { neglectDays, requirementIdleDays } from "../planner/mood";
 import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "../planner/progress";
 import { useStudiumContext } from "../store/useStudium";
-import { formatDate, percent, wordsFor } from "../ui/format";
+import { formatDate, hatchingMessage, percent, wordsFor } from "../ui/format";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD } from "../ui/styles";
 import RequirementForm from "./RequirementForm";
 import TaskForm from "./TaskForm";
 import TaskRow from "./TaskRow";
+import WaitingOn from "./WaitingOn";
 
-type Props = { requirementId: string; onRequestComplete: (taskId: string) => void };
+type Props = {
+  requirementId: string;
+  onRequestComplete: (taskId: string) => void;
+  onHatch?: (message: string) => void; // a duplicate just hatched the project's egg
+};
 type Mode = "view" | "edit" | "confirmDelete" | "addTask";
 
-export default function RequirementCard({ requirementId, onRequestComplete }: Props) {
+export default function RequirementCard({ requirementId, onRequestComplete, onHatch }: Props) {
   const s = useStudiumContext();
   const [mode, setMode] = useState<Mode>("view");
   const requirement = s.data.requirements.find((r) => r.id === requirementId);
@@ -40,6 +46,8 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
           initial={requirement}
           submitLabel={`Save ${words.requirement}`}
           words={words}
+          blockerChoices={requirementBlockerOptions(requirement.id, s.data)}
+          canWaitOnAll={canBlockByAll(requirement.id, s.data)}
           onSubmit={(values) => {
             s.updateRequirement(requirement.id, values);
             setMode("view");
@@ -53,10 +61,23 @@ export default function RequirementCard({ requirementId, onRequestComplete }: Pr
             <p className="text-xs font-mono text-[var(--color-muted-foreground)] mt-0.5">
               Weight {requirement.weight} · {dates}
             </p>
+            <WaitingOn names={openRequirementBlockers(requirement, s.data).map((r) => r.title)} />
           </div>
           <div className="flex gap-1 flex-shrink-0">
             <button type="button" aria-label={`Edit ${requirement.title}`} onClick={() => setMode("edit")} className={BUTTON_SMALL}>
               Edit
+            </button>
+            <button
+              type="button"
+              aria-label={`Duplicate ${requirement.title}`}
+              title={`Copy as the next ${words.requirement}, with its ${words.tasks} unchecked`}
+              onClick={() => {
+                const { hatched } = s.duplicateRequirement(requirement.id);
+                if (hatched) onHatch?.(hatchingMessage(project.shortName));
+              }}
+              className={BUTTON_SMALL}
+            >
+              Duplicate
             </button>
             <button type="button" aria-label={`Delete ${requirement.title}`} onClick={() => setMode("confirmDelete")} className={BUTTON_SMALL}>
               Delete

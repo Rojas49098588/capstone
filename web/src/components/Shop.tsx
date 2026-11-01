@@ -56,7 +56,7 @@ type Props = { openTab?: ShopTab }; // the tutorial opens a tab to show it
 
 export default function Shop({ openTab }: Props) {
   const s = useStudiumContext();
-  const balance = tokenBalance(s.data.events);
+  const balance = tokenBalance(s.data);
   const owned = inventory(s.data.events);
   const ownedCount = Object.values(owned).reduce((n, c) => n + c, 0);
   const [tab, setTab] = useState<ShopTab>(openTab ?? "supplies");

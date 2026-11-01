@@ -8,6 +8,7 @@ import {
   DIFFICULTY_LABELS,
   INVOLVEMENT_HINTS,
   INVOLVEMENT_LABELS,
+  PROJECT_TYPE_HINTS,
   PROJECT_TYPE_LABELS,
   SETUP_COPY,
   SETUP_SAMPLE_PROJECTS,
@@ -55,6 +56,7 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
                 <Choice key={t} name="setup-type" checked={projectType === t} onPick={() => setProjectType(t)} label={PROJECT_TYPE_LABELS[t]} />
               ))}
             </div>
+            <p className="text-sm">{PROJECT_TYPE_HINTS[projectType]}</p>
             <p className={`text-xs ${MUTED}`}>{SETUP_COPY.makeHint}</p>
           </Step>
         )}

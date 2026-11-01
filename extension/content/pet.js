@@ -145,7 +145,7 @@
     }
     .bubble.show { opacity: 1; }
     .pet.sleeping .bubble { font-style: italic; color: #6b6f7a; }
-    .name { padding: 1px 6px; border-radius: 6px; background: var(--c); color: #fff; }
+    .name { padding: 1px 6px; border-radius: 6px; background: var(--c); color: var(--ct, #fff); }
 
     /* A sticky note a Moderate pet leaves on the page (lower third, never over the middle half). */
     .note {
@@ -242,7 +242,7 @@
 
     const petEl = document.createElement('div');
     petEl.className = kind.tint ? 'pet sick' : 'pet';
-    petEl.style.cssText = `width:${w}px;height:${h}px;--c:${status.color}`;
+    petEl.style.cssText = `width:${w}px;height:${h}px;--c:${status.color};--ct:${L.textOn(status.color)}`;
     petEl.innerHTML = `
       <div class="ring"></div>
       <div class="bubble" style="bottom:${h + 4}px"></div>

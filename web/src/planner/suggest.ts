@@ -19,7 +19,7 @@ export function suggestNext(data: StudiumData, now: Date, count: number = SUGGES
   return data.tasks
     .filter(
       (t) =>
-        !t.done && t.requirementId !== null && !inToday.has(t.id) && projects.has(t.projectId) && !isBlocked(t, data.tasks),
+        !t.done && t.requirementId !== null && !inToday.has(t.id) && projects.has(t.projectId) && !isBlocked(t, data),
     )
     .map((t) => ({
       task: t,

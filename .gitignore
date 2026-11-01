@@ -12,3 +12,9 @@ dist/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Desktop app
+desktop/release/
+test-results/
+playwright-report/
+.superpowers/

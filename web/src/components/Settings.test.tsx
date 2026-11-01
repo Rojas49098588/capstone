@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { SETTINGS_KEY } from "../store/settings";
 import { renderWithStudium } from "../test/render";
 import Settings from "./Settings";
@@ -44,6 +44,8 @@ describe("Settings", () => {
       setupDone: true,
       tutorialDone: true,
       shopTutorialDone: true,
+      startWithComputer: true,
+      startQuietly: false,
     });
   });
 
@@ -52,5 +54,42 @@ describe("Settings", () => {
     await userEvent.type(screen.getByRole("textbox", { name: "Nickname" }), "Abby");
     await userEvent.click(screen.getByRole("radio", { name: "Art & design" }));
     expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ nickname: "Abby", projectType: "art" });
+  });
+
+  describe("in the desktop app", () => {
+    afterEach(() => {
+      delete window.studiumDesktop;
+    });
+
+    it("can stop Studium from starting with the computer", async () => {
+      window.studiumDesktop = { desktop: true };
+      const { storage } = renderWithStudium(<Settings />);
+      const box = screen.getByRole("checkbox", { name: "Start Studium when your computer starts" }) as HTMLInputElement;
+      expect(box.checked).toBe(true);
+      await userEvent.click(box);
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ startWithComputer: false });
+    });
+
+    it("chooses whether Studium opens its window or starts quietly in the tray", async () => {
+      window.studiumDesktop = { desktop: true };
+      const { storage } = renderWithStudium(<Settings />);
+      expect((screen.getByRole("radio", { name: "Open the window" }) as HTMLInputElement).checked).toBe(true);
+      await userEvent.click(screen.getByRole("radio", { name: "Start quietly in the tray" }));
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ startQuietly: true });
+      await userEvent.click(screen.getByRole("radio", { name: "Open the window" }));
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ startQuietly: false });
+    });
+
+    it("hides the choice when Studium doesn't start with the computer", async () => {
+      window.studiumDesktop = { desktop: true };
+      renderWithStudium(<Settings />);
+      await userEvent.click(screen.getByRole("checkbox", { name: "Start Studium when your computer starts" }));
+      expect(screen.queryByRole("radio", { name: "Start quietly in the tray" })).toBeNull();
+    });
+  });
+
+  it("doesn't offer starting with the computer in a browser", () => {
+    renderWithStudium(<Settings />);
+    expect(screen.queryByRole("checkbox", { name: "Start Studium when your computer starts" })).toBeNull();
   });
 });

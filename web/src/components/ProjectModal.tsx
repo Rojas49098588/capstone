@@ -4,7 +4,7 @@ import { isDateKey } from "../planner/time";
 import { projectDifficulty, projectType } from "../planner/projectKind";
 import { DIFFICULTY_LEVELS, PROJECT_TYPES, type Difficulty, type PetKind, type Project, type ProjectType } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
-import { DIFFICULTY_HINTS, DIFFICULTY_LABELS, PROJECT_TYPE_LABELS, eggCompanionLabel, wordsFor } from "../ui/format";
+import { DIFFICULTY_HINTS, DIFFICULTY_LABELS, PROJECT_TYPE_HINTS, PROJECT_TYPE_LABELS, eggCompanionLabel, wordsFor } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, PROJECT_COLORS, SERIF } from "../ui/styles";
 import EggPicker from "./EggPicker";
 import { useReturnFocus } from "./useReturnFocus";
@@ -24,6 +24,9 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
   const [deadline, setDeadline] = useState(project?.deadline ?? "");
   const [description, setDescription] = useState(project?.description ?? "");
   const [color, setColor] = useState(project?.color ?? PROJECT_COLORS[0]);
+  // The custom swatch's color: the project's own if it isn't one of the six.
+  const [custom, setCustom] = useState(project && !PROJECT_COLORS.includes(project.color) && /^#[0-9a-f]{6}$/i.test(project.color) ? project.color : "#e0609a");
+  const isCustom = !PROJECT_COLORS.includes(color);
   const [petKind, setPetKind] = useState<PetKind | null>(null);
   const [type, setType] = useState<ProjectType>(project ? projectType(project) : s.settings.projectType);
   const [difficulty, setDifficulty] = useState<Difficulty>(project ? projectDifficulty(project) : s.settings.difficulty);
@@ -139,9 +142,34 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
                   style={{ backgroundColor: c, outline: color === c ? `2px solid ${c}` : "none", outlineOffset: "2px" }}
                 />
               ))}
+              <span
+                role="radio"
+                aria-checked={isCustom}
+                aria-label="Custom color"
+                title="Pick any color"
+                className="relative w-7 h-7 rounded-sm overflow-hidden"
+                style={{
+                  background: isCustom ? color : "conic-gradient(red, yellow, lime, cyan, blue, magenta, red)",
+                  outline: isCustom ? `2px solid ${color}` : "none",
+                  outlineOffset: "2px",
+                }}
+              >
+                <input
+                  type="color"
+                  aria-label="Pick a custom color"
+                  value={custom}
+                  onClick={() => setColor(custom)}
+                  onChange={(e) => {
+                    setCustom(e.target.value);
+                    setColor(e.target.value);
+                  }}
+                  className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                />
+              </span>
             </div>
           </fieldset>
           {radioGroup("Type", PROJECT_TYPES, PROJECT_TYPE_LABELS, type, setType)}
+          <p className="text-xs text-[var(--color-muted-foreground)] -mt-2">{PROJECT_TYPE_HINTS[type]}</p>
           {radioGroup("Difficulty", DIFFICULTY_LEVELS, DIFFICULTY_LABELS, difficulty, setDifficulty)}
           <p className="text-xs text-[var(--color-muted-foreground)] -mt-2">{DIFFICULTY_HINTS[difficulty]}</p>
           {project && petStage(project) === "egg" ? (

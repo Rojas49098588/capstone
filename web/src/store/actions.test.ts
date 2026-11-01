@@ -11,6 +11,8 @@ import {
   createTask,
   deleteRequirement,
   deleteTask,
+  duplicateRequirement,
+  nextRequirementTitle,
   giveMedicine,
   purchase,
   recordFocusSessions,
@@ -77,7 +79,7 @@ describe("completing", () => {
     expect(payout?.tokens).toBeGreaterThan(0);
     expect(data.tasks.find((t) => t.id === "A")).toMatchObject({ done: true, actualMin: 45 });
     expect(data.events.slice(-1)[0]).toMatchObject({ type: "task_completed", taskId: "A", actualMin: 45, tokens: payout?.tokens });
-    expect(tokenBalance(data.events)).toBe(650 + (payout?.tokens ?? 0));
+    expect(tokenBalance(data)).toBe(650 + (payout?.tokens ?? 0));
   });
 
   it("will not complete a blocked task", () => {
@@ -200,7 +202,7 @@ describe("recordFocusSessions", () => {
     const r = recordFocusSessions(seed, [s()], NOW);
     expect(r.handled).toEqual(["s1"]);
     expect(r.data.events.slice(-1)[0]).toEqual({ type: "focus_session", ...s() });
-    expect(tokenBalance(r.data.events)).toBe(tokenBalance(seed.events));
+    expect(tokenBalance(r.data)).toBe(tokenBalance(seed));
     expect(isValidData(r.data)).toBe(true);
   });
 
@@ -235,13 +237,13 @@ describe("buying decor", () => {
     const seed = buildSeed(NOW);
     const r = purchase(seed, "pet-bed", NOW);
     expect(r.ok).toBe(true);
-    expect(tokenBalance(r.data.events)).toBe(tokenBalance(seed.events) - 150);
+    expect(tokenBalance(r.data)).toBe(tokenBalance(seed) - 150);
     expect(inventory(r.data.events)["pet-bed"]).toBe(1);
   });
 
   it("refuses decor it can't afford", () => {
     const seed = buildSeed(NOW);
-    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed.events) - 199 });
+    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed) - 199 });
     expect(purchase(seed, "log", NOW).ok).toBe(false);
   });
 });
@@ -314,5 +316,174 @@ describe("pet lifecycle", () => {
     }
     expect(last.hatched).toBe(false);
     expect(d.projects[0].stage).toBeUndefined();
+  });
+});
+
+// Prototype 9 (two commits) and Prototype 10 (one commit). P10 waits on P9 where a test says so.
+function prototypes(p10BlockedBy: string[] = ["P9"]) {
+  return makeData({
+    requirements: [
+      makeRequirement({ id: "P9", title: "Prototype 9" }),
+      makeRequirement({ id: "P10", title: "Prototype 10", blockedBy: p10BlockedBy }),
+    ],
+    tasks: [
+      makeTask({ id: "c9a", requirementId: "P9" }),
+      makeTask({ id: "c9b", requirementId: "P9" }),
+      makeTask({ id: "c10", requirementId: "P10" }),
+    ],
+  });
+}
+const reqOf = (data: ReturnType<typeof makeData>, id: string) => data.requirements.find((r) => r.id === id);
+
+describe("requirement blockers", () => {
+  it("saves a requirement's blockers, dropping unknown, other-project and looping ones", () => {
+    const d = prototypes([]);
+    d.projects.push({ ...d.projects[0], id: "p2" });
+    d.requirements.push(makeRequirement({ id: "X", projectId: "p2" }));
+    const next = updateRequirement(d, "P10", { blockedBy: ["P9", "gone", "X", "P10"] }, NOW);
+    expect(reqOf(next, "P10")?.blockedBy).toEqual(["P9"]);
+    // P9 waiting on P10 would loop now.
+    expect(reqOf(updateRequirement(next, "P9", { blockedBy: ["P10"] }, NOW), "P9")?.blockedBy).toEqual([]);
+    const created = createRequirement(next, { projectId: "p1", title: "Prototype 11", weight: 5, blockedBy: ["P10", "X"] }, NOW);
+    expect(created.requirement.blockedBy).toEqual(["P10"]);
+    expect(isValidData(created.data)).toBe(true);
+  });
+
+  it("sets blockedByAll only when allowed, and clears it with false", () => {
+    const d = updateRequirement(prototypes([]), "P10", { blockedByAll: true, blockedBy: ["P9"] }, NOW);
+    expect(reqOf(d, "P10")).toMatchObject({ blockedByAll: true, blockedBy: [] });
+    // Only one per project.
+    expect(reqOf(updateRequirement(d, "P9", { blockedByAll: true }, NOW), "P9")?.blockedByAll).toBeUndefined();
+    const cleared = updateRequirement(d, "P10", { blockedByAll: false }, NOW);
+    expect(reqOf(cleared, "P10")).not.toHaveProperty("blockedByAll");
+    expect(isValidData(cleared)).toBe(true);
+  });
+
+  it("won't let Prototype 10's tasks be completed until Prototype 9 is finished", () => {
+    let d = prototypes();
+    expect(completeTask(d, "c10", null, NOW).payout).toBeNull();
+    d = completeTask(d, "c9a", null, NOW).data;
+    d = completeTask(d, "c9b", null, NOW).data;
+    expect(completeTask(d, "c10", null, NOW).payout).not.toBeNull();
+  });
+
+  it("relocks after reopening a blocker's task but keeps done tasks done", () => {
+    let d = prototypes();
+    d = completeTask(d, "c9a", null, NOW).data;
+    d = completeTask(d, "c9b", null, NOW).data;
+    d = completeTask(d, "c10", null, NOW).data;
+    d = createTask(d, { projectId: "p1", requirementId: "P10", title: "Commit 2", estimateMin: 30 }, NOW).data;
+    d = reopenTask(d, "c9a", NOW);
+    expect(d.tasks.find((t) => t.id === "c10")?.done).toBe(true);
+    const later = d.tasks.find((t) => t.title === "Commit 2")!;
+    expect(completeTask(d, later.id, null, NOW).payout).toBeNull();
+  });
+
+  it("refuses a requirement change that would loop, and keeps the old requirement", () => {
+    // X is unlinked and c9a (in P9) waits on it. In P10, X would wait on P9, which waits on c9a, which waits on X.
+    let d = prototypes();
+    d = createTask(d, { projectId: "p1", requirementId: null, title: "X", estimateMin: 30 }, NOW).data;
+    const x = d.tasks.find((t) => t.title === "X")!;
+    d = updateTask(d, "c9a", { blockedBy: [x.id] }, NOW);
+    expect(d.tasks.find((t) => t.id === "c9a")?.blockedBy).toEqual([x.id]);
+    const next = updateTask(d, x.id, { requirementId: "P10" }, NOW);
+    expect(next.tasks.find((t) => t.id === x.id)?.requirementId).toBeNull();
+    expect(updateTask(d, x.id, { requirementId: "P9" }, NOW).tasks.find((t) => t.id === x.id)?.requirementId).toBe("P9");
+  });
+
+  it("drops a task's own blockers that would loop after its requirement changes", () => {
+    // c9x waits on c10; moved into P9 that wait would loop (P10 waits on P9), so the wait is dropped.
+    let d = prototypes();
+    d = createTask(d, { projectId: "p1", requirementId: null, title: "c9x", estimateMin: 30, blockedBy: ["c10"] }, NOW).data;
+    const c9x = d.tasks.find((t) => t.title === "c9x")!;
+    expect(c9x.blockedBy).toEqual(["c10"]);
+    const next = updateTask(d, c9x.id, { requirementId: "P9" }, NOW);
+    expect(next.tasks.find((t) => t.id === c9x.id)).toMatchObject({ requirementId: "P9", blockedBy: [] });
+    // c9b moving into P10 may wait on c10 there: no loop once it has left P9.
+    const kept = updateTask(prototypes(), "c9b", { requirementId: "P10", blockedBy: ["c10"] }, NOW);
+    expect(kept.tasks.find((t) => t.id === "c9b")).toMatchObject({ requirementId: "P10", blockedBy: ["c10"] });
+  });
+
+  it("removes a deleted requirement from other requirements' blockers", () => {
+    for (const mode of ["deleteTasks", "unlinkTasks"] as const) {
+      const d = deleteRequirement(prototypes(), "P9", mode);
+      expect(reqOf(d, "P10")?.blockedBy).toEqual([]);
+      expect(completeTask(d, "c10", null, NOW).payout).not.toBeNull();
+    }
+  });
+});
+
+describe("duplicating a requirement", () => {
+  it("names the copy with the next number", () => {
+    expect(nextRequirementTitle("Prototype 9")).toBe("Prototype 10");
+    expect(nextRequirementTitle("Week 09")).toBe("Week 10");
+    expect(nextRequirementTitle("Sprint 1.5")).toBe("Sprint 1.6");
+    expect(nextRequirementTitle("Final report")).toBe("Final report (copy)");
+    // Skips names already used in the project.
+    expect(nextRequirementTitle("Prototype 9", ["Prototype 10", "prototype 11"])).toBe("Prototype 12");
+    expect(nextRequirementTitle("Final report", ["Final report (copy)"])).toBe("Final report (copy 2)");
+  });
+
+  function series() {
+    return makeData({
+      requirements: [
+        makeRequirement({ id: "P9", title: "Prototype 9", weight: 4, startDate: "2026-10-26", dueDate: "2026-11-01", blockedBy: ["P8"] }),
+        makeRequirement({ id: "P8", title: "Prototype 8" }),
+        makeRequirement({ id: "Z", title: "Elsewhere" }),
+      ],
+      tasks: [
+        makeTask({ id: "x", requirementId: "Z", title: "Outside" }),
+        makeTask({ id: "c9a", requirementId: "P9", title: "Git commit", estimateMin: 30, done: true, actualMin: 25, priority: true }),
+        makeTask({ id: "c9b", requirementId: "P9", title: "EAS build", estimateMin: 90, blockedBy: ["c9a", "x"] }),
+      ],
+    });
+  }
+
+  it("copies a requirement with fresh tasks, right after the original, blocked by it", () => {
+    const { data, requirement } = duplicateRequirement(series(), "P9", NOW);
+    expect(requirement).toMatchObject({ title: "Prototype 10", weight: 4, blockedBy: ["P9"], startDate: "2026-11-02", dueDate: "2026-11-08" });
+    expect(requirement).not.toHaveProperty("blockedByAll");
+    expect(data.requirements.map((r) => r.id)).toEqual(["P9", requirement!.id, "P8", "Z"]);
+    const copies = data.tasks.filter((t) => t.requirementId === requirement!.id);
+    expect(copies.map((t) => [t.title, t.estimateMin, t.priority, t.done, t.actualMin])).toEqual([
+      ["Git commit", 30, true, false, null],
+      ["EAS build", 90, false, false, null],
+    ]);
+    expect(copies.every((t) => !["c9a", "c9b"].includes(t.id))).toBe(true);
+    expect(copies[1].blockedBy).toEqual([copies[0].id, "x"]);
+    const added = data.events.slice(-3);
+    expect(added.map((e) => e.type)).toEqual(["requirement_created", "task_created", "task_created"]);
+    expect(isValidData(data)).toBe(true);
+  });
+
+  it("shifts by 7 days when a date is missing, and leaves unset dates unset", () => {
+    const d = series();
+    d.requirements[0] = { ...d.requirements[0], startDate: null, dueDate: "2026-11-01" };
+    expect(duplicateRequirement(d, "P9", NOW).requirement).toMatchObject({ startDate: null, dueDate: "2026-11-08" });
+    d.requirements[0] = { ...d.requirements[0], startDate: null, dueDate: null };
+    expect(duplicateRequirement(d, "P9", NOW).requirement).toMatchObject({ startDate: null, dueDate: null });
+  });
+
+  it("does nothing for an unknown requirement", () => {
+    const d = series();
+    expect(duplicateRequirement(d, "nope", NOW)).toEqual({ data: d, requirement: null, hatched: false });
+  });
+
+  it("counts toward hatching", () => {
+    let data = createProject(makeData({ projects: [] }), { name: "App", shortName: "app", color: "#2d3a8c", deadline: dayKey(30), description: "", petKind: "cat" }, NOW).data;
+    const pid = data.projects[0].id;
+    const first = createRequirement(data, { projectId: pid, title: "Prototype 1", weight: 5 }, NOW);
+    data = createRequirement(first.data, { projectId: pid, title: "Prototype 2", weight: 5 }, NOW).data;
+    const r = duplicateRequirement(data, first.requirement.id, NOW);
+    expect(r.hatched).toBe(true);
+    expect(petStage(r.data.projects[0])).not.toBe("egg");
+  });
+});
+
+describe("review fixes: creating tasks", () => {
+  it("drops a new task's blocker that would deadlock its requirement", () => {
+    // P10 waits on P9; a new P9 task waiting on c10 could never be checked off.
+    const { task } = createTask(prototypes(), { projectId: "p1", requirementId: "P9", title: "X", estimateMin: 30, blockedBy: ["c10", "c9a"] }, NOW);
+    expect(task.blockedBy).toEqual(["c9a"]);
   });
 });

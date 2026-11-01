@@ -36,6 +36,8 @@ export type Requirement = {
   startDate: string | null; // "YYYY-MM-DD"; null = the day it was created
   dueDate: string | null; // "YYYY-MM-DD"; null = the project deadline
   createdAt: string;
+  blockedBy?: string[]; // requirements (same project) whose tasks must all be done first; missing = none
+  blockedByAll?: true; // waits on every other requirement in the project (then blockedBy is [])
 };
 
 export type Task = {
@@ -115,6 +117,7 @@ export type StudiumData = {
   today: { date: string; taskIds: string[] };
   decor?: Record<string, HabitatDecor>; // by project id; missing in data saved before habitat decor
   defaultBeds?: true; // every habitat has been given its built-in bed (missing in older data)
+  startingTokens?: number; // the balance before any earning or spending; missing in older data = 650
 };
 
 export type Mood = "Proud" | "Delighted" | "Happy" | "Worried" | "Upset" | "Sick";

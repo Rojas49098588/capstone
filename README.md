@@ -15,6 +15,26 @@ npm run dev
 
 It runs at http://localhost:5173 (the port is fixed because the extension opens that URL).
 
+## Desktop app (in progress)
+
+Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer and opens its window (Settings can turn that off, or start it quietly in the tray instead), and naps and sleep run in the app. The pets come to the desktop in Week 2; until then, use the extension below for pets.
+
+```sh
+cd desktop
+npm install
+npm start          # builds web/ and opens the app
+npm run dev        # the app on the Vite dev server: run `npm run dev` in web/ first
+npm test           # unit tests
+npm run test:e2e   # starts the real app (builds web/ first)
+npm run dist       # Windows installer in your home folder's StudiumBuilds\
+```
+
+- Dev mode (`npm run dev`) loads `http://localhost:5173`, so its Studium data is separate from the built app's.
+- Closing the window only hides it. To quit, right-click Studium's taskbar button (or the egg in the tray; Windows may tuck it under the **^** by the clock) and choose **Quit Studium**.
+- The installer isn't signed: Windows shows "Windows protected your PC", so click **More info → Run anyway**.
+- The installer is built outside the repo (set `STUDIUM_RELEASE_DIR` to change where): built inside OneDrive, the installer step timed out while OneDrive synced the 120 MB file.
+- `desktop/node_modules` holds the Electron program. Like `web/node_modules`, it's best kept out of OneDrive sync.
+
 ## Load the extension
 
 1. Open `chrome://extensions`.
@@ -48,6 +68,7 @@ After editing extension files, click the reload icon on the extension's card, th
   - **Sleep** sends the pet away for 1 or 2 hours and records nothing.
   - **Open project** opens that project in Studium.
 - An away pet lies asleep in its Studium habitat, with a **Wake** button. You can also wake it from the toolbar icon's right-click menu.
+- **Blocking:** a task can wait on other tasks, and a requirement on other requirements (or on all the others). A waiting requirement's tasks can't be checked off until every task in what it waits on is done; it shows "Waiting on …" (hover or tap "Waiting on 3" for the list). **Duplicate** on a requirement makes the next one in a series ("Prototype 9" → "Prototype 10") with its tasks unchecked, waiting on the original.
 - Pets hop when you complete a task in Studium, and celebrate bigger for a project's first task and for a finished requirement.
 - Right-click the toolbar icon and choose **Show / hide pet** to toggle it everywhere.
 - Chrome blocks extensions on `chrome://` pages and the Chrome Web Store, so the pet can't appear there.
@@ -72,6 +93,10 @@ After editing extension files, click the reload icon on the extension's card, th
 | Egg looks and descriptions | `web/src/pets/eggs.ts` |
 | Each difficulty's thresholds | `DIFFICULTY_RULES` in `web/src/planner/tuning.ts` |
 | Each project type's words | `projectWords` in `web/src/ui/format.ts` |
+| The hint under each project type | `PROJECT_TYPE_HINTS` in `web/src/ui/format.ts` |
+| What blocks what (tasks and requirements, "All other requirements", loop checks) | `web/src/planner/blocking.ts` |
+| How many tokens a new user starts with | `STARTING_TOKENS` in `web/src/planner/tuning.ts` (data saved before 2026-10-30 started with `LEGACY_STARTING_TOKENS`, 650) |
+| Readable text on a project color | `web/src/ui/color.ts` (and `textOn` in `extension/content/logic.js` for the pet's name label) |
 | Setup's questions and wording | `web/src/components/Setup.tsx`, `SETUP_COPY` in `web/src/ui/format.ts` |
 | Sticky notes: how often (by mood), what they say | `NOTE_GAP_MINUTES`, `SICK_NOTES`, `UPSET_NOTES`, `WORRIED_NOTES`, `noteText` and `chooseNote` in `extension/content/logic.js` |
 | How many requirements hatch an egg, and the juvenile size | `HATCH_REQUIREMENTS` and `JUVENILE_SCALE` in `web/src/planner/tuning.ts` (and `JUVENILE_SCALE` in `extension/content/logic.js`; a test keeps them equal) |

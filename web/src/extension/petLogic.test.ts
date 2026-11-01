@@ -332,3 +332,11 @@ describe("sticky notes (Moderate)", () => {
     expect(L.todayKey(new Date(2026, 9, 5, 23, 30))).toBe("2026-10-05");
   });
 });
+
+describe("textOn", () => {
+  it("picks the pet name label's text color", () => {
+    expect(L.textOn("#ffeb3b")).toBe("#1a1816");
+    expect(L.textOn("#2d3a8c")).toBe("#ffffff");
+    expect(L.textOn("#abc")).toBe("#1a1816");
+  });
+});

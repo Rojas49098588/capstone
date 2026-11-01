@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { makeRequirement, makeTask } from "../planner/testData";
@@ -50,5 +50,21 @@ describe("TaskForm", () => {
       />,
     );
     expect(screen.queryByLabelText("Paint")).toBeNull();
+  });
+
+  it("groups Blocked by choices under their requirement", () => {
+    const requirements = [makeRequirement({ id: "P9", title: "Prototype 9" }), makeRequirement({ id: "P10", title: "Prototype 10" }), makeRequirement({ id: "E", title: "Empty" })];
+    const projectTasks = [
+      makeTask({ id: "c10", requirementId: "P10", title: "Git commit" }),
+      makeTask({ id: "c9", requirementId: "P9", title: "Git commit" }),
+      makeTask({ id: "u", requirementId: null, title: "Loose end" }),
+    ];
+    render(<TaskForm requirements={requirements} projectTasks={projectTasks} submitLabel="Add task" onSubmit={vi.fn()} />);
+    const groups = screen.getAllByRole("group").filter((g) => g.closest("fieldset")?.parentElement?.closest("fieldset"));
+    expect(groups.map((g) => g.querySelector("legend")?.textContent)).toEqual(["Prototype 9", "Prototype 10", "Unlinked"]);
+    within(screen.getByRole("group", { name: "Prototype 9" })).getByRole("checkbox", { name: "Git commit" });
+    within(screen.getByRole("group", { name: "Prototype 10" })).getByRole("checkbox", { name: "Git commit" });
+    within(screen.getByRole("group", { name: "Unlinked" })).getByRole("checkbox", { name: "Loose end" });
+    expect(screen.queryByRole("group", { name: "Empty" })).toBeNull();
   });
 });

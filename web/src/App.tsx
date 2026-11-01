@@ -147,7 +147,7 @@ export function StudiumApp() {
     const task = s.data.tasks.find((t) => t.id === link.id);
     if (!task) return;
     openProject(task.projectId);
-    if (!task.done && !isBlocked(task, s.data.tasks)) setCompletingId(task.id);
+    if (!task.done && !isBlocked(task, s.data)) setCompletingId(task.id);
   };
   useEffect(() => {
     const follow = () => followLink.current();
@@ -200,7 +200,7 @@ export function StudiumApp() {
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
             <span className="text-xs font-mono text-[var(--color-muted-foreground)] whitespace-nowrap">
-              {tokenBalance(s.data.events)} tokens
+              {tokenBalance(s.data)} tokens
             </span>
             <button
               type="button"

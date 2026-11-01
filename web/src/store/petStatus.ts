@@ -59,7 +59,7 @@ function suggestionsByProject(data: StudiumData, now: Date): Map<string, PetSugg
   const byId = new Map(data.tasks.map((t) => [t.id, t]));
   for (const id of todayTaskIds(data, now)) {
     const t = byId.get(id);
-    if (t && !t.done && t.requirementId !== null && !isBlocked(t, data.tasks)) add(t);
+    if (t && !t.done && t.requirementId !== null && !isBlocked(t, data)) add(t);
   }
   for (const s of suggestNext(data, now, Infinity)) add(s.task);
   return out;

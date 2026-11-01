@@ -2,18 +2,46 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, makeData, makeRequirement, makeTask } from "../planner/testData";
 import { buildSeed } from "../store/seed";
 import { renderWithStudium, savedData, withFocus } from "../test/render";
 import TaskRow from "./TaskRow";
 
 const task = (storage: Storage | null, id: string) => savedData(storage).tasks.find((t) => t.id === id);
 
+
+// Prototype 9 and 10 each have a "Git commit"; Prototype 10 waits on Prototype 9.
+const prototypes = () =>
+  makeData({
+    requirements: [
+      makeRequirement({ id: "P9", title: "Prototype 9" }),
+      makeRequirement({ id: "P10", title: "Prototype 10", blockedBy: ["P9"] }),
+      makeRequirement({ id: "P11", title: "Prototype 11" }),
+    ],
+    tasks: [
+      makeTask({ id: "c9", requirementId: "P9", title: "Git commit" }),
+      makeTask({ id: "c10", requirementId: "P10", title: "Git commit" }),
+      makeTask({ id: "apk", requirementId: "P10", title: "APK", blockedBy: ["c9"] }),
+    ],
+  });
+
 describe("TaskRow", () => {
+  it("locks a task whose requirement is waiting and says why", () => {
+    renderWithStudium(<TaskRow taskId="c10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    expect((screen.getByRole("checkbox", { name: "Complete Git commit" }) as HTMLButtonElement).disabled).toBe(true);
+    screen.getByText("Waiting on Prototype 9");
+  });
+
+  it("counts every blocker and adds the requirement to a repeated task name", async () => {
+    renderWithStudium(<TaskRow taskId="apk" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    await userEvent.hover(screen.getByRole("button", { name: "Waiting on 2" }));
+    expect(screen.getAllByRole("listitem").map((li) => li.textContent)).toEqual(["Git commit (Prototype 9)", "Prototype 9"]);
+  });
+
   it("locks a blocked task and says what it's waiting on", () => {
     renderWithStudium(<TaskRow taskId="webDev-t8" onRequestComplete={vi.fn()} />);
     expect((screen.getByRole("checkbox", { name: "Complete Deploy to Vercel" }) as HTMLButtonElement).disabled).toBe(true);
-    screen.getByText(/Waiting on: Contact form with validation/);
+    screen.getByText("Waiting on Contact form with validation");
   });
 
   it("asks for the time before completing an open task", async () => {
