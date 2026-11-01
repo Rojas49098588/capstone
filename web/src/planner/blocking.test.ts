@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   blockerOptions,
+  blockerChoices,
   canBlockByAll,
   downstreamOpenCount,
   isBlocked,
@@ -156,5 +157,42 @@ describe("requirement blocking", () => {
     expect(wouldRequirementChangeLoop("c9x", "P9", d)).toBe(true);
     expect(wouldRequirementChangeLoop("c9x", "P10", d)).toBe(false);
     expect(wouldRequirementChangeLoop("c9x", null, d)).toBe(false);
+  });
+});
+
+describe("review fixes", () => {
+  it("an empty requirement can't be set to wait on one that waits on it", () => {
+    const R1 = makeRequirement({ id: "R1", title: "One" });
+    const R2 = makeRequirement({ id: "R2", title: "Two", blockedBy: ["R1"] });
+    const d: BlockData = { requirements: [R1, R2], tasks: [] };
+    expect(requirementBlockerOptions("R1", d)).toEqual([]);
+    const F = makeRequirement({ id: "F", title: "Final" });
+    const A2 = makeRequirement({ id: "A", title: "A", blockedBy: ["F"] });
+    expect(canBlockByAll("F", { requirements: [F, A2], tasks: [] })).toBe(false);
+  });
+
+  it("offers a new task only blockers that can't loop, for the requirement picked in the form", () => {
+    // A new task in P9 can't wait on c10 (P10 waits on P9); in P10 or unlinked it can.
+    const forNew = (requirementId: string | null) =>
+      blockerChoices({ id: "new", projectId: "p1", requirementId }, data).map((t) => t.id);
+    expect(forNew("P9")).toEqual(["c9a", "c9b"]);
+    expect(forNew("P10")).toEqual(["c9a", "c9b", "c10"]);
+    expect(forNew(null)).toEqual(["c9a", "c9b", "c10"]);
+    // Editing c9a as if it were moved to P10: c10 becomes fine.
+    expect(blockerChoices({ id: "c9a", projectId: "p1", requirementId: "P10" }, data).map((t) => t.id)).toContain("c10");
+  });
+
+  it("stays fast on a big project", () => {
+    const requirements: Requirement[] = [];
+    const tasks: Task[] = [];
+    for (let r = 0; r < 60; r++) {
+      requirements.push(makeRequirement({ id: `R${r}`, title: `Prototype ${r}`, blockedBy: r > 0 ? [`R${r - 1}`] : [] }));
+      for (let t = 0; t < 20; t++) tasks.push(makeTask({ id: `R${r}-t${t}`, requirementId: `R${r}`, blockedBy: t > 0 ? [`R${r}-t${t - 1}`] : [] }));
+    }
+    const big: BlockData = { requirements, tasks };
+    const start = performance.now();
+    expect(blockerOptions("R30-t5", big).length).toBeGreaterThan(0);
+    for (const r of requirements.slice(0, 10)) requirementBlockerOptions(r.id, big);
+    expect(performance.now() - start).toBeLessThan(500);
   });
 });

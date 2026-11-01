@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { blockerOptions } from "../planner/blocking";
+import { blockerChoices } from "../planner/blocking";
 import { DEFAULT_ESTIMATE_MIN } from "../planner/tuning";
 import type { Requirement, Task } from "../planner/types";
 import { capitalize, wordsFor, type ProjectWords } from "../ui/format";
@@ -27,7 +27,9 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
   const [estimateMin, setEstimateMin] = useState(initial?.estimateMin ?? DEFAULT_ESTIMATE_MIN);
   const [blockedBy, setBlockedBy] = useState<string[]>(initial?.blockedBy ?? []);
   const [error, setError] = useState("");
-  const options = taskId ? blockerOptions(taskId, { tasks: projectTasks, requirements }) : projectTasks;
+  // Checked against the requirement picked in the form, so nothing offered can deadlock.
+  const projectId = projectTasks[0]?.projectId ?? requirements[0]?.projectId ?? "";
+  const options = blockerChoices({ id: taskId ?? "__new__", projectId, requirementId }, { tasks: projectTasks, requirements });
 
   function toggleBlocker(id: string) {
     setBlockedBy((current) => (current.includes(id) ? current.filter((x) => x !== id) : [...current, id]));

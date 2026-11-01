@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, SETTINGS_KEY } from "../store/settings";
 import { memoryStorage, renderWithStudium, savedData, withEgg } from "../test/render";
 import Settings from "./Settings";
 import Overview from "./Overview";
-import { NOW } from "../planner/testData";
+import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
 import { emptyData } from "../store/seed";
 
 describe("Overview", () => {
@@ -104,5 +104,17 @@ describe("Overview egg cards", () => {
     const card = screen.getByRole("button", { name: /Novel/ });
     within(card).getByText("Egg");
     expect(within(card).queryByText(/ahead of plan|behind plan|On plan/)).toBeNull();
+  });
+
+  it("says why a task in Today can't be checked off yet", () => {
+    const data = makeData({
+      requirements: [makeRequirement({ id: "P9", title: "Prototype 9" }), makeRequirement({ id: "P10", title: "Prototype 10", blockedBy: ["P9"] })],
+      tasks: [makeTask({ id: "c9", requirementId: "P9", title: "Commit 9" }), makeTask({ id: "c10", requirementId: "P10", title: "Commit 10" })],
+      today: { date: dayKey(0), taskIds: ["c10"] },
+    });
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { data });
+    const today = screen.getByRole("region", { name: "Today" });
+    expect((within(today).getByRole("checkbox", { name: "Complete Commit 10" }) as HTMLButtonElement).disabled).toBe(true);
+    within(today).getByText("Waiting on Prototype 9");
   });
 });

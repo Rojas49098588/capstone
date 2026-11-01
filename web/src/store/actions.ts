@@ -320,12 +320,14 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
     requirementId: cleanRequirementId(data, input.projectId, input.requirementId),
     title: input.title.trim(),
     estimateMin: cleanMinutes(input.estimateMin, DEFAULT_ESTIMATE_MIN),
-    blockedBy: cleanBlockers(id, input.projectId, input.blockedBy ?? [], data.tasks, data.requirements),
+    blockedBy: [],
     priority: false,
     done: false,
     actualMin: null,
     createdAt: stamp(now),
   };
+  // Check the waits with the new task in place: it makes its requirement wait on it too.
+  task.blockedBy = cleanBlockers(id, input.projectId, input.blockedBy ?? [], [...data.tasks, task], data.requirements);
   return {
     data: { ...data, tasks: [...data.tasks, task], events: withEvent(data, { type: "task_created", at: stamp(now), taskId: id }) },
     task,

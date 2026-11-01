@@ -479,3 +479,11 @@ describe("duplicating a requirement", () => {
     expect(petStage(r.data.projects[0])).not.toBe("egg");
   });
 });
+
+describe("review fixes: creating tasks", () => {
+  it("drops a new task's blocker that would deadlock its requirement", () => {
+    // P10 waits on P9; a new P9 task waiting on c10 could never be checked off.
+    const { task } = createTask(prototypes(), { projectId: "p1", requirementId: "P9", title: "X", estimateMin: 30, blockedBy: ["c10", "c9a"] }, NOW);
+    expect(task.blockedBy).toEqual(["c9a"]);
+  });
+});

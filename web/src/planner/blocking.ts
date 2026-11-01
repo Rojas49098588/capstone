@@ -69,58 +69,75 @@ export function downstreamOpenCount(taskId: string, tasks: Task[]): number {
 //   task:X     → unlock:R     where R is X's requirement
 //   unlock:R   → finished:R2  for each requirement R waits on
 //   finished:R → task:Y       for each task Y in R
+//   finished:R → unlock:R     (a requirement can't finish while it's locked, tasks or not)
 // Adding A → B makes a loop exactly when B already reaches A. Done tasks still count (the safe choice).
+// The graph is built once per question, so each check is one walk over it.
 
-type Node = `task:${string}` | `unlock:${string}` | `finished:${string}`;
+type Node = string; // "task:<id>" | "unlock:<id>" | "finished:<id>"
 
-function successors(node: Node, data: BlockData): Node[] {
-  const id = node.slice(node.indexOf(":") + 1);
-  if (node.startsWith("task:")) {
-    const t = data.tasks.find((x) => x.id === id);
-    if (!t) return [];
-    const out: Node[] = t.blockedBy.filter((b) => data.tasks.some((x) => x.id === b)).map((b) => `task:${b}` as Node);
-    if (t.requirementId !== null && data.requirements.some((r) => r.id === t.requirementId)) out.push(`unlock:${t.requirementId}`);
-    return out;
+/** Every node that reaches `target` (including itself), walking the waits backwards. */
+function reachersOf(target: Node, data: BlockData): Set<Node> {
+  const reverse = new Map<Node, Node[]>();
+  const edge = (from: Node, to: Node) => {
+    const list = reverse.get(to);
+    if (list) list.push(from);
+    else reverse.set(to, [from]);
+  };
+  const taskIds = new Set(data.tasks.map((t) => t.id));
+  const reqIds = new Set(data.requirements.map((r) => r.id));
+  for (const t of data.tasks) {
+    for (const b of t.blockedBy) if (taskIds.has(b)) edge(`task:${t.id}`, `task:${b}`);
+    if (t.requirementId !== null && reqIds.has(t.requirementId)) {
+      edge(`task:${t.id}`, `unlock:${t.requirementId}`);
+      edge(`finished:${t.requirementId}`, `task:${t.id}`);
+    }
   }
-  if (node.startsWith("unlock:")) {
-    const r = data.requirements.find((x) => x.id === id);
-    return r ? requirementBlockerIds(r, data.requirements).map((b) => `finished:${b}` as Node) : [];
+  for (const r of data.requirements) {
+    edge(`finished:${r.id}`, `unlock:${r.id}`);
+    for (const b of requirementBlockerIds(r, data.requirements)) edge(`unlock:${r.id}`, `finished:${b}`);
   }
-  return data.tasks.filter((t) => t.requirementId === id).map((t) => `task:${t.id}` as Node);
-}
-
-function reaches(from: Node, to: Node, data: BlockData): boolean {
-  const seen = new Set<Node>();
-  const stack: Node[] = [from];
+  const seen = new Set<Node>([target]);
+  const stack = [target];
   while (stack.length > 0) {
-    const node = stack.pop() as Node;
-    if (node === to) return true;
-    if (seen.has(node)) continue;
-    seen.add(node);
-    stack.push(...successors(node, data));
+    for (const from of reverse.get(stack.pop() as Node) ?? []) {
+      if (seen.has(from)) continue;
+      seen.add(from);
+      stack.push(from);
+    }
   }
-  return false;
+  return seen;
 }
 
 /** Would making task `taskId` wait on task `blockerId` create a loop (through tasks or requirements)? */
 export function wouldTaskBlockerLoop(taskId: string, blockerId: string, data: BlockData): boolean {
-  return blockerId === taskId || reaches(`task:${blockerId}`, `task:${taskId}`, data);
+  return blockerId === taskId || reachersOf(`task:${taskId}`, data).has(`task:${blockerId}`);
 }
 
 /** Tasks that `taskId` may be marked "blocked by": same project, not itself, no loops. */
 export function blockerOptions(taskId: string, data: BlockData): Task[] {
   const task = data.tasks.find((t) => t.id === taskId);
   if (!task) return [];
-  return data.tasks.filter((t) => t.projectId === task.projectId && !wouldTaskBlockerLoop(taskId, t.id, data));
+  const reachers = reachersOf(`task:${taskId}`, data);
+  return data.tasks.filter((t) => t.projectId === task.projectId && !reachers.has(`task:${t.id}`));
+}
+
+/**
+ * "Blocked by" choices for a task as the form has it: a new task (not saved yet) or one whose
+ * requirement was just changed in the form. Its current blockers are ignored, since they're being chosen.
+ */
+export function blockerChoices(task: Pick<Task, "id" | "projectId" | "requirementId">, data: BlockData): Task[] {
+  const saved = data.tasks.find((t) => t.id === task.id);
+  const asInForm: Task = { ...(saved ?? { title: "", estimateMin: 0, priority: false, done: false, actualMin: null, createdAt: "" }), ...task, blockedBy: [] };
+  const tasks = saved ? data.tasks.map((t) => (t.id === task.id ? asInForm : t)) : [...data.tasks, asInForm];
+  return blockerOptions(task.id, { ...data, tasks }).filter((t) => t.id !== task.id);
 }
 
 /** Requirements that `reqId` may wait on: same project, not itself, not one that waits on all others, no loops. */
 export function requirementBlockerOptions(reqId: string, data: BlockData): Requirement[] {
   const req = data.requirements.find((r) => r.id === reqId);
   if (!req) return [];
-  return data.requirements.filter(
-    (r) => r.projectId === req.projectId && r.id !== reqId && !r.blockedByAll && !reaches(`finished:${r.id}`, `unlock:${reqId}`, data),
-  );
+  const reachers = reachersOf(`unlock:${reqId}`, data);
+  return data.requirements.filter((r) => r.projectId === req.projectId && r.id !== reqId && !r.blockedByAll && !reachers.has(`finished:${r.id}`));
 }
 
 /** May `reqId` wait on every other requirement? Only one per project may, and only if that makes no loop. */
@@ -129,7 +146,8 @@ export function canBlockByAll(reqId: string, data: BlockData): boolean {
   if (!req) return false;
   const others = data.requirements.filter((r) => r.projectId === req.projectId && r.id !== reqId);
   if (others.some((r) => r.blockedByAll)) return false;
-  return others.every((r) => !reaches(`finished:${r.id}`, `unlock:${reqId}`, data));
+  const reachers = reachersOf(`unlock:${reqId}`, data);
+  return others.every((r) => !reachers.has(`finished:${r.id}`));
 }
 
 /**
@@ -139,5 +157,10 @@ export function canBlockByAll(reqId: string, data: BlockData): boolean {
  */
 export function wouldRequirementChangeLoop(taskId: string, requirementId: string | null, data: BlockData): boolean {
   const moved: BlockData = { ...data, tasks: data.tasks.map((t) => (t.id === taskId ? { ...t, requirementId } : t)) };
-  return successors(`task:${taskId}`, moved).some((n) => reaches(n, `task:${taskId}`, moved));
+  const task = moved.tasks.find((t) => t.id === taskId);
+  if (!task) return false;
+  const reachers = reachersOf(`task:${taskId}`, moved);
+  const next: Node[] = task.blockedBy.map((b) => `task:${b}`);
+  if (requirementId !== null && moved.requirements.some((r) => r.id === requirementId)) next.push(`unlock:${requirementId}`);
+  return next.some((n) => reachers.has(n));
 }
