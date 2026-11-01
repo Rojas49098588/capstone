@@ -48,4 +48,16 @@ async function showStudium(win, hash) {
   win.focus();
 }
 
-module.exports = { createStudiumWindow, showStudium };
+/**
+ * A pet's mischief: shows Studium at a page without taking keyboard focus, so typing elsewhere keeps
+ * going there. A minimized window is left alone (restoring it would take focus). True if shown.
+ */
+async function showStudiumQuietly(win, hash) {
+  if (!win || win.isDestroyed() || win.isMinimized()) return false;
+  await win.webContents.executeJavaScript(`location.hash = ${JSON.stringify('#' + hash)}`).catch(() => {});
+  win.showInactive();
+  win.moveTop();
+  return true;
+}
+
+module.exports = { createStudiumWindow, showStudium, showStudiumQuietly };

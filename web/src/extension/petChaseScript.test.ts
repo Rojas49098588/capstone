@@ -26,7 +26,6 @@ it("chases the cursor, stops when it leaves the overlay, and stops at once for a
   const store: Record<string, unknown> = {
     petStatuses: { updatedAt: new Date().toISOString(), pets: [status] },
     petPrefs: { involvement: "moderate", nickname: "" },
-    petTimingOverride: { mischiefMinutes: 0.05 }, // a chase every 3 seconds
   };
   const listeners: Listener[] = [];
   const set = async (v: Record<string, unknown>) => {
@@ -60,8 +59,10 @@ it("chases the cursor, stops when it leaves the overlay, and stops at once for a
   const x = () => Number(/translate\((-?[\d.]+)px/.exec(petEl().style.transform)?.[1]);
   const chasing = () => petEl().classList.contains("chasing");
 
-  frames(2);
+  frames(2); // the pet plans its first chase 10 to 20 minutes away
   expect(chasing()).toBe(false);
+  // The dev override arrives after the pet started: the next chase follows it (every 3 seconds).
+  await set({ petTimingOverride: { mischiefMinutes: 0.05 } });
   await vi.advanceTimersByTimeAsync(4000);
   frames(1);
   expect(chasing()).toBe(true);

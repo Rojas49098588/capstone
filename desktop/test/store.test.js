@@ -20,7 +20,7 @@ describe('createStore', () => {
   });
 
   it('knows the keys the extension kept in chrome.storage.local', () => {
-    expect(STATE_KEYS).toEqual(['petStatuses', 'petPrefs', 'petScreen', 'petAway', 'petCheckIn', 'focusOutbox', 'petNoteAt', 'pets', 'petHidden', 'petTimingOverride']);
+    expect(STATE_KEYS).toEqual(['petStatuses', 'petPrefs', 'petScreen', 'petAway', 'petCheckIn', 'focusOutbox', 'petNoteAt', 'pets', 'petHidden', 'petTimingOverride', 'petOpenAt']);
   });
 
   it('ignores unknown keys', () => {

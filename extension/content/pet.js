@@ -842,6 +842,9 @@
         render();
       },
       isAway: () => state.mode === 'away',
+      replanChase() {
+        if (!chase) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
+      },
       // Stroll toward a spot (0 = left edge, 1 = right edge), e.g. to leave a note there.
       walkTo(ratio) {
         if (state.mode !== 'idle' && state.mode !== 'walk') return;
@@ -1064,7 +1067,10 @@
     if (changes.petPrefs) prefs = L.cleanPrefs(changes.petPrefs.newValue);
     if (changes.petNoteAt && Number.isFinite(changes.petNoteAt.newValue)) lastNoteAt = changes.petNoteAt.newValue;
     if (changes.petHabitat) liveHabitat = habitatId(changes.petHabitat.newValue);
-    if (changes.petTimingOverride) timing = L.mischiefTiming(changes.petTimingOverride.newValue);
+    if (changes.petTimingOverride) {
+      timing = L.mischiefTiming(changes.petTimingOverride.newValue);
+      for (const pet of pets) pet.replanChase(); // the new gaps apply now, not after the next chase
+    }
     if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
     if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });

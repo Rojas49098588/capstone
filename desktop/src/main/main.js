@@ -5,7 +5,8 @@ const path = require('node:path');
 const { app, ipcMain, screen, session } = require('electron');
 const { parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
 const { registerStudiumScheme, handleStudiumScheme } = require('./protocol');
-const { createStudiumWindow, showStudium } = require('./studiumWindow');
+const { createStudiumWindow, showStudium, showStudiumQuietly } = require('./studiumWindow');
+const { createOpenProjectTimer } = require('./mischief');
 const { createStore } = require('./store');
 const { createAwayRunner } = require('./away');
 const { CHANNELS, handleStudium } = require('./bridge');
@@ -40,11 +41,13 @@ if (!app.requestSingleInstanceLock() || args.quit) {
   let win = null;
   let overlay = null;
   let runner = null;
+  let openTimer = null; // an upset or sick pet opening its project (mischief)
   let tray = null; // kept here so it isn't garbage-collected (which would remove the icon)
   app.isQuitting = false;
   app.on('before-quit', () => {
     app.isQuitting = true;
     runner?.dispose();
+    openTimer?.dispose();
   });
   app.on('second-instance', (_event, argv) => {
     if (parseArgs(argv).quit) quitApp();
@@ -160,6 +163,12 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     if (app.isPackaged && process.platform === 'win32') app.setUserTasks([quitTask(process.execPath)]);
     // End naps that finished while the app was closed, and re-arm the others.
     runner.request({ type: 'endOverdue' });
-    Object.assign(globalThis.studiumTest, { store, runner });
+    openTimer = createOpenProjectTimer({
+      store,
+      L,
+      isStudiumShowing: () => !win.isDestroyed() && win.isVisible() && !win.isMinimized(),
+      openQuietly: (hash) => showStudiumQuietly(win, hash),
+    });
+    Object.assign(globalThis.studiumTest, { store, runner, openTimer });
   });
 }
