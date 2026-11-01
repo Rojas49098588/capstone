@@ -775,6 +775,82 @@
     return where === 'habitat' ? new Set() : petsOnScreen(pets, petAway, screen);
   }
 
+  // ---- Mischief (desktop app, Moderate only): every number in one place ----
+  const MISCHIEF = {
+    NOTE_STAY_MS: 15 * 60000, // a desktop note goes after this
+    NOTE_CARRY_CHANCE: 0.3, // how often a pet carries its note in from the screen edge
+    CHASE_GAP_MS: [10 * 60000, 20 * 60000], // time between chases (halved when Proud or Delighted)
+    CHASE_MS: 10000, // how long a chase lasts
+    OPEN_GAP_MS: 2 * 3600000, // at most one "open its project" this often
+    STUDIUM_RECENT_MS: 30 * 60000, // not if Studium was showing this recently
+    SOUND_GAP_MS: 30000, // at most one sound this often, across all pets
+    SOUND_VOLUME: 0.3,
+    CURSOR_POLL_MS: 100, // how often a chasing pet looks for the cursor
+    POUNCE_STILL_MS: 500, // the cursor stops this long…
+    POUNCE_RANGE_PX: 120, // …this close to the pet: it pounces
+  };
+
+  /** The gaps, or every one of them set to petTimingOverride.mischiefMinutes (0.05 to 15) for checking by hand. */
+  function mischiefTiming(override) {
+    const m = isObject(override) ? override.mischiefMinutes : undefined;
+    if (typeof m === 'number' && m >= 0.05 && m <= 15) {
+      const ms = m * 60000;
+      return { chaseGapMs: [ms, ms], openGapMs: ms, studiumRecentMs: ms, soundGapMs: ms, noteGapMs: ms };
+    }
+    return {
+      chaseGapMs: MISCHIEF.CHASE_GAP_MS,
+      openGapMs: MISCHIEF.OPEN_GAP_MS,
+      studiumRecentMs: MISCHIEF.STUDIUM_RECENT_MS,
+      soundGapMs: MISCHIEF.SOUND_GAP_MS,
+      noteGapMs: null, // each mood's NOTE_GAP_MINUTES
+    };
+  }
+
+  /** Moderate only, and never during a nap, an open check-in, or with the pets hidden. */
+  function mischiefAllowed({ prefs, petAway, checkIn, hidden }) {
+    return cleanPrefs(prefs).involvement === 'moderate' && !isQuiet(petAway ?? {}) && !checkIn && !hidden;
+  }
+
+  /** When a pet next chases the mouse: never when Sick, sooner when Proud or Delighted. */
+  function nextChaseAt(now, mood, timing, random = Math.random) {
+    if (mood === 'Sick') return null;
+    const [lo, hi] = timing.chaseGapMs;
+    const gap = lo + random() * (hi - lo);
+    return now + (mood === 'Proud' || mood === 'Delighted' ? gap / 2 : gap);
+  }
+
+  /** A screen point in the overlay's own pixels, or null when it's off the overlay. */
+  function cursorInOverlay(point, bounds) {
+    if (!isObject(point) || !isObject(bounds)) return null;
+    const x = point.x - bounds.x;
+    const y = point.y - bounds.y;
+    return x >= 0 && y >= 0 && x < bounds.width && y < bounds.height ? { x, y } : null;
+  }
+
+  /** The upset or sick pet (sick first) that opens its project in Studium, or null. */
+  function chooseOpenProject({ statuses, prefs, petAway, checkIn, hidden, now, lastOpenAt, studiumSeenAt, timing }) {
+    if (!mischiefAllowed({ prefs, petAway, checkIn, hidden })) return null;
+    if (now - (lastOpenAt || 0) < timing.openGapMs || now - (studiumSeenAt || 0) < timing.studiumRecentMs) return null;
+    const here = (statuses ?? []).filter((s) => !petAway?.[s.projectId]);
+    return (here.find((s) => s.mood === 'Sick') ?? here.find((s) => s.mood === 'Upset'))?.projectId ?? null;
+  }
+
+  function noteCarries(random = Math.random) {
+    return random() < MISCHIEF.NOTE_CARRY_CHANCE;
+  }
+
+  const SOUND_KEYS = { meow: 'meow', bark: 'bark', ribbit: 'ribbit', coo: 'coo', achoo: 'sneeze', sniffle: 'sniffle', cough: 'cough', sigh: 'sigh' };
+
+  /** The sound file for what a pet says ("Meow!" → meow, "*cough*" → cough), or null. */
+  function soundKey(text) {
+    if (typeof text !== 'string') return null;
+    return SOUND_KEYS[text.toLowerCase().replace(/[*!?]/g, '').trim()] ?? null;
+  }
+
+  function soundAllowed(lastSoundAt, now, timing) {
+    return now - lastSoundAt >= timing.soundGapMs;
+  }
+
   /** While any pet naps, the others go quiet. */
   function isQuiet(petAway) {
     return isNapping(petAway);
@@ -839,6 +915,15 @@
     PET_SURFACES,
     cleanSurface,
     shownPets,
+    MISCHIEF,
+    mischiefTiming,
+    mischiefAllowed,
+    nextChaseAt,
+    cursorInOverlay,
+    chooseOpenProject,
+    noteCarries,
+    soundKey,
+    soundAllowed,
     INVOLVEMENTS,
     NICKNAME_MAX,
     cleanPrefs,
