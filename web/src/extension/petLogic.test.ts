@@ -340,3 +340,38 @@ describe("textOn", () => {
     expect(L.textOn("#abc")).toBe("#1a1816");
   });
 });
+
+describe("shownPets", () => {
+  const pets = [pet({ projectId: "a" }), pet({ projectId: "b" }), pet({ projectId: "c" })];
+  const one = { limit: 1, order: "project" };
+  const ids = (s: Set<string>) => [...s].sort();
+  const base = { pets, petAway: {}, screen: null, boxId: null, liveHabitat: null };
+
+  it("page without a box: the pets-on-screen rule", () => {
+    expect(ids(L.shownPets({ ...base, surface: "page", screen: one }))).toEqual(["a"]);
+  });
+  it("page with a box: only the box's pet, even asleep", () => {
+    const away = { b: { kind: "nap", until: Date.now() + 60000 } };
+    expect(ids(L.shownPets({ ...base, surface: "page", boxId: "b", petAway: away }))).toEqual(["b"]);
+  });
+  it("habitat: nothing without a box, the box's pet with one", () => {
+    expect(ids(L.shownPets({ ...base, surface: "habitat" }))).toEqual([]);
+    expect(ids(L.shownPets({ ...base, surface: "habitat", boxId: "c" }))).toEqual(["c"]);
+    expect(ids(L.shownPets({ ...base, surface: "habitat", boxId: "zzz" }))).toEqual([]);
+  });
+  it("overlay: leaves out the pet in the Studium habitat, and the next pet takes its slot", () => {
+    expect(ids(L.shownPets({ ...base, surface: "overlay", liveHabitat: "a", screen: one }))).toEqual(["b"]);
+    expect(ids(L.shownPets({ ...base, surface: "overlay", liveHabitat: "a" }))).toEqual(["b", "c"]);
+  });
+  it("overlay: away pets are hidden and a page box is ignored", () => {
+    const away = { b: { kind: "sleep", until: Date.now() + 60000 } };
+    expect(ids(L.shownPets({ ...base, surface: "overlay", petAway: away, boxId: "b" }))).toEqual(["a", "c"]);
+  });
+});
+
+describe("cleanSurface", () => {
+  it("keeps the three surfaces and treats anything else as a page", () => {
+    for (const s of ["page", "overlay", "habitat"]) expect(L.cleanSurface(s)).toBe(s);
+    for (const s of [undefined, null, "Overlay", 3]) expect(L.cleanSurface(s)).toBe("page");
+  });
+});
