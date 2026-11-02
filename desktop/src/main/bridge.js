@@ -33,7 +33,7 @@ function handleStudium(channel, payload, { store, runner, L, sendSessions, apply
       return;
     }
     case 'studium:wake': {
-      const request = L.parseRequest({ type: 'wake', projectId: payload });
+      const request = L.parseRequest({ type: 'wake', petId: payload }); // the habitat's id: its pet's
       if (request) runner.request(request);
       return;
     }

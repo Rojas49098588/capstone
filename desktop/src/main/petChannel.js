@@ -45,16 +45,24 @@ function changeTargets(windows) {
   return windows.filter((w) => w && !w.isDestroyed());
 }
 
-/** chrome.runtime.sendMessage from a pet window. from: 'overlay' or 'studium'. */
-function handlePetMessage(msg, from, { L, runner, open, reportHabitat }) {
+/**
+ * chrome.runtime.sendMessage from a pet window. from: 'overlay' or 'studium'. statuses(): the stored
+ * pet statuses (parsed), to find a pet's project for Open project.
+ */
+function handlePetMessage(msg, from, { L, runner, open, reportHabitat, statuses }) {
   if (isPlainObject(msg) && msg.type === 'habitat') {
-    if (from === 'studium') reportHabitat(typeof msg.projectId === 'string' && msg.projectId ? msg.projectId : null);
+    // ids: every habitat box on the Studium page; an older page sent one projectId.
+    if (from === 'studium') reportHabitat(Array.isArray(msg.ids) ? msg.ids.filter((id) => typeof id === 'string' && id) : typeof msg.projectId === 'string' && msg.projectId ? [msg.projectId] : []);
     return;
   }
   const request = L.parseRequest(msg);
   // Finished naps are delivered by Studium itself (src/preload/studium.js), never by a pet.
   if (!request || request.type === 'delivered') return;
-  if (request.type === 'openProject') open(`project=${encodeURIComponent(request.projectId)}`);
+  if (request.type === 'openProject') {
+    // The pet's project page, scrolled to its habitat (a pet with no status: its id as the project).
+    const status = statuses?.()?.pets.find((p) => p.petId === request.petId);
+    open(L.projectLink(status?.projectId ?? request.petId, request.petId));
+  }
   else runner.request(request);
 }
 

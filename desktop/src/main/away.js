@@ -17,10 +17,10 @@ function createAwayRunner({ store, L, open, now = Date.now, newId = () => crypto
   function setAlarm(name, when) {
     clearAlarm(name);
     if (disposed || !name.startsWith('away:')) return;
-    const projectId = name.slice('away:'.length);
+    const petId = name.slice('away:'.length);
     const timer = setTimer(() => {
       timers.delete(name);
-      request({ type: 'end', projectId });
+      request({ type: 'end', petId });
     }, Math.max(0, when - now()));
     timers.set(name, timer);
   }
