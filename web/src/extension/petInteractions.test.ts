@@ -96,8 +96,9 @@ describe("validators", () => {
 
   it("parseCheckIn returns null for damaged input", () => {
     const c = { projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 9, at: iso(T) };
-    expect(L.parseCheckIn(c)).toEqual(c);
-    expect(L.parseCheckIn({ ...c, taskId: null, taskTitle: null })).toEqual({ ...c, taskId: null, taskTitle: null });
+    // An older check-in has no petId: it belongs to its project's first pet.
+    expect(L.parseCheckIn(c)).toEqual({ petId: "appDev", ...c });
+    expect(L.parseCheckIn({ ...c, taskId: null, taskTitle: null })).toEqual({ petId: "appDev", ...c, taskId: null, taskTitle: null });
     expect(L.parseCheckIn({ ...c, projectId: "" })).toBeNull();
     expect(L.parseCheckIn({ ...c, minutes: "9" })).toBeNull();
     expect(L.parseCheckIn(null)).toBeNull();
@@ -122,7 +123,9 @@ describe("validators", () => {
       { type: "openProject", projectId: "a" },
       { type: "delivered", ids: ["a"] },
     ];
-    for (const m of good) expect(L.parseRequest({ ...m, extra: 1 })).toEqual(m);
+    // Requests name the pet as petId; older callers' projectId means that project's first pet.
+    const asPet = ({ projectId, ...rest }: Record<string, unknown>) => (projectId ? { ...rest, petId: projectId } : rest);
+    for (const m of good) expect(L.parseRequest({ ...m, extra: 1 })).toEqual(asPet(m));
     const bad = [
       { type: "sleep", projectId: "a", hours: 3 },
       { type: "nap" },
@@ -151,6 +154,7 @@ describe("applyAwayRequest", () => {
       until: iso(T + 15 * MIN),
       taskId: "t1",
       taskTitle: "Push",
+      projectId: "appDev", // so its focus session finds the project even if the pet is gone
     });
     expect(r.effects).toEqual([{ type: "setAlarm", name: "away:appDev", when: T + 15 * MIN }]);
   });
@@ -186,7 +190,7 @@ describe("applyAwayRequest", () => {
     expect(r.state.focusOutbox).toEqual({
       n1: { id: "n1", projectId: "appDev", taskId: "t1", startedAt: iso(T), at: iso(now), minutes: 9 },
     });
-    expect(r.state.petCheckIn).toEqual({ projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 9, at: iso(now) });
+    expect(r.state.petCheckIn).toEqual({ petId: "appDev", projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 9, at: iso(now) });
     expect(r.effects).toEqual([{ type: "clearAlarm", name: "away:appDev" }]);
   });
 
@@ -320,7 +324,7 @@ describe("menus", () => {
   it("wakeMenuEntries lists one Wake item per away pet", () => {
     expect(L.wakeMenuEntries({ appDev: napEntry(), gone: napEntry() }, statuses())).toEqual([
       { id: "wake:appDev", title: "Wake appDev" },
-      { id: "wake:gone", title: "Wake gone" },
+      { id: "wake:gone", title: "Wake your pet" }, // its project was deleted while it was away
     ]);
     expect(L.wakeMenuEntries({}, statuses())).toEqual([]);
   });
@@ -394,14 +398,14 @@ describe("newCelebrations", () => {
   it("celebrates a newer completion once", () => {
     const first = L.newCelebrations(null, withCelebration(iso(T)));
     const next = L.newCelebrations(first.seen, withCelebration(iso(T + MIN), "requirement"));
-    expect(next.celebrate).toEqual([{ projectId: "webDev", kind: "requirement" }]);
+    expect(next.celebrate).toEqual([{ petId: "webDev", kind: "requirement" }]);
     expect(L.newCelebrations(next.seen, withCelebration(iso(T + MIN), "requirement")).celebrate).toEqual([]);
   });
 
   it("celebrates a pet's first completion after the tab started", () => {
     const first = L.newCelebrations(null, withCelebration(null));
     const next = L.newCelebrations(first.seen, withCelebration(iso(T), "firstTask"));
-    expect(next.celebrate).toEqual([{ projectId: "webDev", kind: "firstTask" }]);
+    expect(next.celebrate).toEqual([{ petId: "webDev", kind: "firstTask" }]);
   });
 
   it("waits for real statuses before remembering anything", () => {
@@ -476,8 +480,8 @@ describe("choosing a task for a nap", () => {
   });
 
   it("parseRequest takes the chosen task, or null for Just nap", () => {
-    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "t2" })).toEqual({ type: "nap", projectId: "a", taskId: "t2" });
-    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: null })).toEqual({ type: "nap", projectId: "a", taskId: null });
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "t2" })).toEqual({ type: "nap", petId: "a", taskId: "t2" });
+    expect(L.parseRequest({ type: "nap", projectId: "a", taskId: null })).toEqual({ type: "nap", petId: "a", taskId: null });
     expect(L.parseRequest({ type: "nap", projectId: "a", taskId: "" })).toBeNull();
     expect(L.parseRequest({ type: "nap", projectId: "a", taskId: 5 })).toBeNull();
   });
@@ -532,7 +536,7 @@ describe("finishing the nap's task ends the nap early", () => {
     const r = L.applyAwayRequest(napOn("t1"), { type: "taskDone", taskId: "t1" }, ctx(now));
     expect(r.state.petAway).toEqual({});
     expect(r.state.focusOutbox.n1).toMatchObject({ projectId: "appDev", taskId: "t1", minutes: 6 });
-    expect(r.state.petCheckIn).toEqual({ projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 6, at: iso(now), finished: true });
+    expect(r.state.petCheckIn).toEqual({ petId: "appDev", projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 6, at: iso(now), finished: true });
     expect(r.effects).toEqual([{ type: "clearAlarm", name: "away:appDev" }]);
   });
 
@@ -543,7 +547,7 @@ describe("finishing the nap's task ends the nap early", () => {
 
   it("a finished check-in is kept, and its prompt congratulates with one button", () => {
     const c = { projectId: "appDev", taskId: "t1", taskTitle: "Push", minutes: 6, at: iso(T), finished: true };
-    expect(L.parseCheckIn(c)).toEqual(c);
+    expect(L.parseCheckIn(c)).toEqual({ petId: "appDev", ...c });
     expect(L.parseCheckIn({ ...c, finished: "yes" })).not.toHaveProperty("finished");
     expect(L.checkInPrompt(c)).toEqual({ text: "Congrats! You finished Push! 🎉", buttons: [{ answer: "later", label: "Yay!" }] });
   });

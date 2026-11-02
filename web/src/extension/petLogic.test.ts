@@ -298,7 +298,7 @@ describe("sticky notes (Moderate)", () => {
       onStudium: false,
       noteOpen: false,
     };
-    expect(L.chooseNote(ctx)).toEqual({ projectId: "p", text: "Abby, I miss you. It's been 5 days since you worked on x.", signature: "- portraits", color: "#2d3a8c" });
+    expect(L.chooseNote(ctx)).toEqual({ petId: "p", projectId: "p", text: "Abby, I miss you. It's been 5 days since you worked on x.", signature: "- portraits", color: "#2d3a8c" });
     expect(L.chooseNote({ ...ctx, prefs: { involvement: "mild", nickname: "" } })).toBeNull();
     expect(L.chooseNote({ ...ctx, prefs: undefined })).toBeNull();
     expect(L.chooseNote({ ...ctx, onStudium: true })).toBeNull();
@@ -316,7 +316,7 @@ describe("sticky notes (Moderate)", () => {
     const hidden = status({ projectId: "h", shortName: "hidden", idleRequirement: { title: "x", days: 9 } });
     const due = status({ projectId: "d", shortName: "novel", deadline: "2026-10-30" });
     const ctx = { statuses: [quiet, hidden, due], shown: new Set(["q", "d"]), prefs: { involvement: "moderate", nickname: "" }, petAway: {}, lastNoteAt: 0, now, today, onStudium: false, noteOpen: false };
-    expect(L.chooseNote(ctx)).toEqual({ projectId: "d", text: "We're due in 2 days.", signature: "- novel", color: "#2d3a8c" });
+    expect(L.chooseNote(ctx)).toEqual({ petId: "d", projectId: "d", text: "We're due in 2 days.", signature: "- novel", color: "#2d3a8c" });
     expect(L.chooseNote({ ...ctx, shown: new Set(["q"]) })).toBeNull();
   });
 
