@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { NOW, dayKey, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
+import { findPet, petMood } from "../planner/pets";
+import type { ExtraPet, StudiumData } from "../planner/types";
 import { memoryStorage } from "../test/render";
 import { completeTask, giveMedicine, placeDecor, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
@@ -222,12 +224,52 @@ describe("pet stages", () => {
 });
 
 describe("bought pets", () => {
-  it("aren't sent to the desktop yet: one status per project", () => {
-    const data = makeData({
-      projects: [makeProject({ pets: [makePet({ id: "x1" }), makePet({ id: "x2", stage: "adult" })] })],
-      requirements: [makeRequirement()],
-      tasks: [makeTask()],
+  // r1 has a, b (today: a); r2 has e, f. The first pet and sharing pets see both; a pet looking after r2 sees r2 only.
+  function family(pet: Partial<ExtraPet> = {}): StudiumData {
+    return makeData({
+      projects: [makeProject({ pets: [makePet({ id: "x1", ...pet }), makePet({ id: "x2", stage: "egg", hatchedAt: null, name: null })] })],
+      requirements: [makeRequirement({ id: "r1" }), makeRequirement({ id: "r2" })],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "b" }), makeTask({ id: "e", requirementId: "r2" }), makeTask({ id: "f", requirementId: "r2", done: true })],
+      events: [completed("a0", daysAgo(2), { requirementId: "r1" }), completed("f", daysAgo(3), { requirementId: "r2" })],
+      today: { date: dayKey(0), taskIds: ["a"] },
     });
-    expect(buildPetStatuses(data, NOW).pets.map((p) => p.projectId)).toEqual(["p1"]);
+  }
+  const statusOf = (data: StudiumData, petId: string) => buildPetStatuses(data, NOW).pets.find((p) => p.petId === petId);
+
+  it("sends one status per hatched pet, keyed by pet id", () => {
+    expect(buildPetStatuses(family(), NOW).pets).toMatchObject([
+      { petId: "p1", projectId: "p1" },
+      { petId: "x1", projectId: "p1" },
+    ]);
+  });
+
+  it("labels a pet with its name, or its suggested name until it's named", () => {
+    expect(statusOf(family({ name: "Ribbit" }), "x1")?.shortName).toBe("Ribbit");
+    expect(statusOf(family({ name: null }), "x1")?.shortName).toBe("Frog");
+    expect(statusOf(family(), "x1")).toMatchObject({ petKind: "frog", stage: "juvenile", name: "Project", color: "#2d3a8c" });
+  });
+
+  it("a pet looking after a requirement suggests, offers and celebrates only that requirement", () => {
+    const data = family({ caresFor: "r2" });
+    const s = statusOf(data, "x1");
+    expect(s?.suggestion?.taskId).toBe("e");
+    expect(s?.napTasks.map((t) => t.taskId)).toEqual(["e"]);
+    expect(s?.celebration?.at).toBe(daysAgo(3));
+    expect(s?.mood).toBe(petMood(findPet(data, "x1")!, data, NOW)?.mood);
+  });
+
+  it("a sharing pet gets what the first pet gets", () => {
+    const data = family();
+    const { petId: _a, shortName: _b, petKind: _c, stage: _d, furniture: _e, ...first } = statusOf(data, "p1")!;
+    const { petId: _f, shortName: _g, petKind: _h, stage: _i, furniture: _j, ...shared } = statusOf(data, "x1")!;
+    expect(shared).toEqual(first);
+  });
+
+  it("reads furniture from the pet's own habitat", () => {
+    const owned = family();
+    owned.events.push({ type: "purchase", at: NOW.toISOString(), productId: "log", price: 0 });
+    const data = placeDecor(owned, "x1", "floorLeft", "log");
+    expect(statusOf(data, "x1")?.furniture).toEqual([{ use: "lounge", slot: "floorLeft" }]);
+    expect(statusOf(data, "p1")?.furniture).toEqual([]);
   });
 });
