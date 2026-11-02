@@ -1,9 +1,10 @@
 // All wording shown in the UI, in one place so it stays consistent and testable.
 import type { NeglectedRequirement } from "../planner/mood";
+import { findPet, type PetNews } from "../planner/pets";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
-import type { Difficulty, Mood, Project, ProjectType, Requirement, Task } from "../planner/types";
+import type { Difficulty, Mood, Project, ProjectType, Requirement, StudiumData, Task } from "../planner/types";
 import type { Blocker } from "../planner/blocking";
 import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
@@ -141,6 +142,14 @@ export function recoveringNote(words: ProjectWords = SCHOOL_WORDS): string {
 
 export function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/** What a toast says when completing a task hatched a bought egg or made a pet grow up. */
+export function petNewsMessage(news: PetNews, data: StudiumData): string {
+  const project = data.projects.find((p) => p.id === news.projectId);
+  const pet = findPet(data, news.habitatId);
+  if (news.kind === "hatched") return `${project?.shortName ?? "Your project"}'s new egg hatched! Name it in its habitat.`;
+  return `${pet?.name ?? (pet ? capitalize(pet.kind) : "Your pet")} grew up!`;
 }
 
 export function hatchingMessage(shortName: string): string {

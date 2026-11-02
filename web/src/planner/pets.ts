@@ -2,7 +2,9 @@
 // saved before bought pets keeps working); pets bought in the Shop follow it, each in its own habitat.
 // A habitat is keyed by its pet's id: the project id for the first pet, the pet id for the others.
 import { petStage } from "./lifecycle";
-import type { PetKind, PetStage, Project, StudiumData } from "./types";
+import { isRequirementDone, tasksOfRequirement } from "./progress";
+import { EGG_HATCH_SHARE, GROW_UP_SHARE } from "./tuning";
+import type { ExtraPet, PetKind, PetStage, Project, StudiumData, StudiumEvent } from "./types";
 
 export type PetRef = {
   projectId: string;
@@ -56,4 +58,92 @@ export function findPet(data: Pick<StudiumData, "projects">, habitatId: string):
     if (pet) return pet;
   }
   return undefined;
+}
+
+// ---- Growing up and bought eggs hatching ----
+
+export type Work = { done: number; total: number };
+
+/**
+ * Work on the given (current) tasks since a moment, by each task's FIRST completion: `done` counts
+ * tasks first completed after it; `total` counts tasks still open then (or added since).
+ */
+export function workSince(taskIds: string[], events: StudiumEvent[], since: string): Work {
+  const ids = new Set(taskIds);
+  const firstDone = new Map<string, number>();
+  for (const e of events) {
+    if (e.type !== "task_completed" || !ids.has(e.taskId)) continue;
+    firstDone.set(e.taskId, Math.min(firstDone.get(e.taskId) ?? Infinity, Date.parse(e.at)));
+  }
+  const t0 = Date.parse(since);
+  let done = 0;
+  let before = 0;
+  for (const at of firstDone.values()) {
+    if (at > t0) done++;
+    else before++;
+  }
+  return { done, total: ids.size - before };
+}
+
+/** At least one task done, and at least `share` of the total. */
+export function reached(w: Work, share: number): boolean {
+  return w.done >= 1 && w.done >= w.total * share;
+}
+
+export type PetNews = { kind: "hatched" | "grewUp"; projectId: string; habitatId: string };
+
+/** The tasks a pet cares about: its requirement's, or the whole project's. */
+function scopeTaskIds(data: StudiumData, projectId: string, caresFor: string | null): string[] {
+  const tasks = caresFor ? tasksOfRequirement(caresFor, data.tasks) : data.tasks.filter((t) => t.projectId === projectId);
+  return tasks.map((t) => t.id);
+}
+
+function eggReady(data: StudiumData, projectId: string, boughtAt: string): boolean {
+  return data.requirements
+    .filter((r) => r.projectId === projectId)
+    .some((r) => {
+      const w = workSince(scopeTaskIds(data, projectId, r.id), data.events, boughtAt);
+      return reached(w, EGG_HATCH_SHARE) || (w.done >= 1 && isRequirementDone(r.id, data.tasks));
+    });
+}
+
+const grows = (data: StudiumData, projectId: string, caresFor: string | null, hatchedAt: string | null) =>
+  hatchedAt !== null && reached(workSince(scopeTaskIds(data, projectId, caresFor), data.events, hatchedAt), GROW_UP_SHARE);
+
+/**
+ * Brings every pet up to date after a change: a pet whose requirement is finished or gone goes back to
+ * sharing, a bought egg hatches, a juvenile grows up. Saved changes are never undone. Returns the same
+ * data object when nothing changed.
+ */
+export function settlePets(data: StudiumData, now: Date): { data: StudiumData; news: PetNews[] } {
+  const news: PetNews[] = [];
+  const at = now.toISOString();
+  const openRequirement = (id: string, projectId: string) =>
+    data.requirements.some((r) => r.id === id && r.projectId === projectId) && !isRequirementDone(id, data.tasks);
+  let changed = false;
+  const projects = data.projects.map((project) => {
+    let next = project;
+    if (project.stage === "juvenile" && grows(data, project.id, null, project.hatchedAt)) {
+      next = { ...next, stage: "adult" };
+      news.push({ kind: "grewUp", projectId: project.id, habitatId: project.id });
+    }
+    let petsChanged = false;
+    const pets = (project.pets ?? []).map((pet) => {
+      let p: ExtraPet = pet;
+      if (p.caresFor !== null && !openRequirement(p.caresFor, project.id)) p = { ...p, caresFor: null };
+      if (p.stage === "egg" && eggReady(data, project.id, p.boughtAt)) {
+        p = { ...p, stage: "juvenile", hatchedAt: at };
+        news.push({ kind: "hatched", projectId: project.id, habitatId: p.id });
+      } else if (p.stage === "juvenile" && grows(data, project.id, p.caresFor, p.hatchedAt)) {
+        p = { ...p, stage: "adult" };
+        news.push({ kind: "grewUp", projectId: project.id, habitatId: p.id });
+      }
+      if (p !== pet) petsChanged = true;
+      return p;
+    });
+    if (petsChanged) next = { ...next, pets };
+    if (next !== project) changed = true;
+    return next;
+  });
+  return { data: changed ? { ...data, projects } : data, news };
 }

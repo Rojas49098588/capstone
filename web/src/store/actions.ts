@@ -3,7 +3,7 @@
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
-import { habitatIds, petsOf } from "../planner/pets";
+import { habitatIds, petsOf, settlePets, type PetNews } from "../planner/pets";
 import { projectHealth } from "../planner/mood";
 import { DAY_MS, addDays, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
@@ -48,6 +48,9 @@ function currentToday(data: StudiumData, now: Date): StudiumData["today"] {
   const key = localDateKey(now);
   return data.today.date === key ? data.today : { date: key, taskIds: [] };
 }
+
+/** Brings pets up to date (planner/pets.ts settlePets) and drops the news. */
+const settled = (data: StudiumData, now: Date): StudiumData => settlePets(data, now).data;
 
 /** Removes tasks and every reference to them (blockers, today). */
 function withoutTasks(data: StudiumData, removed: Set<string>): Pick<StudiumData, "tasks" | "today"> {
@@ -217,7 +220,11 @@ export function updateRequirement(
   };
 }
 
-export function deleteRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks"): StudiumData {
+export function deleteRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks", now: Date = new Date()): StudiumData {
+  return settled(withoutRequirement(data, id, mode), now);
+}
+
+function withoutRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks"): StudiumData {
   const requirements = data.requirements
     .filter((r) => r.id !== id)
     .map((r) => (r.blockedBy?.includes(id) ? { ...r, blockedBy: r.blockedBy.filter((b) => b !== id) } : r));
@@ -358,15 +365,18 @@ export function updateTask(
     const moved = data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t));
     clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy ?? task.blockedBy, moved, data.requirements);
   }
-  return {
-    ...data,
-    tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
-    events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
-  };
+  return settled(
+    {
+      ...data,
+      tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
+      events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
+    },
+    now,
+  );
 }
 
-export function deleteTask(data: StudiumData, id: string): StudiumData {
-  return { ...data, ...withoutTasks(data, new Set([id])) };
+export function deleteTask(data: StudiumData, id: string, now: Date = new Date()): StudiumData {
+  return settled({ ...data, ...withoutTasks(data, new Set([id])) }, now);
 }
 
 export function togglePriority(data: StudiumData, id: string): StudiumData {
@@ -378,13 +388,13 @@ export function completeTask(
   id: string,
   actualMin: number | null,
   now: Date,
-): { data: StudiumData; payout: Payout | null } {
+): { data: StudiumData; payout: Payout | null; news: PetNews[] } {
   const task = data.tasks.find((t) => t.id === id);
-  if (!task || task.done || isBlocked(task, data)) return { data, payout: null };
+  if (!task || task.done || isBlocked(task, data)) return { data, payout: null, news: [] };
   const actual = actualMin === null ? null : cleanMinutes(actualMin, task.estimateMin);
   const payout = computeCompletionPayout(data, id, actual, now);
-  return {
-    data: {
+  const completed = settlePets(
+    {
       ...data,
       tasks: data.tasks.map((t) => (t.id === id ? { ...t, done: true, actualMin: actual } : t)),
       events: withEvent(data, {
@@ -397,8 +407,9 @@ export function completeTask(
         breakdown: payout.breakdown,
       }),
     },
-    payout,
-  };
+    now,
+  );
+  return { data: completed.data, payout, news: completed.news };
 }
 
 export function reopenTask(data: StudiumData, id: string, now: Date): StudiumData {

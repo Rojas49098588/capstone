@@ -171,7 +171,7 @@ export function useStudium(options: StudiumOptions = {}) {
       updateRequirement: (id: string, changes: Parameters<typeof A.updateRequirement>[2]) =>
         change((d, at) => A.updateRequirement(d, id, changes, at)),
       deleteRequirement: (id: string, mode: "deleteTasks" | "unlinkTasks") =>
-        change((d) => A.deleteRequirement(d, id, mode)),
+        change((d, at) => A.deleteRequirement(d, id, mode, at)),
       createTask: (input: A.TaskInput) =>
         apply((d, at) => {
           const r = A.createTask(d, input, at);
@@ -179,16 +179,16 @@ export function useStudium(options: StudiumOptions = {}) {
         }),
       updateTask: (id: string, changes: Parameters<typeof A.updateTask>[2]) =>
         change((d, at) => A.updateTask(d, id, changes, at)),
-      deleteTask: (id: string) => change((d) => A.deleteTask(d, id)),
+      deleteTask: (id: string) => change((d, at) => A.deleteTask(d, id, at)),
       togglePriority: (id: string) => change((d) => A.togglePriority(d, id)),
       completeTask: (id: string, actualMin: number | null) => {
-        const payout = apply((d, at) => {
+        const result = apply((d, at) => {
           const r = A.completeTask(d, id, actualMin, at);
-          return { data: r.data, result: r.payout };
+          return { data: r.data, result: { payout: r.payout, news: r.news } };
         });
         // The desktop app wakes a pet napping on this task, with congrats.
-        if (payout && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(TASK_DONE_EVENT, { detail: id }));
-        return payout;
+        if (result.payout && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(TASK_DONE_EVENT, { detail: id }));
+        return result;
       },
       reopenTask: (id: string) => change((d, at) => A.reopenTask(d, id, at)),
       addToToday: (id: string) => change((d, at) => A.addToToday(d, id, at)),

@@ -50,6 +50,8 @@ export const MULTIPLIER_MAX = 3;
 // Pet lifecycle
 export const HATCH_REQUIREMENTS = 3; // an egg hatches once its project has this many requirements
 export const JUVENILE_SCALE = 0.75; // juveniles are drawn at this fraction of the adult size
+export const GROW_UP_SHARE = 0.5; // a juvenile grows up once this share of its tasks is done since it hatched
+export const EGG_HATCH_SHARE = 0.5; // a bought egg hatches once one requirement has this share done since the purchase
 
 // Misc
 export const SUGGESTED_COUNT = 6;

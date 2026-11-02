@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { taskFocusMinutes } from "../planner/focus";
 import { useStudiumContext } from "../store/useStudium";
-import { formatMinutes, payoutMessage } from "../ui/format";
+import { formatMinutes, payoutMessage, petNewsMessage } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, SERIF } from "../ui/styles";
 import EstimatePicker from "./EstimatePicker";
 import { useReturnFocus } from "./useReturnFocus";
@@ -36,8 +36,9 @@ export default function CompletionPrompt({ taskId, onClose, onDone }: Props) {
 
   function finish(actualMin: number | null) {
     if (!task) return;
-    const payout = s.completeTask(task.id, actualMin);
-    onDone(payout ? payoutMessage(payout, task) : "That task can't be completed yet.");
+    const { payout, news } = s.completeTask(task.id, actualMin);
+    // s.data is from before this completion; the names the news uses don't change with it.
+    onDone(payout ? [payoutMessage(payout, task), ...news.map((n) => petNewsMessage(n, s.data))].join(" ") : "That task can't be completed yet.");
     onClose();
   }
 
