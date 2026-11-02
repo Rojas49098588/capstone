@@ -2,7 +2,8 @@
 # Run it from the Actions tab → "Build installers" → Run workflow. It runs the tests, builds both
 # installers, checks each packaged app starts, and puts both files on a draft Release v<version>
 # (version from desktop/package.json) for you to publish. Running it again for the same version
-# replaces the files on that release.
+# replaces the files while the release is still a draft; a published release is never changed (bump
+# the version). Only a run on main makes a release; other branches just build.
 name: Build installers
 
 on:
@@ -88,7 +89,7 @@ jobs:
   release:
     name: Draft release
     needs: build
-    if: github.event_name == 'workflow_dispatch'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -103,15 +104,4 @@ jobs:
       - name: Create or update the draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          version=$(node -p "require('./desktop/package.json').version")
-          tag="v$version"
-          ls -l files
-          if gh release view "$tag" > /dev/null 2>&1; then
-            gh release upload "$tag" files/* --clobber
-            echo "Replaced the files on release $tag."
-          else
-            gh release create "$tag" files/* --draft --title "Studium $version" \
-              --notes-file .github/release-notes.md --target "$GITHUB_SHA"
-            echo "Created draft release $tag. Open it on the Releases page and click Publish release."
-          fi
+        run: node desktop/scripts/release.js files

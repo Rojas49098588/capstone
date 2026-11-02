@@ -51,7 +51,7 @@ npm run test:e2e   # starts the real app (builds web/ first)
 npm run dist       # this computer's installer (Windows .exe or Mac .dmg) in your home folder's StudiumBuilds
 ```
 
-- **Releases:** GitHub → **Actions** → **Build installers** → **Run workflow** (`.github/workflows/build.yml`). It runs the tests, builds the Windows `.exe` and the universal Mac `.dmg`, checks each packaged app starts, and puts both on a draft Release `v<version>` (from `desktop/package.json`). Open it on the Releases page and click **Publish release**. Bump the version first for a new release; running it again for the same version replaces the files.
+- **Releases:** GitHub → **Actions** → **Build installers** → **Run workflow** (`.github/workflows/build.yml`). It runs the tests, builds the Windows `.exe` and the universal Mac `.dmg`, checks each packaged app starts, and puts both on a draft Release `v<version>` (from `desktop/package.json`). Open it on the Releases page and click **Publish release**. Only a run on `main` makes a release. Running it again for the same version replaces the files while the release is still a draft; once published, it's never changed, so bump the version for a new release.
 
 - Dev mode (`npm run dev`) loads `http://localhost:5173`, so its Studium data is separate from the built app's.
 - Closing the window only hides it. To quit, right-click Studium's taskbar button (or the egg in the tray; Windows may tuck it under the **^** by the clock) and choose **Quit Studium**. On a Mac, use the menu bar icon's **Quit** or press Cmd+Q; clicking the Dock icon brings a closed window back.
