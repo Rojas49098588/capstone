@@ -1,4 +1,5 @@
 // Everything a screen needs to know about a project, computed once per render.
+import { withSnack } from "../planner/food";
 import { estimateMultipliers, multiplierFor, samplesFor, type Multipliers } from "../planner/learning";
 import { projectMood, type NeglectedRequirement, type ProjectHealth } from "../planner/mood";
 import { projectProgress, totalProgress } from "../planner/progress";
@@ -23,7 +24,8 @@ export function summarizeProject(
   now: Date,
   multipliers: Multipliers = estimateMultipliers(data),
 ): ProjectSummary {
-  const m = projectMood(project.id, data, now, multipliers);
+  // The project's first pet shows its snack here too (food spec).
+  const m = withSnack(projectMood(project.id, data, now, multipliers), project.id, data.events, now);
   const tasks = data.tasks.filter((t) => t.projectId === project.id);
   return {
     project,

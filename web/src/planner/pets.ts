@@ -1,6 +1,7 @@
 // A project's pets: the first pet is the project itself (its id is the project id, so all state
 // saved before bought pets keeps working); pets bought in the Shop follow it, each in its own habitat.
 // A habitat is keyed by its pet's id: the project id for the first pet, the pet id for the others.
+import { withSnack } from "./food";
 import { lastCompletionAt, lastMedicineGiven } from "./history";
 import { estimateMultipliers, multiplierFor, type Multipliers } from "./learning";
 import { petStage } from "./lifecycle";
@@ -165,7 +166,7 @@ export function petMood(pet: PetRef, data: StudiumData, now: Date, multipliers: 
   if (pet.stage === "egg") return null;
   const project = data.projects.find((p) => p.id === pet.projectId);
   const req = pet.caresFor ? data.requirements.find((r) => r.id === pet.caresFor && r.projectId === pet.projectId) : undefined;
-  if (!project || !req) return projectMood(pet.projectId, data, now, multipliers);
+  if (!project || !req) return withSnack(projectMood(pet.projectId, data, now, multipliers), pet.petId, data.events, now);
 
   const done = isRequirementDone(req.id, data.tasks);
   const planned = plannedProgress(req, project, now);
@@ -187,7 +188,8 @@ export function petMood(pet: PetRef, data: StudiumData, now: Date, multipliers: 
   if (neglected.length > 0) mood = lowerOneLevel(mood);
   if (sick) mood = "Sick";
   else if (recovering) mood = capAtWorried(mood);
-  return { mood, gap, neglected, health: { sick, recovering, recoveringFor: recovering ? [req.id] : [] }, liftedFrom: null };
+  const health = { sick, recovering, recoveringFor: recovering ? [req.id] : [] };
+  return withSnack({ mood, gap, neglected, health, liftedFrom: null }, pet.petId, data.events, now);
 }
 
 // ---- Buying eggs and naming pets ----
