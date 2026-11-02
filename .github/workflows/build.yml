@@ -7,10 +7,6 @@ name: Build installers
 
 on:
   workflow_dispatch:
-  # Temporary, so the branch can be tested before the file is on main (the Run workflow button only
-  # appears for workflows on the default branch). Removed before merging.
-  push:
-    branches: [feature/desktop-week4-release]
 
 permissions:
   contents: read
