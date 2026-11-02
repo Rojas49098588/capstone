@@ -134,7 +134,7 @@ export function StudiumApp() {
     setTourStep(0);
   }, [startShopTour, defaultTourProjectId]);
 
-  // Links from the browser pets (Open project, Done after a nap). Read through a ref, so the
+  // Links from the pets (Open project, Done after a nap). Read through a ref, so the
   // hashchange listener is added once and still sees the latest data.
   const followLink = useRef<() => void>(() => {});
   followLink.current = () => {
@@ -142,7 +142,16 @@ export function StudiumApp() {
     if (window.location.hash) history.replaceState(null, "", window.location.pathname + window.location.search);
     if (!link) return;
     if (link.kind === "project") {
-      if (s.data.projects.some((p) => p.id === link.id)) openProject(link.id);
+      if (!s.data.projects.some((p) => p.id === link.id)) return;
+      openProject(link.id);
+      // A bought pet's link: scroll to its habitat once the project page has rendered.
+      const pet = link.pet;
+      if (pet) {
+        setTimeout(() => {
+          const id = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(pet) : pet.replace(/"/g, "\\\"");
+          document.querySelector(`[data-pet-habitat="${id}"]`)?.scrollIntoView({ block: "center" });
+        }, 0);
+      }
       return;
     }
     const task = s.data.tasks.find((t) => t.id === link.id);
