@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { loginItemSettings, startHidden, startQuietlyFrom, startWithComputerFrom } from '../src/main/loginItem.js';
 
 describe('loginItemSettings', () => {
-  it('opens Studium at login, with its window showing', () => {
-    expect(loginItemSettings(true, 'C:\\S\\Studium.exe')).toEqual({ openAtLogin: true, path: 'C:\\S\\Studium.exe', args: [] });
+  it('opens Studium at login, with its window showing (Windows)', () => {
+    expect(loginItemSettings(true, 'C:\\S\\Studium.exe', false, 'win32')).toEqual({ openAtLogin: true, path: 'C:\\S\\Studium.exe', args: [] });
   });
 
-  it('starts quietly in the tray when asked', () => {
-    expect(loginItemSettings(true, 'Studium.exe', true).args).toEqual(['--hidden']);
-    expect(loginItemSettings(true, 'Studium.exe', false).args).toEqual([]);
+  it('starts quietly in the tray when asked (Windows: --hidden)', () => {
+    expect(loginItemSettings(true, 'Studium.exe', true, 'win32').args).toEqual(['--hidden']);
+    expect(loginItemSettings(true, 'Studium.exe', false, 'win32').args).toEqual([]);
   });
 
   it('can be turned off', () => {

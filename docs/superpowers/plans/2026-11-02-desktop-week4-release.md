@@ -231,6 +231,7 @@ Making the repo public shows every commit ever made, not just today's files.
   4. Drag, click, and right-click → each menu item works. Open project opens Studium at the project.
   5. The menu bar icon's menu works: Open Studium, Hide/Show pets, Quit.
   6. Closing the window keeps the app running; clicking the Dock icon brings it back. Cmd+Q quits.
+  6b. The Dock icon and Studium's menu bar menus are still there a minute after the pets appear (the overlay's full-screen setting hides them briefly).
   7. A full-screen app (for example Safari full screen) still shows the pets.
   8. "Start Studium when your computer starts", after logging out and back in: Studium is running. With quiet start, there's no window.
   9. On Moderate, pet sounds and notes work.
