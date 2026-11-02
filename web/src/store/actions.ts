@@ -1,6 +1,7 @@
 // User actions as pure functions: (data, input, now) → new data (+ result).
 // Every change that matters for history appends an event.
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
+import { canFeed, foodKind } from "../planner/food";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
 import { eggProductId, eggRefusal, findPet, habitatIds, petMood, petsOf, settlePets, suggestedPetName, type PetNews } from "../planner/pets";
@@ -464,6 +465,15 @@ export function giveMedicine(data: StudiumData, projectId: string, now: Date, pe
   const pet = findPet(data, petId);
   if (!pet || pet.first || pet.projectId !== projectId || pet.caresFor === null || !petMood(pet, data, now)?.health.sick) return { data, ok: false };
   return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId, petId }) }, ok: true };
+}
+
+/** Feeds a pet a snack or a meal it owns (food spec). Refused, nothing used up, when canFeed says no. */
+export function feedPet(data: StudiumData, projectId: string, petId: string, productId: string, now: Date): { data: StudiumData; ok: boolean } {
+  const pet = findPet(data, petId);
+  const kind = foodKind(productId);
+  if (!pet || pet.projectId !== projectId || kind === null) return { data, ok: false };
+  if (!canFeed(data, pet, petMood(pet, data, now), kind, now).ok) return { data, ok: false };
+  return { data: { ...data, events: withEvent(data, { type: "fed", at: stamp(now), projectId, petId, productId }) }, ok: true };
 }
 
 // ---- Bought pets ----

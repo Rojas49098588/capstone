@@ -214,6 +214,11 @@ export function useStudium(options: StudiumOptions = {}) {
           const r = A.giveMedicine(d, projectId, at, petId);
           return { data: r.data, result: r.ok };
         }),
+      feedPet: (projectId: string, petId: string, productId: string) =>
+        apply((d, at) => {
+          const r = A.feedPet(d, projectId, petId, productId, at);
+          return { data: r.data, result: r.ok };
+        }),
     };
   }, [apply]);
 

@@ -12,6 +12,7 @@ import {
   deleteRequirement,
   deleteTask,
   duplicateRequirement,
+  feedPet,
   nextRequirementTitle,
   giveMedicine,
   purchase,
@@ -22,6 +23,8 @@ import {
   updateTask,
 } from "./actions";
 import { petStage } from "../planner/lifecycle";
+import { projectHealth } from "../planner/mood";
+import type { StudiumEvent } from "../planner/types";
 import { isValidData } from "./storage";
 import { buildSeed } from "./seed";
 
@@ -519,5 +522,58 @@ describe("pets growing up and caring", () => {
     data.tasks.push(makeTask({ id: "c" }), makeTask({ id: "d" }));
     expect(deleteTask(data, "d").projects[0].stage).toBe("juvenile");
     expect(deleteTask(deleteTask(data, "d"), "c").projects[0].stage).toBe("adult");
+  });
+});
+
+describe("feedPet", () => {
+  const HOUR = 3_600_000;
+  const stock = (productId: string): StudiumEvent => ({ type: "purchase", at: daysAgo(2), productId, price: 0 });
+  // r1 is half planned with 4 of 10 tasks done: a Worried steady project. p1 also has a bought pet x1.
+  function worried(events: StudiumEvent[] = [], o: { stocked?: boolean; createdDaysAgo?: number } = {}) {
+    const ids = Array.from({ length: 10 }, (_, i) => `t${i}`);
+    const stocked = o.stocked ?? true;
+    return makeData({
+      projects: [makeProject({ pets: [makePet()] })],
+      requirements: [makeRequirement({ id: "r1", startDate: dayKey(-10), dueDate: dayKey(10), createdAt: daysAgo(o.createdDaysAgo ?? 10) })],
+      tasks: ids.map((id, i) => makeTask({ id, requirementId: "r1", done: i < 4 })),
+      events: [
+        ...ids.slice(0, 4).map((id) => completed(id, daysAgo(1), { requirementId: "r1" })),
+        ...(stocked ? [stock("berry-bites"), stock("berry-bites"), stock("power-bento"), stock("power-bento")] : []),
+        ...events,
+      ],
+    });
+  }
+  const later = (ms: number) => new Date(NOW.getTime() + ms);
+
+  it("feeds a worried pet a snack and uses it up", () => {
+    const r = feedPet(worried(), "p1", "x1", "berry-bites", NOW);
+    expect(r.ok).toBe(true);
+    expect(r.data.events[r.data.events.length - 1]).toEqual({ type: "fed", at: NOW.toISOString(), projectId: "p1", petId: "x1", productId: "berry-bites" });
+    expect(inventory(r.data.events)["berry-bites"]).toBe(1);
+  });
+
+  it("refuses what canFeed refuses and changes nothing", () => {
+    const none = worried([], { stocked: false });
+    expect(feedPet(none, "p1", "p1", "berry-bites", NOW)).toEqual({ data: none, ok: false });
+    const snacked = feedPet(worried(), "p1", "p1", "berry-bites", NOW).data;
+    expect(feedPet(snacked, "p1", "p1", "berry-bites", later(HOUR / 2)).ok).toBe(false);
+    const dined = feedPet(worried(), "p1", "p1", "power-bento", NOW).data;
+    expect(feedPet(dined, "p1", "p1", "power-bento", later(HOUR)).ok).toBe(false);
+  });
+
+  it("doesn't feed a sick pet or an egg", () => {
+    const sickData = worried([], { createdDaysAgo: 10 });
+    sickData.events = sickData.events.filter((e) => e.type !== "task_completed");
+    sickData.requirements = [makeRequirement({ id: "r1", startDate: dayKey(-20), dueDate: dayKey(10) })];
+    expect(projectHealth("p1", sickData, NOW).sick).toBe(true);
+    expect(feedPet(sickData, "p1", "p1", "power-bento", NOW).ok).toBe(false);
+    const egg = worried();
+    egg.projects = [makeProject({ pets: [makePet({ stage: "egg", hatchedAt: null, name: null })] })];
+    expect(feedPet(egg, "p1", "x1", "power-bento", NOW).ok).toBe(false);
+  });
+
+  it("only feeds food, and only to a pet of that project", () => {
+    expect(feedPet(worried([stock("medicine")]), "p1", "p1", "medicine", NOW).ok).toBe(false);
+    expect(feedPet(worried(), "p2", "x1", "berry-bites", NOW).ok).toBe(false);
   });
 });
