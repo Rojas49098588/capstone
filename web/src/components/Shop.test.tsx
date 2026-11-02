@@ -4,7 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 import { NOW } from "../planner/testData";
 import { buildSeed } from "../store/seed";
-import { renderWithStudium } from "../test/render";
+import { buyEgg } from "../store/actions";
+import { renderWithStudium, savedData } from "../test/render";
 import Shop from "./Shop";
 
 describe("Shop", () => {
@@ -56,5 +57,42 @@ describe("Shop tabs", () => {
     await userEvent.click(within(bed).getByRole("button", { name: "Buy · 150 tokens" }));
     screen.getByText("500");
     within(bed).getByText("Owned ×1");
+  });
+});
+
+describe("Shop Pets tab", () => {
+  const section = (kind: string) => screen.getByRole("region", { name: kind });
+
+  it("shows one egg for each kind of pet", async () => {
+    renderWithStudium(<Shop />);
+    await userEvent.click(screen.getByRole("tab", { name: "Pets" }));
+    for (const kind of ["Cat", "Dog", "Frog", "Pigeon", "Turtle"]) screen.getByRole("heading", { name: kind });
+    expect(screen.getAllByRole("button", { name: "Buy · 400 tokens" })).toHaveLength(5);
+  });
+
+  it("buys an egg for the chosen project", async () => {
+    const { storage } = renderWithStudium(<Shop />);
+    await userEvent.click(screen.getByRole("tab", { name: "Pets" }));
+    const frog = section("Frog");
+    const buy = within(frog).getByRole("button", { name: "Buy · 400 tokens" }) as HTMLButtonElement;
+    expect(buy.disabled).toBe(true);
+    await userEvent.selectOptions(within(frog).getByLabelText("Project"), "webDev");
+    await userEvent.click(buy);
+    screen.getByText("250");
+    within(frog).getByText(/^The egg is in webDev's habitats\. It hatches when you finish half of any/);
+    expect(savedData(storage).projects.find((p) => p.id === "webDev")?.pets?.[0]).toMatchObject({ kind: "frog", stage: "egg" });
+  });
+
+  it("says why a project can't take an egg", async () => {
+    const data = buyEgg(buildSeed(NOW), "webDev", "cat", NOW).data;
+    renderWithStudium(<Shop openTab="pets" />, { data });
+    const option = within(section("Dog")).getByRole("option", { name: "webDev (an egg is already waiting)" }) as HTMLOptionElement;
+    expect(option.disabled).toBe(true);
+  });
+
+  it("asks for more tokens when you can't afford an egg", () => {
+    renderWithStudium(<Shop openTab="pets" />, { data: { ...buildSeed(NOW), startingTokens: 100 } });
+    const need = within(section("Cat")).getByRole("button", { name: "Need 300 more" }) as HTMLButtonElement;
+    expect(need.disabled).toBe(true);
   });
 });

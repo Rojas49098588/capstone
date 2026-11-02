@@ -26,6 +26,11 @@ export const EGGS: EggLook[] = [
   },
 ];
 
+/** The egg a kind of pet hatches from. */
+export function eggLookFor(kind: PetKind): EggLook {
+  return EGGS.find((e) => e.kind === kind) ?? EGGS[0];
+}
+
 /** A shuffled copy (Fisher–Yates), so an egg's position doesn't give it away. */
 export function shuffledEggs(random: () => number = Math.random): EggLook[] {
   const eggs = [...EGGS];

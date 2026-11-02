@@ -1,8 +1,8 @@
 // All wording shown in the UI, in one place so it stays consistent and testable.
 import type { NeglectedRequirement } from "../planner/mood";
-import { findPet, suggestedPetName, type PetNews } from "../planner/pets";
+import { findPet, suggestedPetName, type EggRefusal, type PetNews } from "../planner/pets";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
-import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
+import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN, MAX_PETS_PER_PROJECT } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
 import type { Difficulty, Mood, Project, ProjectType, Requirement, StudiumData, Task } from "../planner/types";
 import type { Blocker } from "../planner/blocking";
@@ -99,6 +99,25 @@ export const EGG_LABEL = "Egg";
 export function hatchHint(remaining: number, words: ProjectWords = SCHOOL_WORDS): string {
   return `Add ${remaining} more ${remaining === 1 ? words.requirement : words.requirements} to hatch`;
 }
+
+// ---- Bought pets ----
+
+/** How a bought egg hatches (any one requirement half done since the purchase). */
+export function boughtEggHint(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Hatches when you finish half of any ${words.requirement}'s ${words.tasks}`;
+}
+
+export const EGG_REFUSAL_LABELS: Record<EggRefusal, string> = {
+  firstEgg: "its own egg hasn't hatched",
+  eggWaiting: "an egg is already waiting",
+  full: `${MAX_PETS_PER_PROJECT} pets`,
+};
+
+export function eggBoughtMessage(shortName: string, words: ProjectWords = SCHOOL_WORDS): string {
+  return `The egg is in ${shortName}'s habitats. It hatches when you finish half of any ${words.requirement}'s ${words.tasks}.`;
+}
+
+export const NO_PROJECTS_FOR_EGGS = "Start a project first; eggs go to a project.";
 
 /** The edit dialog's companion line while the pet is an egg: it doesn't give the animal away. */
 export function eggCompanionLabel(words: ProjectWords = SCHOOL_WORDS): string {
