@@ -9,7 +9,7 @@ import ProjectDetail from "./components/ProjectDetail";
 import ProjectModal from "./components/ProjectModal";
 import Settings from "./components/Settings";
 import Setup from "./components/Setup";
-import Shop from "./components/Shop";
+import Shop, { type ShopTab } from "./components/Shop";
 import Toast from "./components/Toast";
 import Tour from "./components/Tour";
 import { isBlocked } from "./planner/blocking";
@@ -38,6 +38,7 @@ const NAV_IDLE = "text-[var(--color-muted-foreground)] hover:text-[var(--color-f
 export function StudiumApp() {
   const s = useStudiumContext();
   const [page, setPage] = useState<"projects" | "shop" | "settings">("projects");
+  const [shopTab, setShopTab] = useState<ShopTab | undefined>(undefined); // a link straight to one Shop tab
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [modal, setModal] = useState<Modal>(null);
   const [completingId, setCompletingId] = useState<string | null>(null);
@@ -171,7 +172,10 @@ export function StudiumApp() {
   const navItems = (small: boolean) => [
     navButton(small ? "All" : "All Projects", onProjects && !selected, openProjects, undefined, small),
     ...s.data.projects.map((p) => navButton(p.shortName, onProjects && selected?.id === p.id, () => openProject(p.id), p.color, small)),
-    navButton("Shop", page === "shop", () => setPage("shop"), undefined, small),
+    navButton("Shop", page === "shop", () => {
+      setShopTab(undefined);
+      setPage("shop");
+    }, undefined, small),
   ];
 
 
@@ -246,7 +250,7 @@ export function StudiumApp() {
 
       <main className="max-w-6xl mx-auto w-full px-6 py-10">
         {page === "shop" ? (
-          <Shop openTab={tourShopTab} />
+          <Shop openTab={tourShopTab ?? shopTab} />
         ) : page === "settings" ? (
           <Settings onReplayTutorial={replayTour} />
         ) : selected ? (
@@ -264,7 +268,10 @@ export function StudiumApp() {
               onToast={setToast}
               onRequestComplete={setCompletingId}
               onEditProject={() => setModal({ mode: "edit", projectId: selected.id })}
-              onOpenShop={() => setPage("shop")}
+              onOpenShop={(tab) => {
+                setShopTab(tab);
+                setPage("shop");
+              }}
             />
           </>
         ) : (

@@ -7,7 +7,8 @@ import { ALL_DECOR, DECOR_GROUPS, freeCopies, ownedDecor, placements, type Decor
 import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
 import { useStudiumContext } from "../store/useStudium";
 import { SLOT_NAMES, type SpotSlot } from "../ui/decorLayout";
-import { copiesLabel } from "../ui/format";
+import { findPet } from "../planner/pets";
+import { capitalize, copiesLabel } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 import DecorArt from "./DecorArt";
 import type { Placing } from "./HabitatDecor";
@@ -33,7 +34,11 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
   const ownedFurniture = ownedDecor(s.data);
   const color = s.data.projects.find((p) => p.id === projectId)?.color ?? "currentColor";
   const habitat = s.data.decor?.[projectId] ?? {};
-  const shortName = (id: string) => s.data.projects.find((p) => p.id === id)?.shortName ?? id;
+  // Copies can be in any habitat: a project's first pet (its nickname) or a bought pet (its name).
+  const shortName = (id: string) => {
+    const pet = findPet(s.data, id);
+    return pet ? (pet.name ?? capitalize(pet.kind)) : id;
+  };
   const placingItem = placing ? ALL_DECOR.find((i) => i.id === placing.itemId) : undefined;
 
   const supplies = SUPPLY_GROUPS.map((category) => ({

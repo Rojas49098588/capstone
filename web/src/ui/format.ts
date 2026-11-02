@@ -119,6 +119,25 @@ export function eggBoughtMessage(shortName: string, words: ProjectWords = SCHOOL
 
 export const NO_PROJECTS_FOR_EGGS = "Start a project first; eggs go to a project.";
 
+/** A habitat header's small label: what its pet cares about. */
+export const CARES_SHARED_LABEL = "Project Companion";
+export function caresForLabel(title: string): string {
+  return `Looks after · ${title}`;
+}
+export const SHARES_MOOD_OPTION = "Shares the project's mood";
+export function looksAfterOption(title: string): string {
+  return `Looks after ${title}`;
+}
+
+/** How close a bought egg is: the requirement nearest to halfway. */
+export function eggProgressLabel(done: number, needed: number, words: ProjectWords = SCHOOL_WORDS): string {
+  return `${done} of ${needed} ${words.tasks} toward hatching`;
+}
+
+export const PET_SETUP_TEXT = "Your new companion hatched! Give it a name and choose what it cares about.";
+export const ANOTHER_PET_PROMPT = "Want another companion?";
+export const ANOTHER_PET_LINK = "Buy an egg in the Shop";
+
 /** The edit dialog's companion line while the pet is an egg: it doesn't give the animal away. */
 export function eggCompanionLabel(words: ProjectWords = SCHOOL_WORDS): string {
   return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} ${words.requirements}).`;
