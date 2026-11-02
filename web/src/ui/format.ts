@@ -1,6 +1,6 @@
 // All wording shown in the UI, in one place so it stays consistent and testable.
 import type { NeglectedRequirement } from "../planner/mood";
-import { findPet, type PetNews } from "../planner/pets";
+import { findPet, suggestedPetName, type PetNews } from "../planner/pets";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
@@ -149,7 +149,8 @@ export function petNewsMessage(news: PetNews, data: StudiumData): string {
   const project = data.projects.find((p) => p.id === news.projectId);
   const pet = findPet(data, news.habitatId);
   if (news.kind === "hatched") return `${project?.shortName ?? "Your project"}'s new egg hatched! Name it in its habitat.`;
-  return `${pet?.name ?? (pet ? capitalize(pet.kind) : "Your pet")} grew up!`;
+  const name = pet?.name ?? (pet && project ? suggestedPetName(project, pet.kind) : "Your pet");
+  return `${name} grew up!`;
 }
 
 export function hatchingMessage(shortName: string): string {

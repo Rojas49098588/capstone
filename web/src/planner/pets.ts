@@ -8,7 +8,7 @@ import { capAtWorried, lowerOneLevel, moodFromGap, neglectDays, projectMood, req
 import { projectDifficulty } from "./projectKind";
 import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "./progress";
 import { DAY_MS } from "./time";
-import { EGG_HATCH_SHARE, GROW_UP_SHARE, RECOVERY_DAYS } from "./tuning";
+import { EGG_HATCH_SHARE, GROW_UP_SHARE, MAX_PETS_PER_PROJECT, RECOVERY_DAYS } from "./tuning";
 import type { ExtraPet, Mood, PetKind, PetStage, Project, StudiumData, StudiumEvent } from "./types";
 
 export type PetRef = {
@@ -187,4 +187,32 @@ export function petMood(pet: PetRef, data: StudiumData, now: Date, multipliers: 
   if (sick) mood = "Sick";
   else if (recovering) mood = capAtWorried(mood);
   return { mood, gap, neglected, health: { sick, recovering, recoveringFor: recovering ? [req.id] : [] } };
+}
+
+// ---- Buying eggs and naming pets ----
+
+/** The purchase event's product id for an egg (it is never in SHOP_PRODUCTS: priceOf stays undefined). */
+export function eggProductId(kind: PetKind): string {
+  return `egg-${kind}`;
+}
+
+/** Why a project can't get another egg now: its own egg hasn't hatched, a bought egg waits, or it has 4 pets. */
+export type EggRefusal = "firstEgg" | "eggWaiting" | "full";
+
+export function eggRefusal(project: Project): EggRefusal | null {
+  if (petStage(project) === "egg") return "firstEgg";
+  const pets = project.pets ?? [];
+  if (pets.some((p) => p.stage === "egg")) return "eggWaiting";
+  if (pets.length + 1 >= MAX_PETS_PER_PROJECT) return "full";
+  return null;
+}
+
+const capitalized = (word: string) => word.charAt(0).toUpperCase() + word.slice(1);
+
+/** "Frog", or "Frog 2", "Frog 3"… if another pet in the project already has that name. */
+export function suggestedPetName(project: Project, kind: PetKind): string {
+  const taken = new Set(petsOf(project).map((p) => (p.name ?? "").trim().toLowerCase()));
+  const base = capitalized(kind);
+  if (!taken.has(base.toLowerCase())) return base;
+  for (let n = 2; ; n++) if (!taken.has(`${base} ${n}`.toLowerCase())) return `${base} ${n}`;
 }

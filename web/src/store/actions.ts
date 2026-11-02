@@ -3,12 +3,15 @@
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
-import { findPet, habitatIds, petMood, petsOf, settlePets, type PetNews } from "../planner/pets";
+import { eggProductId, eggRefusal, findPet, habitatIds, petMood, petsOf, settlePets, suggestedPetName, type PetNews } from "../planner/pets";
 import { projectHealth } from "../planner/mood";
+import { isRequirementDone } from "../planner/progress";
 import { DAY_MS, addDays, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
-import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
+import { DEFAULT_ESTIMATE_MIN, EGG_PRICE, MEDICINE_PRODUCT_ID, NICKNAME_MAX } from "../planner/tuning";
 import type {
   DecorSlot,
+  ExtraPet,
+  PetKind,
   FocusSession,
   HabitatDecor,
   Project,
@@ -461,6 +464,47 @@ export function giveMedicine(data: StudiumData, projectId: string, now: Date, pe
   const pet = findPet(data, petId);
   if (!pet || pet.first || pet.projectId !== projectId || pet.caresFor === null || !petMood(pet, data, now)?.health.sick) return { data, ok: false };
   return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId, petId }) }, ok: true };
+}
+
+// ---- Bought pets ----
+
+/**
+ * Buys an egg of a kind for a project: it costs EGG_PRICE, goes after the project's other pets and gets
+ * its own habitat with a built-in bed. Refused (nothing spent) when the project can't take an egg now.
+ */
+export function buyEgg(data: StudiumData, projectId: string, kind: PetKind, now: Date): { data: StudiumData; ok: boolean; habitatId: string | null } {
+  const project = data.projects.find((p) => p.id === projectId);
+  if (!project || eggRefusal(project) !== null || tokenBalance(data) < EGG_PRICE) return { data, ok: false, habitatId: null };
+  const at = stamp(now);
+  const egg: ExtraPet = { id: newId(), kind, stage: "egg", boughtAt: at, hatchedAt: null, name: null, caresFor: null };
+  return {
+    data: {
+      ...data,
+      projects: data.projects.map((p) => (p.id === projectId ? { ...p, pets: [...(p.pets ?? []), egg] } : p)),
+      decor: { ...(data.decor ?? {}), [egg.id]: withDefaultBed({}) },
+      events: withEvent(data, { type: "purchase", at, productId: eggProductId(kind), price: EGG_PRICE }),
+    },
+    ok: true,
+    habitatId: egg.id,
+  };
+}
+
+/**
+ * Names a hatched bought pet and/or sets what it cares about (an unfinished requirement of its project,
+ * or null to share the project's mood). A blank name becomes the suggested one. Refusals return the same data.
+ */
+export function setUpPet(data: StudiumData, projectId: string, petId: string, input: { name?: string; caresFor?: string | null }): StudiumData {
+  const project = data.projects.find((p) => p.id === projectId);
+  const pet = project?.pets?.find((p) => p.id === petId);
+  if (!project || !pet || pet.stage === "egg") return data;
+  const changes: Partial<ExtraPet> = {};
+  if (input.name !== undefined) changes.name = input.name.trim().slice(0, NICKNAME_MAX) || suggestedPetName({ ...project, pets: project.pets?.filter((p) => p.id !== petId) }, pet.kind);
+  if (input.caresFor !== undefined) {
+    const id = input.caresFor;
+    const open = id !== null && data.requirements.some((r) => r.id === id && r.projectId === projectId) && !isRequirementDone(id, data.tasks);
+    changes.caresFor = open ? id : null;
+  }
+  return { ...data, projects: data.projects.map((p) => (p.id === projectId ? { ...p, pets: p.pets?.map((x) => (x.id === petId ? { ...x, ...changes } : x)) } : p)) };
 }
 
 // ---- Focus sessions (naps with a browser pet) ----
