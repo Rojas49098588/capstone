@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginItemSettings, startQuietlyFrom, startWithComputerFrom } from '../src/main/loginItem.js';
+import { loginItemSettings, startHidden, startQuietlyFrom, startWithComputerFrom } from '../src/main/loginItem.js';
 
 describe('loginItemSettings', () => {
   it('opens Studium at login, with its window showing', () => {
@@ -33,5 +33,35 @@ describe('startQuietlyFrom', () => {
     expect(startQuietlyFrom('[]')).toBe(false);
     expect(startQuietlyFrom('{"startQuietly":"yes"}')).toBe(false);
     expect(startQuietlyFrom('{"startQuietly":true}')).toBe(true);
+  });
+});
+
+describe('on a Mac', () => {
+  it('a login item is only on or off (macOS ignores path and args)', () => {
+    expect(loginItemSettings(true, '/Applications/Studium.app', true, 'darwin')).toEqual({ openAtLogin: true });
+    expect(loginItemSettings(false, '/Applications/Studium.app', false, 'darwin')).toEqual({ openAtLogin: false });
+  });
+
+  it('Windows is unchanged when the platform is given', () => {
+    expect(loginItemSettings(true, 'C:\S.exe', true, 'win32')).toEqual({ openAtLogin: true, path: 'C:\S.exe', args: ['--hidden'] });
+  });
+});
+
+describe('startHidden', () => {
+  it('on Windows, only --hidden hides the window', () => {
+    expect(startHidden({ platform: 'win32', argvHidden: true, openedAtLogin: false, quietSaved: false })).toBe(true);
+    expect(startHidden({ platform: 'win32', argvHidden: false, openedAtLogin: true, quietSaved: true })).toBe(false);
+  });
+
+  it('on a Mac, a login start with quiet start saved stays hidden', () => {
+    expect(startHidden({ platform: 'darwin', argvHidden: false, openedAtLogin: true, quietSaved: true })).toBe(true);
+  });
+
+  it('on a Mac, a login start without quiet start opens the window', () => {
+    expect(startHidden({ platform: 'darwin', argvHidden: false, openedAtLogin: true, quietSaved: false })).toBe(false);
+  });
+
+  it('on a Mac, opening it by hand always shows the window', () => {
+    expect(startHidden({ platform: 'darwin', argvHidden: false, openedAtLogin: false, quietSaved: true })).toBe(false);
   });
 });

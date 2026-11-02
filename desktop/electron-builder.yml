@@ -1,4 +1,5 @@
-# Builds the Windows installer: npm run dist (builds web/ first). scripts/dist.js sets the output
+# Builds the installers: npm run dist (builds web/ first) makes the Windows .exe on Windows and the
+# universal Mac .dmg on a Mac; the "Build installers" GitHub workflow runs it on both. scripts/dist.js sets the output
 # folder outside OneDrive (~/StudiumBuilds); `release` is only the fallback for a direct electron-builder run.
 # The paths under extraResources are where src/main/paths.js looks in a packaged build.
 appId: edu.smu.studium
@@ -22,7 +23,16 @@ extraResources:
     to: overlay
 win:
   target: nsis
+mac:
+  target: dmg
+  category: public.app-category.productivity
+  identity: "-"          # ad-hoc signature: free, keeps Apple-chip Macs from calling the app "damaged"
+  hardenedRuntime: false
+  artifactName: Studium-${version}-mac.${ext}
+dmg:
+  title: Studium ${version}
 nsis:
+  artifactName: Studium-Setup-${version}.${ext}
   oneClick: false
   perMachine: false
   allowToChangeInstallationDirectory: true

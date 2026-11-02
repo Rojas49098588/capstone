@@ -4,7 +4,7 @@
 // Kept behind this one small interface so it can later sync with a server (spec: "Leave room for sharing").
 const realFs = require('node:fs');
 
-const STATE_KEYS = ['petStatuses', 'petPrefs', 'petScreen', 'petAway', 'petCheckIn', 'focusOutbox', 'petNoteAt', 'pets', 'petHidden', 'petTimingOverride', 'petOpenAt'];
+const STATE_KEYS = ['petStatuses', 'petPrefs', 'petScreen', 'petAway', 'petCheckIn', 'focusOutbox', 'petNoteAt', 'pets', 'petHidden', 'petTimingOverride', 'petOpenAt', 'loginQuiet'];
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 

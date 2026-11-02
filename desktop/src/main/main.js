@@ -11,7 +11,7 @@ const { createStore } = require('./store');
 const { createAwayRunner } = require('./away');
 const { CHANNELS, handleStudium } = require('./bridge');
 const { createTray } = require('./tray');
-const { loginItemSettings } = require('./loginItem');
+const { loginItemSettings, startHidden } = require('./loginItem');
 const { quitTask } = require('./taskbar');
 const { createOverlayWindow, setOverlayMouse } = require('./overlayWindow');
 const { createHabitatTracker } = require('./habitat');
@@ -49,6 +49,8 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     runner?.dispose();
     openTimer?.dispose();
   });
+  // A Mac's Dock icon click (the window may be closed to the menu bar).
+  app.on('activate', () => showStudium(win));
   app.on('second-instance', (_event, argv) => {
     if (parseArgs(argv).quit) quitApp();
     else showStudium(win);
@@ -71,6 +73,8 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     // Only an installed build registers itself: in development it would register electron.exe, and
     // a test run (--user-data) must not change the computer's real start-up list.
     const applyLoginItem = (on, quiet) => {
+      // macOS login items can't pass --hidden, so the next login reads the choice from the store.
+      if (process.platform === 'darwin') store.set({ loginQuiet: quiet === true });
       if (app.isPackaged && !args.userData) app.setLoginItemSettings(loginItemSettings(on, process.execPath, quiet));
     };
     const deps = { store, runner, L, sendSessions, applyLoginItem };
@@ -127,7 +131,12 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     win = createStudiumWindow({
       url: startUrl(args.dev),
       preload: path.join(__dirname, '..', 'preload', 'studium.js'),
-      show: !args.hidden,
+      show: !startHidden({
+        platform: process.platform,
+        argvHidden: args.hidden,
+        openedAtLogin: process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin === true,
+        quietSaved: store.get().loginQuiet === true,
+      }),
       isAllowed: (url) => isStudiumPage(url, args.dev),
     });
     // Habitats: the pet code runs in the Studium window too, drawing only a project page's pet.

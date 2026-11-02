@@ -20,7 +20,7 @@ describe('createStore', () => {
   });
 
   it('knows the keys the extension kept in chrome.storage.local', () => {
-    expect(STATE_KEYS).toEqual(['petStatuses', 'petPrefs', 'petScreen', 'petAway', 'petCheckIn', 'focusOutbox', 'petNoteAt', 'pets', 'petHidden', 'petTimingOverride', 'petOpenAt']);
+    expect(STATE_KEYS).toEqual(['petStatuses', 'petPrefs', 'petScreen', 'petAway', 'petCheckIn', 'focusOutbox', 'petNoteAt', 'pets', 'petHidden', 'petTimingOverride', 'petOpenAt', 'loginQuiet']);
   });
 
   it('ignores unknown keys', () => {
@@ -92,5 +92,12 @@ describe('createStore', () => {
     expect(JSON.parse(fs.readFileSync(file, 'utf8'))).toEqual({ petHidden: true });
     expect(error).toHaveBeenCalled();
     error.mockRestore();
+  });
+});
+
+describe('loginQuiet', () => {
+  it('is kept across a reload (a Mac login start reads it)', () => {
+    createStore({ file }).set({ loginQuiet: true });
+    expect(createStore({ file }).get().loginQuiet).toBe(true);
   });
 });
