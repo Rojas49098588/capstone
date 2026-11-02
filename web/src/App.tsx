@@ -136,6 +136,7 @@ export function StudiumApp() {
 
   // Links from the pets (Open project, Done after a nap). Read through a ref, so the
   // hashchange listener is added once and still sees the latest data.
+  const [scrollToHabitat, setScrollToHabitat] = useState<string | null>(null);
   const followLink = useRef<() => void>(() => {});
   followLink.current = () => {
     const link = parseHashLink(window.location.hash);
@@ -144,14 +145,8 @@ export function StudiumApp() {
     if (link.kind === "project") {
       if (!s.data.projects.some((p) => p.id === link.id)) return;
       openProject(link.id);
-      // A bought pet's link: scroll to its habitat once the project page has rendered.
-      const pet = link.pet;
-      if (pet) {
-        setTimeout(() => {
-          const id = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(pet) : pet.replace(/"/g, "\\\"");
-          document.querySelector(`[data-pet-habitat="${id}"]`)?.scrollIntoView({ block: "center" });
-        }, 0);
-      }
+      // Scroll to the pet's habitat (a first pet's habitat id is its project's) once the page shows it.
+      setScrollToHabitat(link.pet ?? link.id);
       return;
     }
     const task = s.data.tasks.find((t) => t.id === link.id);
@@ -159,6 +154,16 @@ export function StudiumApp() {
     openProject(task.projectId);
     if (!task.done && !isBlocked(task, s.data)) setCompletingId(task.id);
   };
+  // A link asked for a pet's habitat: scroll to it after a render shows its box (checked after every render).
+  useEffect(() => {
+    if (!scrollToHabitat) return;
+    const id = typeof CSS !== "undefined" && CSS.escape ? CSS.escape(scrollToHabitat) : scrollToHabitat.replace(/"/g, "\\\"");
+    const box = document.querySelector(`[data-pet-habitat="${id}"]`);
+    if (!box) return;
+    box.scrollIntoView?.({ block: "center" }); // missing in test DOMs
+    setScrollToHabitat(null);
+  });
+
   useEffect(() => {
     const follow = () => followLink.current();
     follow();

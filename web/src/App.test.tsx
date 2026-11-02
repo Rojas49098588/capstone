@@ -194,6 +194,24 @@ describe("StudiumApp links from the pets", () => {
     }
   });
 
+  it("#project=<id> scrolls to the project's first habitat too, also for a link that arrives later", async () => {
+    const scrolled: Element[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+    try {
+      open("");
+      act(() => {
+        history.replaceState(null, "", "/#project=webDev");
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      await vi.waitFor(() => expect(scrolled.map((el) => el.getAttribute("data-pet-habitat"))).toEqual(["webDev"]));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
   it("an unknown project stays on the overview", () => {
     open("#project=nope");
     screen.getByRole("heading", { name: "Your Projects" });
