@@ -306,8 +306,8 @@ describe("Habitat food", () => {
     await userEvent.click(screen.getByRole("button", { name: "Feed Berry Bites" }));
     screen.getByText("(Worried, lifted by a snack)");
     screen.getByText("Snack: lifting mood for 2h 0m more");
-    screen.getByText("Next snack in 2h 0m");
-    expect((screen.getByRole("button", { name: "Feed Berry Bites (2h 0m)" }) as HTMLButtonElement).disabled).toBe(true);
+    screen.getByText("Next snack in 3h 0m");
+    expect((screen.getByRole("button", { name: "Feed Berry Bites (3h 0m)" }) as HTMLButtonElement).disabled).toBe(true);
     expect(savedData(storage).events.slice(-1)[0]).toMatchObject({ type: "fed", projectId: "p1", petId: "p1", productId: "berry-bites" });
   });
 

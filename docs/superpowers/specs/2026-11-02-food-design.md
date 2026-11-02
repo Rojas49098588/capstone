@@ -13,7 +13,7 @@ schedule. Food is a reason to open the app and get a task done, not a way to buy
 
 - **Berry Bites (snack)** lifts a Worried or Upset pet's mood one step for a short time.
 - **Power Bento (meal)** gives a small, short boost to the tokens earned on that pet's project.
-- Limits stop food from being spammed: one meal a day and one snack every 2 hours, per pet. Effects
+- Limits stop food from being spammed: one meal a day and one snack every 3 hours, per pet. Effects
   never stack in strength.
 - The Shop says what each food does. The habitat shows how long an effect has left and when the pet
   can eat again.
@@ -34,7 +34,7 @@ schedule. Food is a reason to open the app and get a task done, not a way to buy
 |---|---|---|
 | Effect | Shown mood +1 step: Upset → Worried, Worried → Happy | Tokens on this pet's **project** × 1.1 |
 | Lasts | 2 hours from feeding | 4 hours |
-| Limit | One every 2 hours, per pet | One per local day, per pet (resets at local midnight, like the daily token curve) |
+| Limit | One every 3 hours, per pet (longer than the lift, so the real mood always shows for a while; changed after the final review, 2026-11-02) | One per local day, per pet (resets at local midnight, like the daily token curve) |
 | Stacking | Can't feed a second snack while one is working (the 2-hour limit covers this) | If the project's boost is already running when another pet eats a Bento, the boost stays × 1.1 and its end time moves **4 hours later** |
 
 Multiple pets on one project:
@@ -49,7 +49,7 @@ Multiple pets on one project:
 **Shop, Supplies tab, Food section:** each food card gets a short "What it does" box under its
 description:
 
-- Berry Bites: "Lifts a Worried or Upset pet's mood one step for 2 hours. One snack every 2 hours.
+- Berry Bites: "Lifts a Worried or Upset pet's mood one step for 2 hours. One snack every 3 hours.
   Doesn't help a Sick pet."
 - Power Bento: "Tasks on this pet's project earn × 1.1 tokens for 4 hours. One meal a day."
 

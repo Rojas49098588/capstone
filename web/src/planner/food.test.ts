@@ -110,13 +110,13 @@ describe("canFeed a snack", () => {
     const d = data();
     expect(canFeed(d, first(d), moodOf("Worried", { recovering: true }), "snack", NOW)).toMatchObject({ ok: false, reason: "recovering" });
   });
-  it("makes the pet wait 2 hours between snacks", () => {
+  it("makes the pet wait 3 hours between snacks", () => {
     const d = data([snack(ago(HOUR / 2))]);
     const lifted = { ...moodOf("Happy"), liftedFrom: "Worried" as Mood };
     expect(canFeed(d, first(d), lifted, "snack", NOW)).toEqual({
       ok: false,
       reason: "wait",
-      nextAt: new Date(NOW.getTime() + 1.5 * HOUR),
+      nextAt: new Date(NOW.getTime() + 2.5 * HOUR),
     });
   });
   it("is not hungry when Happy", () => {
@@ -131,8 +131,9 @@ describe("canFeed a snack", () => {
     const d = data();
     expect(canFeed(d, first(d), moodOf("Worried"), "snack", NOW)).toEqual({ ok: true, extendsBoost: false });
   });
-  it("is allowed again at exactly 2 hours", () => {
-    const d = data([snack(ago(2 * HOUR))]);
+  it("is refused at 2 hours, once the lift is over, and allowed at exactly 3 hours", () => {
+    expect(canFeed(data([snack(ago(2 * HOUR))]), first(data()), moodOf("Upset"), "snack", NOW)).toMatchObject({ ok: false, reason: "wait" });
+    const d = data([snack(ago(3 * HOUR))]);
     expect(canFeed(d, first(d), moodOf("Upset"), "snack", NOW)).toEqual({ ok: true, extendsBoost: false });
   });
 });

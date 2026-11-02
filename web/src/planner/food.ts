@@ -4,7 +4,7 @@ import { inventory } from "./history";
 import type { ProjectMood } from "./mood";
 import type { PetRef } from "./pets";
 import { addDays, localDateKey, startOfLocalDay } from "./time";
-import { MEAL_HOURS, MEAL_PRODUCT_ID, SNACK_HOURS, SNACK_PRODUCT_ID } from "./tuning";
+import { MEAL_HOURS, MEAL_PRODUCT_ID, SNACK_HOURS, SNACK_PRODUCT_ID, SNACK_WAIT_HOURS } from "./tuning";
 import type { Mood, StudiumData, StudiumEvent } from "./types";
 
 const HOUR_MS = 3_600_000;
@@ -82,7 +82,8 @@ export function canFeed(data: StudiumData, pet: PetRef, mood: ProjectMood | null
 
   if (kind === "snack") {
     const last = lastSnackAt(data.events, pet.petId, now);
-    if (last !== null && last + SNACK_HOURS * HOUR_MS > now.getTime()) return refuse("wait", new Date(last + SNACK_HOURS * HOUR_MS));
+    const next = last === null ? null : last + SNACK_WAIT_HOURS * HOUR_MS;
+    if (next !== null && next > now.getTime()) return refuse("wait", new Date(next));
     const before = mood.liftedFrom ?? mood.mood;
     if (before !== "Worried" && before !== "Upset") return refuse("not-hungry");
   } else {

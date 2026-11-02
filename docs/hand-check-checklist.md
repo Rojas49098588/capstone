@@ -155,7 +155,7 @@ Buy two of each in Shop → Supplies. Use a project whose pet is **Worried** or 
 - [ ] In the Shop, each food card has a "What it does" box.
 - [ ] The pet's habitat has a **Food** section with "Feed Berry Bites" and "Feed Power Bento".
 - [ ] Feed Berry Bites to a Worried pet. Its mood goes up one step and reads "Happy (Worried, lifted by a snack)".
-- [ ] The Food section shows "Snack: lifting mood for 2h 0m more" and "Next snack in 2h 0m". The snack button is greyed out with the wait time on it.
+- [ ] The Food section shows "Snack: lifting mood for 2h 0m more" and "Next snack in 3h 0m". The snack button is greyed out with the wait time on it.
 - [ ] The desktop pet's mood matches the habitat's.
 - [ ] About two hours later, the lift is gone and the mood matches the schedule again.
 - [ ] A Happy pet's snack button says "Not hungry".
