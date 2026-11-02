@@ -26,9 +26,11 @@ jobs:
     defaults:
       run:
         shell: bash
-    env:
-      STUDIUM_RELEASE_DIR: ${{ runner.temp }}/release
     steps:
+      # The runner context isn't allowed in a job's env, so the build folder is set here.
+      - name: Set the build folder
+        run: echo "STUDIUM_RELEASE_DIR=$RUNNER_TEMP/release" >> "$GITHUB_ENV"
+
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
