@@ -31,9 +31,17 @@ function setOverlayMouse(win, wants) {
   if (win && !win.isDestroyed()) win.setIgnoreMouseEvents(!wants, { forward: true });
 }
 
+/** On a Mac, keep the pets on every desktop (Space) and over full-screen apps. */
+function overlayPlatformSetup(win, platform) {
+  if (platform !== 'darwin') return;
+  win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  win.setAlwaysOnTop(true, 'floating');
+}
+
 function createOverlayWindow({ url, screen }) {
   const { BrowserWindow } = require('electron');
   const win = new BrowserWindow(overlayOptions(screen.getPrimaryDisplay().workArea));
+  overlayPlatformSetup(win, process.platform);
   setOverlayMouse(win, false);
   win.once('ready-to-show', () => win.showInactive());
 
@@ -60,4 +68,4 @@ function createOverlayWindow({ url, screen }) {
   return win;
 }
 
-module.exports = { overlayBounds, overlayOptions, setOverlayMouse, createOverlayWindow };
+module.exports = { overlayBounds, overlayOptions, overlayPlatformSetup, setOverlayMouse, createOverlayWindow };

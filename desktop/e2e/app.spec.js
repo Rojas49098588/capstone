@@ -107,6 +107,16 @@ test("the tray's Open Studium brings back a closed window", async () => {
   await app.close();
 });
 
+test('clicking the Dock icon brings the closed window back', async () => {
+  const app = await launch({ userData: tempUserData() });
+  await studiumPage(app);
+  await app.evaluate(() => globalThis.studiumTest.win.close());
+  expect(await isVisible(app)).toBe(false);
+  await app.evaluate(({ app: a }) => a.emit('activate'));
+  await expect.poll(() => isVisible(app)).toBe(true);
+  await app.close();
+});
+
 test("the tray's Quit ends the app", async () => {
   const app = await launch({ userData: tempUserData() });
   await studiumPage(app);

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import '../../extension/content/logic.js';
 import { createStore } from '../src/main/store.js';
-import { handleTrayClick, trayItems, trayTooltip } from '../src/main/tray.js';
+import { handleTrayClick, trayItems, trayOpensOnClick, trayTooltip } from '../src/main/tray.js';
 
 const L = globalThis.PetLogic;
 const pet = { projectId: 'webDev', shortName: 'webDev', name: 'Web Development Portfolio', color: '#2d3a8c', petKind: 'pigeon', mood: 'Happy', recovering: false, idleRequirement: null };
@@ -70,5 +70,15 @@ describe('handleTrayClick', () => {
     handleTrayClick('quit', deps);
     expect(deps.open).toHaveBeenCalledTimes(1);
     expect(deps.quit).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('trayOpensOnClick', () => {
+  it('a Mac menu bar click opens the menu, not the window', () => {
+    expect(trayOpensOnClick('darwin')).toBe(false);
+  });
+
+  it('a Windows tray click opens Studium', () => {
+    expect(trayOpensOnClick('win32')).toBe(true);
   });
 });

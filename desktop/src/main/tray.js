@@ -23,6 +23,11 @@ function handleTrayClick(id, { store, runner, open, quit }) {
   else if (typeof id === 'string' && id.startsWith('wake:')) runner.request({ type: 'wake', petId: id.slice('wake:'.length) });
 }
 
+/** On a Mac a menu bar click opens the menu (which has Open Studium); elsewhere a click opens Studium. */
+function trayOpensOnClick(platform) {
+  return platform !== 'darwin';
+}
+
 function createTray({ L, store, runner, open, quit, iconPath }) {
   const { Menu, Tray, nativeImage } = require('electron');
   const tray = new Tray(nativeImage.createFromPath(iconPath).resize({ width: 16, height: 16 }));
@@ -38,7 +43,7 @@ function createTray({ L, store, runner, open, quit, iconPath }) {
     Object.assign(globalThis.studiumTest ?? {}, { trayItems: items, trayClick: click });
   }
 
-  tray.on('click', () => open());
+  if (trayOpensOnClick(process.platform)) tray.on('click', () => open());
   store.onChange((keys) => {
     if (keys.some((k) => k === 'petAway' || k === 'petStatuses' || k === 'petHidden')) refresh();
   });
@@ -46,4 +51,4 @@ function createTray({ L, store, runner, open, quit, iconPath }) {
   return tray;
 }
 
-module.exports = { trayItems, trayTooltip, handleTrayClick, createTray };
+module.exports = { trayItems, trayTooltip, trayOpensOnClick, handleTrayClick, createTray };
