@@ -75,6 +75,7 @@ export type TokenBreakdown = {
   finish: number;
   dailyCurve: number;
   sickMultiplier: number;
+  foodMultiplier: number; // MEAL_TOKEN_MULTIPLIER while a meal boost runs (food spec); missing in older saves
 };
 
 export const ZERO_BREAKDOWN: TokenBreakdown = {
@@ -84,6 +85,7 @@ export const ZERO_BREAKDOWN: TokenBreakdown = {
   finish: 0,
   dailyCurve: 1,
   sickMultiplier: 1,
+  foodMultiplier: 1,
 };
 
 export type StudiumEvent =

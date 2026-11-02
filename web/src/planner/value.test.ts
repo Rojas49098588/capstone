@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NOW, completed, daysAgo, makeData, makeProject, makeRequirement, makeTask } from "./testData";
-import { ZERO_BREAKDOWN, type StudiumEvent } from "./types";
+import { ZERO_BREAKDOWN, type StudiumData, type StudiumEvent, type TokenBreakdown } from "./types";
 import { computeCompletionPayout, dailyCurve, expectedTokens, neglectBonus, unblockBonus } from "./value";
 
 /** The spec's worked example: weight 6, tasks of 2 h, 1 h, 3 h; the 1 h task unblocks two tasks; 7 days idle. */
@@ -158,5 +158,55 @@ describe("eggs", () => {
       tasks: [makeTask({ id: "a" }), makeTask({ id: "b" })],
     });
     expect(computeCompletionPayout(data, "a", 60, NOW).breakdown.sickMultiplier).toBe(1);
+  });
+});
+
+describe("meal boost", () => {
+  const HOUR = 3_600_000;
+  const meal = (msAgo: number, projectId = "p1"): StudiumEvent => ({
+    type: "fed",
+    at: new Date(NOW.getTime() - msAgo).toISOString(),
+    projectId,
+    petId: projectId,
+    productId: "power-bento",
+  });
+  const rawOf = (b: TokenBreakdown) => (b.base * (1 + b.unblockBonus + b.neglectBonus) + b.finish) * b.dailyCurve * b.sickMultiplier * 0.3;
+  function work(events: StudiumEvent[] = [], createdDaysAgo = 1, taskIds = ["a", "b"]): StudiumData {
+    return makeData({
+      requirements: [makeRequirement({ weight: 6, createdAt: daysAgo(createdDaysAgo) })],
+      tasks: taskIds.map((id) => makeTask({ id })),
+      events,
+    });
+  }
+
+  it("boosts the payout × 1.1 while it runs", () => {
+    const plain = computeCompletionPayout(work(), "a", 60, NOW);
+    const fed = computeCompletionPayout(work([meal(HOUR)]), "a", 60, NOW);
+    expect(plain.breakdown.foodMultiplier).toBe(1);
+    expect(fed.breakdown.foodMultiplier).toBe(1.1);
+    expect(fed.tokens).toBe(Math.round(rawOf(plain.breakdown) * 1.1));
+  });
+
+  it("is over after 4 hours and belongs to its own project", () => {
+    expect(computeCompletionPayout(work([meal(5 * HOUR)]), "a", 60, NOW).breakdown.foodMultiplier).toBe(1);
+    expect(computeCompletionPayout(work([meal(HOUR, "p2")]), "a", 60, NOW).breakdown.foodMultiplier).toBe(1);
+  });
+
+  it("applies with the sick penalty when the pet got sick after eating", () => {
+    const payout = computeCompletionPayout(work([meal(HOUR)], 15), "a", 60, NOW);
+    expect(payout.breakdown.sickMultiplier).toBe(0.5);
+    expect(payout.breakdown.foodMultiplier).toBe(1.1);
+    expect(payout.tokens).toBe(Math.round(rawOf(payout.breakdown) * 1.1));
+  });
+
+  it("boosts the finish bonus too", () => {
+    const payout = computeCompletionPayout(work([meal(HOUR)], 1, ["a"]), "a", 60, NOW);
+    expect(payout.breakdown.finish).toBeGreaterThan(0);
+    expect(payout.tokens).toBe(Math.round(rawOf(payout.breakdown) * 1.1));
+  });
+
+  it("leaves the ranking estimate alone", () => {
+    const task = makeTask({ id: "a" });
+    expect(expectedTokens(task, work([meal(HOUR)]), NOW)).toBe(expectedTokens(task, work(), NOW));
   });
 });
