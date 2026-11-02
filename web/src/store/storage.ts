@@ -27,6 +27,20 @@ export function isValidFocusSession(v: unknown): v is FocusSession {
   );
 }
 
+const strOrNull = (v: unknown) => v === null || isStr(v);
+
+function isValidExtraPet(v: unknown): boolean {
+  return (
+    isObj(v) &&
+    allStr(v, ["id", "boughtAt"]) &&
+    PET_KINDS.includes(v.kind as never) &&
+    PET_STAGES.includes(v.stage as never) &&
+    strOrNull(v.hatchedAt) &&
+    strOrNull(v.name) &&
+    strOrNull(v.caresFor)
+  );
+}
+
 /** The valid sessions in a JSON array sent by the extension; anything else is ignored. */
 export function parseFocusSessions(json: string): FocusSession[] {
   let value: unknown;
@@ -62,6 +76,7 @@ export function isValidData(value: unknown): value is StudiumData {
     if (p.type !== undefined && !PROJECT_TYPES.includes(p.type as never)) return false;
     if (p.difficulty !== undefined && !DIFFICULTY_LEVELS.includes(p.difficulty as never)) return false;
     if (!PET_KINDS.includes(p.petKind as never) || !isDateKey(p.deadline)) return false;
+    if (p.pets !== undefined && !(Array.isArray(p.pets) && p.pets.every(isValidExtraPet))) return false;
     projectIds.add(p.id as string);
   }
 
@@ -86,7 +101,7 @@ export function isValidData(value: unknown): value is StudiumData {
     if (!isObj(e) || !isStr(e.type) || !isStr(e.at)) return false;
     if (e.type === "task_completed" && !(isStr(e.taskId) && isNum(e.tokens) && isObj(e.breakdown) && isNum(e.breakdown.finish))) return false;
     if (e.type === "purchase" && !(isStr(e.productId) && isNum(e.price))) return false;
-    if (e.type === "medicine_given" && !isStr(e.projectId)) return false;
+    if (e.type === "medicine_given" && !(isStr(e.projectId) && (e.petId === undefined || isStr(e.petId)))) return false;
     if (e.type === "focus_session" && !isValidFocusSession(e)) return false;
   }
   return true;

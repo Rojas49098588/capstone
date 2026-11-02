@@ -2,6 +2,9 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { NOW } from "../planner/testData";
+import type { StudiumData } from "../planner/types";
+import { buildSeed } from "../store/seed";
 import { STORAGE_KEY } from "../store/storage";
 import { renderWithStudium, savedData, withFocus } from "../test/render";
 import CompletionPrompt from "./CompletionPrompt";
@@ -36,6 +39,22 @@ describe("CompletionPrompt", () => {
     await userEvent.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(2);
     expect(find(storage)?.done).toBe(false);
+  });
+
+  it("says when completing a task makes a pet grow up", async () => {
+    // webDev's pigeon hatched a minute ago with only this task still open.
+    const seed = buildSeed(NOW);
+    const data: StudiumData = {
+      ...seed,
+      projects: seed.projects.map((p) => (p.id === "webDev" ? { ...p, stage: "juvenile", hatchedAt: new Date(NOW.getTime() - 60_000).toISOString() } : p)),
+      tasks: seed.tasks
+        .filter((t) => t.projectId !== "webDev" || t.done || t.id === "webDev-t5")
+        .map((t) => (t.id === "webDev-t5" ? { ...t, blockedBy: [] } : t)),
+    };
+    const onDone = vi.fn();
+    renderWithStudium(<CompletionPrompt taskId="webDev-t5" onClose={vi.fn()} onDone={onDone} />, { data });
+    await userEvent.click(screen.getByRole("button", { name: "Skip" }));
+    expect(onDone.mock.calls[0][0]).toMatch(/^\+\d+ tokens.* webDev grew up!$/);
   });
 });
 

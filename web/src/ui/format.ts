@@ -1,9 +1,10 @@
 // All wording shown in the UI, in one place so it stays consistent and testable.
 import type { NeglectedRequirement } from "../planner/mood";
+import { findPet, suggestedPetName, type EggRefusal, type PetNews } from "../planner/pets";
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
-import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN } from "../planner/tuning";
+import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN, MAX_PETS_PER_PROJECT } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
-import type { Difficulty, Mood, Project, ProjectType, Requirement, Task } from "../planner/types";
+import type { Difficulty, Mood, Project, ProjectType, Requirement, StudiumData, Task } from "../planner/types";
 import type { Blocker } from "../planner/blocking";
 import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
@@ -99,6 +100,44 @@ export function hatchHint(remaining: number, words: ProjectWords = SCHOOL_WORDS)
   return `Add ${remaining} more ${remaining === 1 ? words.requirement : words.requirements} to hatch`;
 }
 
+// ---- Bought pets ----
+
+/** How a bought egg hatches (any one requirement half done since the purchase). */
+export function boughtEggHint(words: ProjectWords = SCHOOL_WORDS): string {
+  return `Hatches when you finish half of any ${words.requirement}'s ${words.tasks}`;
+}
+
+export const EGG_REFUSAL_LABELS: Record<EggRefusal, string> = {
+  firstEgg: "its own egg hasn't hatched",
+  eggWaiting: "an egg is already waiting",
+  full: `${MAX_PETS_PER_PROJECT} pets`,
+};
+
+export function eggBoughtMessage(shortName: string, words: ProjectWords = SCHOOL_WORDS): string {
+  return `The egg is in ${shortName}'s habitats. It hatches when you finish half of any ${words.requirement}'s ${words.tasks}.`;
+}
+
+export const NO_PROJECTS_FOR_EGGS = "Start a project first; eggs go to a project.";
+
+/** A habitat header's small label: what its pet cares about. */
+export const CARES_SHARED_LABEL = "Project Companion";
+export function caresForLabel(title: string): string {
+  return `Looks after · ${title}`;
+}
+export const SHARES_MOOD_OPTION = "Shares the project's mood";
+export function looksAfterOption(title: string): string {
+  return `Looks after ${title}`;
+}
+
+/** How close a bought egg is: the requirement nearest to halfway. */
+export function eggProgressLabel(done: number, needed: number, words: ProjectWords = SCHOOL_WORDS): string {
+  return `${done} of ${needed} ${words.tasks} toward hatching`;
+}
+
+export const PET_SETUP_TEXT = "Your new companion hatched! Give it a name and choose what it cares about.";
+export const ANOTHER_PET_PROMPT = "Want another companion?";
+export const ANOTHER_PET_LINK = "Buy an egg in the Shop";
+
 /** The edit dialog's companion line while the pet is an egg: it doesn't give the animal away. */
 export function eggCompanionLabel(words: ProjectWords = SCHOOL_WORDS): string {
   return `Companion: an egg (it hatches once the project has ${HATCH_REQUIREMENTS} ${words.requirements}).`;
@@ -141,6 +180,15 @@ export function recoveringNote(words: ProjectWords = SCHOOL_WORDS): string {
 
 export function capitalize(word: string): string {
   return word.charAt(0).toUpperCase() + word.slice(1);
+}
+
+/** What a toast says when completing a task hatched a bought egg or made a pet grow up. */
+export function petNewsMessage(news: PetNews, data: StudiumData): string {
+  const project = data.projects.find((p) => p.id === news.projectId);
+  const pet = findPet(data, news.habitatId);
+  if (news.kind === "hatched") return `${project?.shortName ?? "Your project"}'s new egg hatched! Name it in its habitat.`;
+  const name = pet?.name ?? (pet && project ? suggestedPetName(project, pet.kind) : "Your pet");
+  return `${name} grew up!`;
 }
 
 export function hatchingMessage(shortName: string): string {

@@ -4,11 +4,13 @@ import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
 import { useStudiumContext } from "../store/useStudium";
 import { CARD, SERIF } from "../ui/styles";
 import DecorShop from "./DecorShop";
+import PetShop from "./PetShop";
 
-type ShopTab = "supplies" | "habitat";
+export type ShopTab = "supplies" | "habitat" | "pets";
 const TABS: { id: ShopTab; label: string }[] = [
   { id: "supplies", label: "Supplies" },
   { id: "habitat", label: "Habitat" },
+  { id: "pets", label: "Pets" },
 ];
 
 const CATEGORIES: { category: ShopCategory; blurb: string }[] = [
@@ -73,7 +75,7 @@ export default function Shop({ openTab }: Props) {
             Shop
           </h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-2 max-w-lg">
-            Spend study tokens on care, treats, outfits and toys for your project companions.
+            Spend study tokens on care, treats, outfits, toys and new companions for your projects.
           </p>
         </div>
         <div data-tour="shop-balance" className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] px-5 py-3 min-w-44">
@@ -109,7 +111,9 @@ export default function Shop({ openTab }: Props) {
       </div>
 
       <div role="tabpanel" id={`shop-panel-${tab}`} aria-labelledby={`shop-tab-${tab}`} className="space-y-10">
-        {tab === "habitat" ? (
+        {tab === "pets" ? (
+          <PetShop />
+        ) : tab === "habitat" ? (
           <DecorShop />
         ) : (
           CATEGORIES.map(({ category, blurb }) => (

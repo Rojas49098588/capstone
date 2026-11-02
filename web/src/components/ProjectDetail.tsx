@@ -5,19 +5,22 @@ import type { DecorSlot } from "../planner/types";
 import { freeCopies } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeProject } from "../ui/derive";
-import { daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel, wordsFor } from "../ui/format";
+import { ANOTHER_PET_LINK, ANOTHER_PET_PROMPT, daysUntil, deadlineLabel, formatDate, gapLabel, percent, weekFocusLabel, wordsFor } from "../ui/format";
 import { BUTTON_SMALL, LABEL, SERIF } from "../ui/styles";
+import { petsOf } from "../planner/pets";
+import { MAX_PETS_PER_PROJECT } from "../planner/tuning";
 import Habitat from "./Habitat";
 import type { Placing } from "./HabitatDecor";
 import Inventory from "./Inventory";
 import RequirementsSection from "./RequirementsSection";
+import type { ShopTab } from "./Shop";
 
 type Props = {
   projectId: string;
   onToast: (message: string) => void;
   onRequestComplete: (taskId: string) => void;
   onEditProject: () => void;
-  onOpenShop: () => void;
+  onOpenShop: (tab?: ShopTab) => void;
 };
 
 export default function ProjectDetail({ projectId, onToast, onRequestComplete, onEditProject, onOpenShop }: Props) {
@@ -37,15 +40,17 @@ export default function ProjectDetail({ projectId, onToast, onRequestComplete, o
   const project = s.data.projects.find((p) => p.id === projectId);
   if (!project) return null;
 
-  function pickSlot(slot: DecorSlot) {
+  /** Finishes placing in the habitat that was clicked (each pet has its own). */
+  function pickSlot(habitatId: string, slot: DecorSlot) {
     if (!placing) return;
     const { from, itemId } = placing;
     // Move here: only if the source still holds that item (another tab may have changed it since);
     // otherwise place a free copy if there is one now.
-    if (from && s.data.decor?.[from.projectId]?.[from.slot] === itemId) s.moveDecor(from, { projectId, slot }, itemId);
-    else if (freeCopies(s.data, itemId) > 0) s.placeDecor(projectId, slot, itemId);
+    if (from && s.data.decor?.[from.projectId]?.[from.slot] === itemId) s.moveDecor(from, { projectId: habitatId, slot }, itemId);
+    else if (freeCopies(s.data, itemId) > 0) s.placeDecor(habitatId, slot, itemId);
     setPlacing(null);
   }
+  const pets = petsOf(project);
   const summary = summarizeProject(project, s.data, s.now);
   const soon = daysUntil(project.deadline, s.now) < 30;
   const focusedThisWeek = focusMinutes(s.data.events, { projectId: project.id, since: startOfWeek(s.now) });
@@ -99,8 +104,24 @@ export default function ProjectDetail({ projectId, onToast, onRequestComplete, o
       </div>
 
       <RequirementsSection projectId={project.id} onRequestComplete={onRequestComplete} onHatch={onToast} />
-      <Habitat projectId={project.id} onOpenShop={onOpenShop} placing={placing} onPickSlot={pickSlot} />
-      <Inventory projectId={project.id} placing={placing} onPlace={setPlacing} onCancel={() => setPlacing(null)} onOpenShop={onOpenShop} />
+      {pets.map((pet) => (
+        <Habitat
+          key={pet.habitatId}
+          habitatId={pet.habitatId}
+          onOpenShop={() => onOpenShop()}
+          placing={placing}
+          onPickSlot={(slot) => pickSlot(pet.habitatId, slot)}
+        />
+      ))}
+      {pets.length < MAX_PETS_PER_PROJECT && (
+        <p className="text-sm text-[var(--color-muted-foreground)]">
+          {ANOTHER_PET_PROMPT}{" "}
+          <button type="button" onClick={() => onOpenShop("pets")} className="underline hover:text-[var(--color-foreground)]">
+            {ANOTHER_PET_LINK}
+          </button>
+        </p>
+      )}
+      <Inventory projectId={project.id} placing={placing} onPlace={setPlacing} onCancel={() => setPlacing(null)} onOpenShop={() => onOpenShop()} />
     </div>
   );
 }

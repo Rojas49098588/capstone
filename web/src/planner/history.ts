@@ -53,10 +53,14 @@ export function paidCompletionsOnDay(events: StudiumEvent[], dayKey: string): nu
   return events.filter((e) => isCompleted(e) && e.tokens > 0 && localDateKey(new Date(e.at)) === dayKey).length;
 }
 
-export function lastMedicineGiven(events: StudiumEvent[], projectId: string, asOf: Date): Date | null {
+/**
+ * The latest dose for the project (doses without a pet id: they cure the pets sharing its mood), or,
+ * with `petId`, the latest dose for that one pet (a pet looking after a requirement has its own health).
+ */
+export function lastMedicineGiven(events: StudiumEvent[], projectId: string, asOf: Date, petId?: string): Date | null {
   let latest = -Infinity;
   for (const e of events) {
-    if (e.type !== "medicine_given" || e.projectId !== projectId) continue;
+    if (e.type !== "medicine_given" || e.projectId !== projectId || e.petId !== petId) continue;
     const t = Date.parse(e.at);
     if (t <= asOf.getTime() && t > latest) latest = t;
   }

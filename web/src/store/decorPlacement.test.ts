@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, makePet } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
 import { createProject, deleteProject, moveDecor, placeDecor, purchase, removeDecor } from "./actions";
 import { DEFAULT_BED, cleanDecor, freeCopies, giveDefaultBeds, ownedCopies, placements } from "./decor";
@@ -152,5 +152,42 @@ describe("the built-in bed", () => {
     expect(freeCopies(data, bed)).toBe(1);
     expect(placeDecor(data, "webDev", "floorRight", bed).decor?.webDev).toEqual({ floorRight: bed });
     expect(purchase(data, bed, NOW).ok).toBe(false);
+  });
+});
+
+describe("habitats of bought pets", () => {
+  /** The example data with one bought pet (habitat "x1") in webDev, owning one rug. */
+  function withPet(): StudiumData {
+    const data = owning("round-rug");
+    return { ...data, projects: data.projects.map((p) => (p.id === "webDev" ? { ...p, pets: [makePet({ id: "x1" })] } : p)) };
+  }
+
+  it("gives every habitat a built-in bed copy", () => {
+    const data = withPet();
+    expect(ownedCopies(data, DEFAULT_BED.id)).toBe(data.projects.length + 1);
+  });
+
+  it("places decor in a bought pet's habitat", () => {
+    const data = placeDecor(withPet(), "x1", "floorMiddle", "round-rug");
+    expect(data.decor?.x1).toEqual({ floorMiddle: "round-rug" });
+    expect(placements(data, "round-rug")).toEqual([{ projectId: "x1", slot: "floorMiddle" }]);
+  });
+
+  it("keeps a bought pet's saved decor and drops unknown habitats", () => {
+    const data = { ...withPet(), decor: { x1: { floorMiddle: "round-rug" }, ghost: { floorMiddle: "round-rug" } } };
+    expect(cleanDecor(data)).toEqual({ x1: { floorMiddle: "round-rug" } });
+  });
+
+  it("gives a bought pet's habitat a bed in older data", () => {
+    const data = { ...withPet(), defaultBeds: undefined };
+    expect(giveDefaultBeds(data).decor?.x1).toEqual({ floorMiddle: DEFAULT_BED.id });
+  });
+
+  it("returns a bought pet's decor to the inventory when its project is deleted", () => {
+    const placed = placeDecor(withPet(), "x1", "floorMiddle", "round-rug");
+    const gone = deleteProject(placed, "webDev");
+    expect(gone.decor?.x1).toBeUndefined();
+    expect(freeCopies(gone, "round-rug")).toBe(1);
+    expect(ownedCopies(gone, DEFAULT_BED.id)).toBe(gone.projects.length);
   });
 });

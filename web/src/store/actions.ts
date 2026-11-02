@@ -3,11 +3,15 @@
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
+import { eggProductId, eggRefusal, findPet, habitatIds, petMood, petsOf, settlePets, suggestedPetName, type PetNews } from "../planner/pets";
 import { projectHealth } from "../planner/mood";
+import { isRequirementDone } from "../planner/progress";
 import { DAY_MS, addDays, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
-import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
+import { DEFAULT_ESTIMATE_MIN, EGG_PRICE, MEDICINE_PRODUCT_ID, NICKNAME_MAX } from "../planner/tuning";
 import type {
   DecorSlot,
+  ExtraPet,
+  PetKind,
   FocusSession,
   HabitatDecor,
   Project,
@@ -47,6 +51,9 @@ function currentToday(data: StudiumData, now: Date): StudiumData["today"] {
   const key = localDateKey(now);
   return data.today.date === key ? data.today : { date: key, taskIds: [] };
 }
+
+/** Brings pets up to date (planner/pets.ts settlePets) and drops the news. */
+const settled = (data: StudiumData, now: Date): StudiumData => settlePets(data, now).data;
 
 /** Removes tasks and every reference to them (blockers, today). */
 function withoutTasks(data: StudiumData, removed: Set<string>): Pick<StudiumData, "tasks" | "today"> {
@@ -132,14 +139,16 @@ export function updateProject(
 }
 
 export function deleteProject(data: StudiumData, id: string): StudiumData {
+  const project = data.projects.find((p) => p.id === id);
+  const habitats = project ? petsOf(project).map((p) => p.habitatId) : [id];
   const removed = new Set(data.tasks.filter((t) => t.projectId === id).map((t) => t.id));
   return {
     ...data,
     ...withoutTasks(data, removed),
     projects: data.projects.filter((p) => p.id !== id),
     requirements: data.requirements.filter((r) => r.projectId !== id),
-    // Its decor goes back to the inventory.
-    ...(data.decor ? { decor: withoutKey(data.decor, id) } : {}),
+    // Its habitats' decor goes back to the inventory.
+    ...(data.decor ? { decor: habitats.reduce((d, h) => withoutKey(d, h), data.decor) } : {}),
   };
 }
 
@@ -214,7 +223,11 @@ export function updateRequirement(
   };
 }
 
-export function deleteRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks"): StudiumData {
+export function deleteRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks", now: Date = new Date()): StudiumData {
+  return settled(withoutRequirement(data, id, mode), now);
+}
+
+function withoutRequirement(data: StudiumData, id: string, mode: "deleteTasks" | "unlinkTasks"): StudiumData {
   const requirements = data.requirements
     .filter((r) => r.id !== id)
     .map((r) => (r.blockedBy?.includes(id) ? { ...r, blockedBy: r.blockedBy.filter((b) => b !== id) } : r));
@@ -355,15 +368,18 @@ export function updateTask(
     const moved = data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t));
     clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy ?? task.blockedBy, moved, data.requirements);
   }
-  return {
-    ...data,
-    tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
-    events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
-  };
+  return settled(
+    {
+      ...data,
+      tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
+      events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
+    },
+    now,
+  );
 }
 
-export function deleteTask(data: StudiumData, id: string): StudiumData {
-  return { ...data, ...withoutTasks(data, new Set([id])) };
+export function deleteTask(data: StudiumData, id: string, now: Date = new Date()): StudiumData {
+  return settled({ ...data, ...withoutTasks(data, new Set([id])) }, now);
 }
 
 export function togglePriority(data: StudiumData, id: string): StudiumData {
@@ -375,13 +391,13 @@ export function completeTask(
   id: string,
   actualMin: number | null,
   now: Date,
-): { data: StudiumData; payout: Payout | null } {
+): { data: StudiumData; payout: Payout | null; news: PetNews[] } {
   const task = data.tasks.find((t) => t.id === id);
-  if (!task || task.done || isBlocked(task, data)) return { data, payout: null };
+  if (!task || task.done || isBlocked(task, data)) return { data, payout: null, news: [] };
   const actual = actualMin === null ? null : cleanMinutes(actualMin, task.estimateMin);
   const payout = computeCompletionPayout(data, id, actual, now);
-  return {
-    data: {
+  const completed = settlePets(
+    {
       ...data,
       tasks: data.tasks.map((t) => (t.id === id ? { ...t, done: true, actualMin: actual } : t)),
       events: withEvent(data, {
@@ -394,8 +410,9 @@ export function completeTask(
         breakdown: payout.breakdown,
       }),
     },
-    payout,
-  };
+    now,
+  );
+  return { data: completed.data, payout, news: completed.news };
 }
 
 export function reopenTask(data: StudiumData, id: string, now: Date): StudiumData {
@@ -433,10 +450,61 @@ export function purchase(data: StudiumData, productId: string, now: Date): { dat
   };
 }
 
-export function giveMedicine(data: StudiumData, projectId: string, now: Date): { data: StudiumData; ok: boolean } {
+/**
+ * Gives one dose: to the project (curing every pet that shares its mood), or with `petId` to a bought
+ * pet that looks after a requirement and so has its own health.
+ */
+export function giveMedicine(data: StudiumData, projectId: string, now: Date, petId?: string): { data: StudiumData; ok: boolean } {
   const haveMedicine = (inventory(data.events)[MEDICINE_PRODUCT_ID] ?? 0) > 0;
-  if (!haveMedicine || !projectHealth(projectId, data, now).sick) return { data, ok: false };
-  return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId }) }, ok: true };
+  if (!haveMedicine) return { data, ok: false };
+  if (petId === undefined) {
+    if (!projectHealth(projectId, data, now).sick) return { data, ok: false };
+    return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId }) }, ok: true };
+  }
+  const pet = findPet(data, petId);
+  if (!pet || pet.first || pet.projectId !== projectId || pet.caresFor === null || !petMood(pet, data, now)?.health.sick) return { data, ok: false };
+  return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId, petId }) }, ok: true };
+}
+
+// ---- Bought pets ----
+
+/**
+ * Buys an egg of a kind for a project: it costs EGG_PRICE, goes after the project's other pets and gets
+ * its own habitat with a built-in bed. Refused (nothing spent) when the project can't take an egg now.
+ */
+export function buyEgg(data: StudiumData, projectId: string, kind: PetKind, now: Date): { data: StudiumData; ok: boolean; habitatId: string | null } {
+  const project = data.projects.find((p) => p.id === projectId);
+  if (!project || eggRefusal(project) !== null || tokenBalance(data) < EGG_PRICE) return { data, ok: false, habitatId: null };
+  const at = stamp(now);
+  const egg: ExtraPet = { id: newId(), kind, stage: "egg", boughtAt: at, hatchedAt: null, name: null, caresFor: null };
+  return {
+    data: {
+      ...data,
+      projects: data.projects.map((p) => (p.id === projectId ? { ...p, pets: [...(p.pets ?? []), egg] } : p)),
+      decor: { ...(data.decor ?? {}), [egg.id]: withDefaultBed({}) },
+      events: withEvent(data, { type: "purchase", at, productId: eggProductId(kind), price: EGG_PRICE }),
+    },
+    ok: true,
+    habitatId: egg.id,
+  };
+}
+
+/**
+ * Names a hatched bought pet and/or sets what it cares about (an unfinished requirement of its project,
+ * or null to share the project's mood). A blank name becomes the suggested one. Refusals return the same data.
+ */
+export function setUpPet(data: StudiumData, projectId: string, petId: string, input: { name?: string; caresFor?: string | null }): StudiumData {
+  const project = data.projects.find((p) => p.id === projectId);
+  const pet = project?.pets?.find((p) => p.id === petId);
+  if (!project || !pet || pet.stage === "egg") return data;
+  const changes: Partial<ExtraPet> = {};
+  if (input.name !== undefined) changes.name = input.name.trim().slice(0, NICKNAME_MAX) || suggestedPetName({ ...project, pets: project.pets?.filter((p) => p.id !== petId) }, pet.kind);
+  if (input.caresFor !== undefined) {
+    const id = input.caresFor;
+    const open = id !== null && data.requirements.some((r) => r.id === id && r.projectId === projectId) && !isRequirementDone(id, data.tasks);
+    changes.caresFor = open ? id : null;
+  }
+  return { ...data, projects: data.projects.map((p) => (p.id === projectId ? { ...p, pets: p.pets?.map((x) => (x.id === petId ? { ...x, ...changes } : x)) } : p)) };
 }
 
 // ---- Focus sessions (naps with a browser pet) ----
@@ -485,7 +553,7 @@ function withHabitat(data: StudiumData, projectId: string, habitat: HabitatDecor
 
 /** Puts a free copy of an item in a slot. Whatever was there goes back to the inventory. */
 export function placeDecor(data: StudiumData, projectId: string, slot: DecorSlot, itemId: string): StudiumData {
-  if (!data.projects.some((p) => p.id === projectId)) return data;
+  if (!habitatIds(data).includes(projectId)) return data;
   const habitat = data.decor?.[projectId] ?? {};
   if (habitat[slot] === itemId || !allowedIn(habitat, slot, itemId)) return data;
   const cleared = removeDecor(data, projectId, slot);

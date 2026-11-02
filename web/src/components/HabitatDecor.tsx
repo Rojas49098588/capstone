@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { findPet } from "../planner/pets";
 import type { DecorSlot } from "../planner/types";
 import { allowedIn, findDecor } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
@@ -23,7 +24,9 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
   const s = useStudiumContext();
   const [broken, setBroken] = useState<Set<string>>(() => new Set());
   const habitat = s.data.decor?.[projectId] ?? {};
-  const color = s.data.projects.find((p) => p.id === projectId)?.color ?? "currentColor";
+  // projectId is the habitat id: a bought pet's habitat takes its project's color.
+  const owner = findPet(s.data, projectId)?.projectId;
+  const color = s.data.projects.find((p) => p.id === owner)?.color ?? "currentColor";
   const wallpaper = habitat.wallpaper ? findDecor(habitat.wallpaper) : undefined;
   const flooring = habitat.flooring ? findDecor(habitat.flooring) : undefined;
   const placingItem = placing ? findDecor(placing.itemId) : undefined;

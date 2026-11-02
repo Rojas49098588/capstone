@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOW, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
 
 function memoryStorage(failWrites = false): Storage {
@@ -182,5 +182,42 @@ describe("pet stages in saved data", () => {
   it("rejects an unknown stage or a non-string hatch time", () => {
     expect(isValidData(makeData({ projects: [{ ...makeProject(), stage: "chick" } as never] }))).toBe(false);
     expect(isValidData(makeData({ projects: [{ ...makeProject(), hatchedAt: 5 } as never] }))).toBe(false);
+  });
+});
+
+describe("bought pets in saved data", () => {
+  const withPets = (pets: unknown) => makeData({ projects: [{ ...makeProject(), pets } as never] });
+
+  it("round-trips bought pets", () => {
+    const data = withPets([makePet(), makePet({ id: "x2", stage: "egg", hatchedAt: null, name: null, caresFor: null })]);
+    expect(isValidData(data)).toBe(true);
+    const storage = memoryStorage();
+    saveData(storage, data);
+    expect(loadData(storage, NOW).data.projects[0]).toEqual(data.projects[0]);
+  });
+
+  it("rejects damaged bought pets", () => {
+    expect(isValidData(withPets("x1"))).toBe(false);
+    expect(isValidData(withPets([{ ...makePet(), kind: "dragon" }]))).toBe(false);
+    expect(isValidData(withPets([{ ...makePet(), stage: "chick" }]))).toBe(false);
+    expect(isValidData(withPets([{ ...makePet(), id: 7 }]))).toBe(false);
+    expect(isValidData(withPets([{ ...makePet(), name: 7 }]))).toBe(false);
+    expect(isValidData(withPets([{ ...makePet(), caresFor: 7 }]))).toBe(false);
+    expect(isValidData(withPets([{ ...makePet(), boughtAt: null }]))).toBe(false);
+  });
+
+  it("accepts medicine for one pet and rejects a damaged pet id", () => {
+    const dose = (petId: unknown) => makeData({ events: [{ type: "medicine_given", at: NOW.toISOString(), projectId: "p1", petId } as never] });
+    expect(isValidData(dose("x1"))).toBe(true);
+    expect(isValidData(dose(7))).toBe(false);
+  });
+
+  it("loads data saved before bought pets unchanged", () => {
+    const storage = memoryStorage();
+    const data = makeData({ events: [{ type: "medicine_given", at: NOW.toISOString(), projectId: "p1" }] });
+    storage.setItem(STORAGE_KEY, JSON.stringify(data));
+    const loaded = loadData(storage, NOW).data;
+    expect(loaded.projects).toEqual(data.projects);
+    expect(loaded.events).toEqual(data.events);
   });
 });

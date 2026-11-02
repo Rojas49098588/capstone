@@ -1,7 +1,7 @@
 // Owns Studium's saved data for the React tree. Every action gets the current time,
 // is applied with the pure functions in actions.ts, and is saved straight away.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import type { DecorSlot, StudiumData } from "../planner/types";
+import type { DecorSlot, PetKind, StudiumData } from "../planner/types";
 import * as A from "./actions";
 import {
   STORAGE_KEY,
@@ -171,7 +171,7 @@ export function useStudium(options: StudiumOptions = {}) {
       updateRequirement: (id: string, changes: Parameters<typeof A.updateRequirement>[2]) =>
         change((d, at) => A.updateRequirement(d, id, changes, at)),
       deleteRequirement: (id: string, mode: "deleteTasks" | "unlinkTasks") =>
-        change((d) => A.deleteRequirement(d, id, mode)),
+        change((d, at) => A.deleteRequirement(d, id, mode, at)),
       createTask: (input: A.TaskInput) =>
         apply((d, at) => {
           const r = A.createTask(d, input, at);
@@ -179,16 +179,16 @@ export function useStudium(options: StudiumOptions = {}) {
         }),
       updateTask: (id: string, changes: Parameters<typeof A.updateTask>[2]) =>
         change((d, at) => A.updateTask(d, id, changes, at)),
-      deleteTask: (id: string) => change((d) => A.deleteTask(d, id)),
+      deleteTask: (id: string) => change((d, at) => A.deleteTask(d, id, at)),
       togglePriority: (id: string) => change((d) => A.togglePriority(d, id)),
       completeTask: (id: string, actualMin: number | null) => {
-        const payout = apply((d, at) => {
+        const result = apply((d, at) => {
           const r = A.completeTask(d, id, actualMin, at);
-          return { data: r.data, result: r.payout };
+          return { data: r.data, result: { payout: r.payout, news: r.news } };
         });
         // The desktop app wakes a pet napping on this task, with congrats.
-        if (payout && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(TASK_DONE_EVENT, { detail: id }));
-        return payout;
+        if (result.payout && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(TASK_DONE_EVENT, { detail: id }));
+        return result;
       },
       reopenTask: (id: string) => change((d, at) => A.reopenTask(d, id, at)),
       addToToday: (id: string) => change((d, at) => A.addToToday(d, id, at)),
@@ -202,9 +202,16 @@ export function useStudium(options: StudiumOptions = {}) {
       removeDecor: (projectId: string, slot: DecorSlot) => change((d) => A.removeDecor(d, projectId, slot)),
       moveDecor: (from: { projectId: string; slot: DecorSlot }, to: { projectId: string; slot: DecorSlot }, expected?: string) =>
         change((d) => A.moveDecor(d, from, to, expected)),
-      giveMedicine: (projectId: string) =>
+      buyEgg: (projectId: string, kind: PetKind) =>
         apply((d, at) => {
-          const r = A.giveMedicine(d, projectId, at);
+          const r = A.buyEgg(d, projectId, kind, at);
+          return { data: r.data, result: r.ok };
+        }),
+      setUpPet: (projectId: string, petId: string, input: Parameters<typeof A.setUpPet>[3]) =>
+        change((d) => A.setUpPet(d, projectId, petId, input)),
+      giveMedicine: (projectId: string, petId?: string) =>
+        apply((d, at) => {
+          const r = A.giveMedicine(d, projectId, at, petId);
           return { data: r.data, result: r.ok };
         }),
     };

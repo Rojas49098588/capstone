@@ -37,9 +37,9 @@ describe("useStudium", () => {
   it("applies actions with the clock's time and saves them", () => {
     const storage = seededStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
-    let payout: ReturnType<typeof result.current.completeTask> = null;
+    let payout: ReturnType<typeof result.current.completeTask>["payout"] = null;
     act(() => {
-      payout = result.current.completeTask("webDev-t5", 180);
+      payout = result.current.completeTask("webDev-t5", 180).payout;
     });
     expect(payout).not.toBeNull();
     const saved = savedData(storage);

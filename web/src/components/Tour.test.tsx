@@ -108,7 +108,7 @@ describe("tutorial tours", { timeout: 30_000 }, () => {
     fireEvent.change(screen.getByLabelText("Deadline"), { target: { value: dayKey(40) } });
     await userEvent.click(screen.getAllByRole("radio", { name: /^Egg / })[0]);
     await userEvent.click(screen.getByRole("button", { name: "Create project" }));
-    screen.getByRole("heading", { name: "Thesis" });
+    screen.getByRole("heading", { name: "Thesis", level: 1 });
     expect(tourTitle()).toBe("Welcome to your project");
   });
 

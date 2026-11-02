@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { paidCompletionsOnDay, tokenBalance, inventory } from "../planner/history";
-import { NOW, completed, dayKey, daysAgo, makeData, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { addDays } from "../planner/time";
 import {
   addToToday,
@@ -485,5 +485,39 @@ describe("review fixes: creating tasks", () => {
     // P10 waits on P9; a new P9 task waiting on c10 could never be checked off.
     const { task } = createTask(prototypes(), { projectId: "p1", requirementId: "P9", title: "X", estimateMin: 30, blockedBy: ["c10", "c9a"] }, NOW);
     expect(task.blockedBy).toEqual(["c9a"]);
+  });
+});
+
+describe("pets growing up and caring", () => {
+  const juvenile = () =>
+    makeData({
+      projects: [makeProject({ stage: "juvenile", hatchedAt: daysAgo(2), pets: [makePet({ id: "x1", stage: "adult", caresFor: "r2" })] })],
+      requirements: [makeRequirement({ id: "r1" }), makeRequirement({ id: "r2" })],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "e", requirementId: "r2" })],
+    });
+
+  it("completing a task reports a pet growing up", () => {
+    const r = completeTask(juvenile(), "a", null, NOW);
+    expect(r.data.projects[0].stage).toBe("adult");
+    expect(r.news).toEqual([{ kind: "grewUp", projectId: "p1", habitatId: "p1" }]);
+  });
+
+  it("completing a task with nothing new for the pets reports no news", () => {
+    const data = juvenile();
+    data.tasks.push(makeTask({ id: "c" }), makeTask({ id: "d" }));
+    expect(completeTask(data, "a", null, NOW).news).toEqual([]);
+  });
+
+  it("deleting a looked-after requirement sends its pet back to sharing", () => {
+    expect(deleteRequirement(juvenile(), "r2", "deleteTasks").projects[0].pets?.[0].caresFor).toBeNull();
+  });
+
+  it("deleting open tasks can let a pet grow up", () => {
+    const data = juvenile();
+    data.events.push(completed("a", daysAgo(1), { requirementId: "r1" }));
+    data.tasks = data.tasks.map((t) => (t.id === "a" ? { ...t, done: true } : t));
+    data.tasks.push(makeTask({ id: "c" }), makeTask({ id: "d" }));
+    expect(deleteTask(data, "d").projects[0].stage).toBe("juvenile");
+    expect(deleteTask(deleteTask(data, "d"), "c").projects[0].stage).toBe("adult");
   });
 });

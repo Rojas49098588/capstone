@@ -2,7 +2,7 @@
 import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { NOW, dayKey } from "../planner/testData";
+import { NOW, dayKey, makePet } from "../planner/testData";
 import { createProject, placeDecor, removeDecor } from "../store/actions";
 import type { StudiumData } from "../planner/types";
 import { buildSeed } from "../store/seed";
@@ -185,5 +185,27 @@ describe("ProjectDetail hatching", () => {
     renderWithStudium(<ProjectDetail projectId="webDev" {...props} onToast={onToast} />);
     await addRequirement("Another part");
     expect(onToast).not.toHaveBeenCalled();
+  });
+});
+
+describe("ProjectDetail with several pets", () => {
+  const habitats = () => document.querySelectorAll("[data-pet-habitat]");
+
+  it("shows one habitat and invites you to buy another companion", async () => {
+    const onOpenShop = vi.fn();
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} onOpenShop={onOpenShop} />);
+    expect(habitats()).toHaveLength(1);
+    screen.getByText(/Want another companion\?/);
+    await userEvent.click(screen.getByRole("button", { name: "Buy an egg in the Shop" }));
+    expect(onOpenShop).toHaveBeenCalledWith("pets");
+  });
+
+  it("shows a habitat per pet, and no invitation with four pets", () => {
+    const seed = buildSeed(NOW);
+    const pets = ["a", "b", "c"].map((id) => makePet({ id, name: `Frog ${id}` }));
+    const data: StudiumData = { ...seed, projects: seed.projects.map((p) => (p.id === "webDev" ? { ...p, pets } : p)) };
+    renderWithStudium(<ProjectDetail projectId="webDev" {...props} />, { data });
+    expect([...habitats()].map((h) => h.getAttribute("data-pet-habitat"))).toEqual(["webDev", "a", "b", "c"]);
+    expect(screen.queryByText(/Want another companion\?/)).toBeNull();
   });
 });

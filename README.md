@@ -72,6 +72,8 @@ After editing extension files, click the reload icon on the extension's card, th
   Under each project's habitat, the **Inventory** box lists what you own. **Items** has Medicine, food, clothes and toys. **Furniture** has your decor, with **Place**, **Move here**, **Remove** and **Plain**.
 
   In its habitat, a pet naps in its bed and now and then uses its own furniture.
+- **Pets grow up.** A juvenile becomes a full-size adult once half the tasks it cares about are done since it hatched (tasks added later count too). Completing that task says "<name> grew up!".
+- **More pets per project.** The Shop's **Pets** tab sells one egg per kind of pet (400 tokens). You pick the project it goes to. A project can have up to 4 pets, with one bought egg waiting at a time. A bought egg gets its own habitat (with its own furniture) under the project's other habitats. It hatches once any one requirement is half done since you bought it. Then you name it and choose what it cares about: the project's mood (shared with the first pet, including sickness and medicine) or one requirement (its own mood and health, and its own dose of medicine). Bought pets live only in Studium for now; they don't roam the desktop yet.
 - Right-click a pet for its menu:
   - **What should I work on?** names the project's next task.
   - **Nap (15 min)** is a focus timer: the pet leaves while you work on that task and comes back to ask whether you finished. Every nap is saved in Studium as focus time ("Focused 45 min" on the task, "Focused this week" on the project), and it pre-fills "About how long did it take?". Only one pet naps at a time, and the others go quiet meanwhile.
@@ -122,6 +124,7 @@ The rules from the planner spec (`docs/superpowers/specs/2026-10-14-studium-plan
 | Every tunable number (bonuses, thresholds, curve, token rate) | `web/src/planner/tuning.ts` |
 | Example projects, requirements and tasks | `web/src/store/seed.ts` |
 | Shop items, including Medicine | `web/src/store/products.ts` |
+| Bought pets: growing up, eggs hatching, a pet's mood, egg limits | `web/src/planner/pets.ts` |
 
 Run the tests with `npm test` in `web/`.
 

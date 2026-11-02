@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from "vitest";
-import { NOW, dayKey, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, dayKey, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { memoryStorage } from "../test/render";
 import { completeTask, giveMedicine, placeDecor, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
@@ -218,5 +218,16 @@ describe("pet stages", () => {
       ["young", "juvenile"],
       ["old", "adult"],
     ]);
+  });
+});
+
+describe("bought pets", () => {
+  it("aren't sent to the desktop yet: one status per project", () => {
+    const data = makeData({
+      projects: [makeProject({ pets: [makePet({ id: "x1" }), makePet({ id: "x2", stage: "adult" })] })],
+      requirements: [makeRequirement()],
+      tasks: [makeTask()],
+    });
+    expect(buildPetStatuses(data, NOW).pets.map((p) => p.projectId)).toEqual(["p1"]);
   });
 });
