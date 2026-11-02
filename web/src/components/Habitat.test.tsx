@@ -2,10 +2,10 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { buildSeed } from "../store/seed";
 import { WAKE_PET_EVENT } from "../store/petStatus";
-import type { ExtraPet, StudiumData } from "../planner/types";
+import type { ExtraPet, StudiumData, StudiumEvent } from "../planner/types";
 import { buyEgg, placeDecor } from "../store/actions";
 import { renderWithStudium, savedData, withEgg } from "../test/render";
 import Habitat, { HABITAT_FALLBACK_MS } from "./Habitat";
@@ -279,5 +279,67 @@ describe("Habitats of bought pets", () => {
     const { storage } = renderWithStudium(<Habitat habitatId={id} onOpenShop={vi.fn()} />, { data });
     await userEvent.click(screen.getByRole("button", { name: "Give medicine (1 left)" }));
     expect(savedData(storage).events.slice(-1)[0]).toMatchObject({ type: "medicine_given", projectId: "seniorCap", petId: id });
+  });
+});
+
+describe("Habitat food", () => {
+  const HOUR = 3_600_000;
+  const stock = (productId: string): StudiumEvent => ({ type: "purchase", at: daysAgo(2), productId, price: 0 });
+  // p1's r1 is half planned with `done` of 10 tasks done: 4 is Worried, 5 Happy. It also has a bought pet x1.
+  function fed(o: { done?: number; stocked?: boolean; events?: StudiumEvent[] } = {}): StudiumData {
+    const ids = Array.from({ length: 10 }, (_, i) => `t${i}`);
+    const done = o.done ?? 4;
+    return makeData({
+      projects: [makeProject({ pets: [makePet()] })],
+      requirements: [makeRequirement({ id: "r1", startDate: dayKey(-10), dueDate: dayKey(10) })],
+      tasks: ids.map((id, i) => makeTask({ id, requirementId: "r1", done: i < done })),
+      events: [
+        ...ids.slice(0, done).map((id) => completed(id, daysAgo(1), { requirementId: "r1" })),
+        ...(o.stocked === false ? [] : [stock("berry-bites"), stock("power-bento")]),
+        ...(o.events ?? []),
+      ],
+    });
+  }
+
+  it("feeds a worried pet a snack and counts down", async () => {
+    const { storage } = renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed() });
+    await userEvent.click(screen.getByRole("button", { name: "Feed Berry Bites" }));
+    screen.getByText("(Worried, lifted by a snack)");
+    screen.getByText("Snack: lifting mood for 2h 0m more");
+    screen.getByText("Next snack in 2h 0m");
+    expect((screen.getByRole("button", { name: "Feed Berry Bites (2h 0m)" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(savedData(storage).events.slice(-1)[0]).toMatchObject({ type: "fed", projectId: "p1", petId: "p1", productId: "berry-bites" });
+  });
+
+  it("a meal shows the boost and waits until tomorrow", async () => {
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed() });
+    await userEvent.click(screen.getByRole("button", { name: "Feed Power Bento" }));
+    screen.getByText("Meal: × 1.1 tokens for 4h 0m more");
+    screen.getByText("Next meal tomorrow");
+    expect((screen.getByRole("button", { name: "Feed Power Bento (tomorrow)" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("a happy pet is not hungry", () => {
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed({ done: 5 }) });
+    expect((screen.getByRole("button", { name: "Not hungry" }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it("says a second pet's meal extends the boost", () => {
+    const meal: StudiumEvent = { type: "fed", at: new Date(NOW.getTime() - HOUR).toISOString(), projectId: "p1", petId: "x1", productId: "power-bento" };
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed({ events: [stock("power-bento"), meal] }) });
+    screen.getByText("Meal: × 1.1 tokens for 3h 0m more");
+    screen.getByText("Boost already on: this adds 4 hours instead of doubling it.");
+  });
+
+  it("offers no food to a sick pet", () => {
+    renderWithStudium(<Habitat habitatId="seniorCap" onOpenShop={vi.fn()} />);
+    expect(screen.queryByRole("button", { name: /Feed|Not hungry/ })).toBeNull();
+  });
+
+  it("sends you to the shop for food you don't have", async () => {
+    const onOpenShop = vi.fn();
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={onOpenShop} />, { data: fed({ stocked: false }) });
+    await userEvent.click(screen.getByRole("button", { name: "Buy Berry Bites in the Shop" }));
+    expect(onOpenShop).toHaveBeenCalled();
   });
 });

@@ -28,6 +28,13 @@ export function formatMinutes(minutes: number): string {
   return rest ? `${h} h ${rest} min` : `${h} h`;
 }
 
+/** A countdown, rounded up to the minute: "1h 20m", "45m" (food spec). */
+export function durationLabel(ms: number): string {
+  const minutes = Math.ceil(ms / 60_000);
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+}
+
 export function focusedLabel(minutes: number): string {
   return `Focused ${formatMinutes(minutes)}`;
 }

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
 import {
+  durationLabel,
   projectsHeading,
   projectWords,
   hatchHint as hatchHintFor,
@@ -160,5 +161,14 @@ describe("PROJECT_TYPE_HINTS", () => {
   it("explains every project type in one line", () => {
     for (const t of PROJECT_TYPES) expect(PROJECT_TYPE_HINTS[t]).toMatch(/^[A-Z].+\.$/);
     expect(PROJECT_TYPE_HINTS.writing).toBe("Requirements are chapters and tasks are scenes.");
+  });
+});
+
+describe("durationLabel", () => {
+  it("shows hours and minutes, rounded up to the minute", () => {
+    expect(durationLabel(80 * 60_000)).toBe("1h 20m");
+    expect(durationLabel(45 * 60_000)).toBe("45m");
+    expect(durationLabel(120 * 60_000)).toBe("2h 0m");
+    expect(durationLabel(44 * 60_000 + 1)).toBe("45m");
   });
 });

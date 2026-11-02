@@ -12,6 +12,7 @@ export type ProjectSummary = {
   mood: Mood;
   neglected: NeglectedRequirement[];
   health: ProjectHealth;
+  liftedFrom: Mood | null; // the mood before the first pet's snack lifted it (food spec)
   multiplier: number;
   samples: number;
   tasksDone: number;
@@ -34,6 +35,7 @@ export function summarizeProject(
     mood: m.mood,
     neglected: m.neglected,
     health: m.health,
+    liftedFrom: m.liftedFrom,
     multiplier: multiplierFor(multipliers, project.id),
     samples: samplesFor(multipliers, project.id),
     tasksDone: tasks.filter((t) => t.done).length,
