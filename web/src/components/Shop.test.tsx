@@ -16,6 +16,13 @@ describe("Shop", () => {
     screen.getByText("Medicine");
   });
 
+  it("each food says what it does", () => {
+    renderWithStudium(<Shop />);
+    const card = (name: string) => screen.getByRole("heading", { name }).closest("article") as HTMLElement;
+    within(card("Berry Bites")).getByText("Lifts a Worried or Upset pet's mood one step for 2 hours. One snack every 3 hours. Doesn't help a Sick pet.");
+    within(card("Power Bento")).getByText("Tasks on this pet's project earn × 1.1 tokens for 4 hours. One meal a day.");
+  });
+
   it("buys an item", async () => {
     renderWithStudium(<Shop />);
     await userEvent.click(screen.getByRole("button", { name: "Buy · 80 tokens" }));

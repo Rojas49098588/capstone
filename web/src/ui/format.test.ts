@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
 import {
+  durationLabel,
   projectsHeading,
   projectWords,
   hatchHint as hatchHintFor,
@@ -58,6 +59,11 @@ describe("format", () => {
   it("shows estimate accuracy only with enough samples", () => {
     expect(accuracyLabel("appDev", 1.42, 3)).toBe("Your appDev tasks take about 1.4× your estimates");
     expect(accuracyLabel("appDev", 1.42, 2)).toBeNull();
+  });
+
+  it("names the meal boost in a payout", () => {
+    const payout = { tokens: 33, breakdown: { ...ZERO_BREAKDOWN, base: 100, foodMultiplier: 1.1 } };
+    expect(payoutMessage(payout, makeTask())).toBe("+33 tokens: meal boost ×1.1");
   });
 
   it("explains a payout", () => {
@@ -160,5 +166,14 @@ describe("PROJECT_TYPE_HINTS", () => {
   it("explains every project type in one line", () => {
     for (const t of PROJECT_TYPES) expect(PROJECT_TYPE_HINTS[t]).toMatch(/^[A-Z].+\.$/);
     expect(PROJECT_TYPE_HINTS.writing).toBe("Requirements are chapters and tasks are scenes.");
+  });
+});
+
+describe("durationLabel", () => {
+  it("shows hours and minutes, rounded up to the minute", () => {
+    expect(durationLabel(80 * 60_000)).toBe("1h 20m");
+    expect(durationLabel(45 * 60_000)).toBe("45m");
+    expect(durationLabel(120 * 60_000)).toBe("2h 0m");
+    expect(durationLabel(44 * 60_000 + 1)).toBe("45m");
   });
 });

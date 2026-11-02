@@ -2,6 +2,7 @@
 // is applied with the pure functions in actions.ts, and is saved straight away.
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { DecorSlot, PetKind, StudiumData } from "../planner/types";
+import { nextLiftEnd } from "../planner/food";
 import * as A from "./actions";
 import {
   STORAGE_KEY,
@@ -103,6 +104,15 @@ export function useStudium(options: StudiumOptions = {}) {
     const id = setInterval(() => publishPetStatuses(env.storage, dataRef.current, env.clock()), PET_STATUS_REFRESH_MS);
     return () => clearInterval(id);
   }, [env, persistent]);
+
+  // ...and when a snack stops lifting a pet's mood, so the desktop pet doesn't look happy for longer (food spec).
+  useEffect(() => {
+    if (!persistent) return;
+    const end = nextLiftEnd(data.events, env.clock());
+    if (!end) return;
+    const id = setTimeout(() => publishPetStatuses(env.storage, dataRef.current, env.clock()), end.getTime() - env.clock().getTime());
+    return () => clearTimeout(id);
+  }, [env, persistent, data]);
 
   // The extension delivers finished naps (focus sessions). Answer only once they're saved: the
   // extension keeps its copies until then. A failed save isn't kept in memory either, or the next
@@ -212,6 +222,11 @@ export function useStudium(options: StudiumOptions = {}) {
       giveMedicine: (projectId: string, petId?: string) =>
         apply((d, at) => {
           const r = A.giveMedicine(d, projectId, at, petId);
+          return { data: r.data, result: r.ok };
+        }),
+      feedPet: (projectId: string, petId: string, productId: string) =>
+        apply((d, at) => {
+          const r = A.feedPet(d, projectId, petId, productId, at);
           return { data: r.data, result: r.ok };
         }),
     };

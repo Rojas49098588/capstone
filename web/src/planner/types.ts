@@ -75,6 +75,7 @@ export type TokenBreakdown = {
   finish: number;
   dailyCurve: number;
   sickMultiplier: number;
+  foodMultiplier: number; // MEAL_TOKEN_MULTIPLIER while a meal boost runs (food spec); missing in older saves
 };
 
 export const ZERO_BREAKDOWN: TokenBreakdown = {
@@ -84,6 +85,7 @@ export const ZERO_BREAKDOWN: TokenBreakdown = {
   finish: 0,
   dailyCurve: 1,
   sickMultiplier: 1,
+  foodMultiplier: 1,
 };
 
 export type StudiumEvent =
@@ -103,6 +105,7 @@ export type StudiumEvent =
   | { type: "requirement_edited"; at: string; requirementId: string; changes: Partial<Requirement> }
   | { type: "purchase"; at: string; productId: string; price: number }
   | { type: "medicine_given"; at: string; projectId: string; petId?: string } // petId: a pet with its own health
+  | { type: "fed"; at: string; projectId: string; petId: string; productId: string } // petId: the first pet's is the project id
   | {
       type: "focus_session"; // a nap with a browser pet (pet interactions spec)
       at: string; // when the session ended

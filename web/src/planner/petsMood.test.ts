@@ -90,3 +90,46 @@ describe("medicine for one pet", () => {
     expect(giveMedicine(sharing, "p1", NOW, "x1")).toEqual({ data: sharing, ok: false });
   });
 });
+
+// r1 runs from 10 days ago to 10 days from now (50% planned) and has 10 equal tasks: `done` of them
+// were finished yesterday, so 4 done is Worried, 5 Happy and 2 Upset for a steady project.
+function scheduled(done: number, events: StudiumEvent[] = [], extra = makePet({ id: "x1", stage: "adult", caresFor: null })): StudiumData {
+  const ids = Array.from({ length: 10 }, (_, i) => `t${i}`);
+  return makeData({
+    projects: [makeProject({ pets: [extra] })],
+    requirements: [makeRequirement({ id: "r1", startDate: dayKey(-10), dueDate: dayKey(10) })],
+    tasks: ids.map((id, i) => makeTask({ id, requirementId: "r1", done: i < done })),
+    events: [...ids.slice(0, done).map((id) => completed(id, daysAgo(1), { requirementId: "r1" })), ...events],
+  });
+}
+const snackFor = (petId: string): StudiumEvent => ({
+  type: "fed",
+  at: new Date(NOW.getTime() - 3_600_000).toISOString(),
+  projectId: "p1",
+  petId,
+  productId: "berry-bites",
+});
+
+describe("petMood with a snack", () => {
+  it("lifts only the pet that ate it", () => {
+    const data = scheduled(4, [snackFor("x1")]);
+    expect(projectMood("p1", data, NOW).mood).toBe("Worried");
+    const m = petMood(pet(data), data, NOW)!;
+    expect(m.mood).toBe("Happy");
+    expect(m.liftedFrom).toBe("Worried");
+    expect(petMood(pet(data, "p1"), data, NOW)!.mood).toBe("Worried");
+    expect(projectHealth("p1", data, NOW)).toEqual(projectHealth("p1", scheduled(4), NOW));
+  });
+
+  it("lifts a pet looking after a requirement", () => {
+    const data = scheduled(4, [snackFor("x1")], makePet({ id: "x1", stage: "adult", caresFor: "r1" }));
+    expect(petMood(pet(data), data, NOW)).toMatchObject({ mood: "Happy", liftedFrom: "Worried" });
+  });
+
+  it("follows the schedule while it lifts: never past Happy, and Upset shows Worried", () => {
+    const happy = scheduled(5, [snackFor("x1")]);
+    expect(petMood(pet(happy), happy, NOW)).toMatchObject({ mood: "Happy", liftedFrom: null });
+    const upset = scheduled(2, [snackFor("x1")]);
+    expect(petMood(pet(upset), upset, NOW)).toMatchObject({ mood: "Worried", liftedFrom: "Upset" });
+  });
+});

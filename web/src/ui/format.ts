@@ -28,6 +28,13 @@ export function formatMinutes(minutes: number): string {
   return rest ? `${h} h ${rest} min` : `${h} h`;
 }
 
+/** A countdown, rounded up to the minute: "1h 20m", "45m" (food spec). */
+export function durationLabel(ms: number): string {
+  const minutes = Math.ceil(ms / 60_000);
+  const hours = Math.floor(minutes / 60);
+  return hours > 0 ? `${hours}h ${minutes % 60}m` : `${minutes}m`;
+}
+
 export function focusedLabel(minutes: number): string {
   return `Focused ${formatMinutes(minutes)}`;
 }
@@ -227,6 +234,7 @@ export function payoutMessage(payout: Payout, task: Task): string {
   if (b.finish > 0) parts.push("finished a requirement");
   if (b.dailyCurve < 1) parts.push(`busy day ×${b.dailyCurve.toFixed(2)}`);
   if (b.sickMultiplier < 1) parts.push(`sick pet ×${b.sickMultiplier}`);
+  if ((b.foodMultiplier ?? 1) > 1) parts.push(`meal boost ×${b.foodMultiplier}`); // older saves have none
   return `+${payout.tokens} tokens${parts.length > 0 ? `: ${parts.join(", ")}` : ""}`;
 }
 

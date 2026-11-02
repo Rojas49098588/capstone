@@ -109,6 +109,8 @@ export type ProjectMood = {
   gap: number;
   neglected: NeglectedRequirement[];
   health: ProjectHealth;
+  /** The mood before a snack lifted it (food spec), or null when no snack is lifting it. */
+  liftedFrom: Mood | null;
 };
 
 export function projectMood(
@@ -130,5 +132,5 @@ export function projectMood(
   if (health.sick) mood = "Sick";
   else if (health.recovering) mood = capAtWorried(mood);
 
-  return { mood, gap, neglected, health };
+  return { mood, gap, neglected, health, liftedFrom: null };
 }

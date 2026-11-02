@@ -50,6 +50,15 @@ describe("history", () => {
     expect(inventory(events)).toEqual({ medicine: 1, "focus-ball": 1 });
   });
 
+  it("uses up a food when a pet eats it", () => {
+    const events: StudiumEvent[] = [
+      { type: "purchase", at: daysAgo(3), productId: "berry-bites", price: 35 },
+      { type: "purchase", at: daysAgo(3), productId: "berry-bites", price: 35 },
+      { type: "fed", at: daysAgo(1), projectId: "p1", petId: "p1", productId: "berry-bites" },
+    ];
+    expect(inventory(events)).toEqual({ "berry-bites": 1 });
+  });
+
   it("counts only paid completions on the given local day", () => {
     const events = [
       completed("a", daysAgo(0.1), { tokens: 10 }),

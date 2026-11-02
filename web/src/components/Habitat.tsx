@@ -28,6 +28,7 @@ import {
   type ProjectWords,
 } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
+import FoodPanel from "./FoodPanel";
 import HabitatDecor, { type Placing } from "./HabitatDecor";
 import PetSetup, { CaresAboutSelect } from "./PetSetup";
 
@@ -183,7 +184,8 @@ export default function Habitat({ habitatId, onOpenShop, placing = null, onPickS
                 <p>
                   <span className="font-semibold" style={{ color: MOOD_COLORS[mood.mood] }}>
                     {mood.mood}
-                  </span>{" "}
+                  </span>
+                  {mood.liftedFrom && <span className="text-xs text-[var(--color-muted-foreground)]"> ({mood.liftedFrom}, lifted by a snack)</span>}{" "}
                   · {gapLabel(mood.gap)}
                 </p>
                 {mood.health.recovering && <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{recoveringNote(words)}</p>}
@@ -192,6 +194,8 @@ export default function Habitat({ habitatId, onOpenShop, placing = null, onPickS
                 <p className={LABEL}>Attention</p>
                 <p className={mood.neglected.length > 0 ? "text-[var(--color-accent)]" : ""}>{attentionLabel(mood.neglected, words)}</p>
               </div>
+              {/* Food is never for a Sick or Recovering pet (food spec). */}
+              {!mood.health.sick && !mood.health.recovering && <FoodPanel pet={pet} mood={mood} onOpenShop={onOpenShop} />}
               {!pet.first && (
                 <CaresAboutSelect
                   pet={pet}

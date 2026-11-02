@@ -147,3 +147,20 @@ Use `npm run start:test` against the TEST project.
 - [ ] Add color to Coats adds the color to every number.
 - [ ] Add number adds new chips.
 - [ ] On this data, the checklists from Plans 1 and 2 still pass: flags with photos, history, clearing, out-for-repair, and the number editor.
+
+## 8. Food (Berry Bites and Power Bento)
+
+Buy two of each in Shop → Supplies. Use a project whose pet is **Worried** or **Upset** (fall a little behind plan).
+
+- [ ] In the Shop, each food card has a "What it does" box.
+- [ ] The pet's habitat has a **Food** section with "Feed Berry Bites" and "Feed Power Bento".
+- [ ] Feed Berry Bites to a Worried pet. Its mood goes up one step and reads "Happy (Worried, lifted by a snack)".
+- [ ] The Food section shows "Snack: lifting mood for 2h 0m more" and "Next snack in 3h 0m". The snack button is greyed out with the wait time on it.
+- [ ] The desktop pet's mood matches the habitat's.
+- [ ] About two hours later, the lift is gone and the mood matches the schedule again.
+- [ ] A Happy pet's snack button says "Not hungry".
+- [ ] Feed Power Bento. The section shows "Meal: × 1.1 tokens for 4h 0m more" and "Next meal tomorrow". Finishing a task in that project while the boost runs pays a little more.
+- [ ] After midnight, the same pet can eat another meal.
+- [ ] On a project with a second (bought) pet, feeding it a Power Bento while the boost runs says "Boost already on: this adds 4 hours instead of doubling it". The time left grows by 4 hours, and the boost stays × 1.1.
+- [ ] A Sick pet, a pet recovering from medicine, and an egg have no Food section.
+- [ ] With no food left, the button says "Buy Berry Bites in the Shop" and opens the Shop.

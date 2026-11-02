@@ -9,11 +9,14 @@ export type ShopProduct = {
   description: string;
   category: ShopCategory;
   price: number;
+  effect?: string; // what using it does, shown in the Shop (food spec)
 };
 
 export const SHOP_PRODUCTS: ShopProduct[] = [
-  { id: "berry-bites", name: "Berry Bites", description: "A sweet everyday snack for your companion.", category: "Food", price: 35 },
-  { id: "power-bento", name: "Power Bento", description: "A hearty meal for long study sessions.", category: "Food", price: 60 },
+  { id: "berry-bites", name: "Berry Bites", description: "A sweet everyday snack for your companion.", category: "Food", price: 35,
+    effect: "Lifts a Worried or Upset pet's mood one step for 2 hours. One snack every 3 hours. Doesn't help a Sick pet." },
+  { id: "power-bento", name: "Power Bento", description: "A hearty meal for long study sessions.", category: "Food", price: 60,
+    effect: "Tasks on this pet's project earn × 1.1 tokens for 4 hours. One meal a day." },
   { id: "scholar-scarf", name: "Scholar Scarf", description: "A soft scarf with a studious stripe.", category: "Clothes", price: 120 },
   { id: "rainy-day-coat", name: "Rainy-Day Coat", description: "Keeps tiny paws dry in any weather.", category: "Clothes", price: 180 },
   { id: "focus-ball", name: "Focus Ball", description: "A bouncy reward after completing a task.", category: "Toys", price: 75 },
