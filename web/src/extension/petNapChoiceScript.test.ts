@@ -76,18 +76,18 @@ it("asks what you'll work on, naps for the task you pick, and offers Just nap", 
 
   // Picking the second Today task naps for that one.
   click(talk(0), "Apple developer license");
-  expect(messages).toEqual([{ type: "nap", projectId: "a", taskId: "t2" }]);
+  expect(messages).toEqual([{ type: "nap", petId: "a", taskId: "t2" }]);
   expect(talk(0).classList.contains("show")).toBe(false);
 
   // Just nap: no task.
   napFromMenu(0);
   click(talk(0), "Just nap");
-  expect(messages[messages.length - 1]).toEqual({ type: "nap", projectId: "a", taskId: null });
+  expect(messages[messages.length - 1]).toEqual({ type: "nap", petId: "a", taskId: null });
 
   // Nothing to offer: it just naps.
   napFromMenu(1);
   expect(talk(1).classList.contains("show")).toBe(false);
-  expect(messages[messages.length - 1]).toEqual({ type: "nap", projectId: "b", taskId: null });
+  expect(messages[messages.length - 1]).toEqual({ type: "nap", petId: "b", taskId: null });
 
   // Left unanswered, the question goes away after a minute and no nap starts.
   vi.useFakeTimers();
