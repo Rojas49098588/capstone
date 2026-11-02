@@ -95,12 +95,12 @@ export function moodFromGap(gap: number, difficulty: Difficulty = "steady"): Moo
 
 const LADDER: Mood[] = ["Upset", "Worried", "Happy", "Delighted"];
 
-function lowerOneLevel(mood: Mood): Mood {
+export function lowerOneLevel(mood: Mood): Mood {
   const i = LADDER.indexOf(mood);
   return i > 0 ? LADDER[i - 1] : mood; // Upset, Proud and Sick stay as they are
 }
 
-function capAtWorried(mood: Mood): Mood {
+export function capAtWorried(mood: Mood): Mood {
   return mood === "Happy" || mood === "Delighted" || mood === "Proud" ? "Worried" : mood;
 }
 

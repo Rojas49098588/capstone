@@ -3,7 +3,7 @@
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
-import { habitatIds, petsOf, settlePets, type PetNews } from "../planner/pets";
+import { findPet, habitatIds, petMood, petsOf, settlePets, type PetNews } from "../planner/pets";
 import { projectHealth } from "../planner/mood";
 import { DAY_MS, addDays, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
@@ -447,10 +447,20 @@ export function purchase(data: StudiumData, productId: string, now: Date): { dat
   };
 }
 
-export function giveMedicine(data: StudiumData, projectId: string, now: Date): { data: StudiumData; ok: boolean } {
+/**
+ * Gives one dose: to the project (curing every pet that shares its mood), or with `petId` to a bought
+ * pet that looks after a requirement and so has its own health.
+ */
+export function giveMedicine(data: StudiumData, projectId: string, now: Date, petId?: string): { data: StudiumData; ok: boolean } {
   const haveMedicine = (inventory(data.events)[MEDICINE_PRODUCT_ID] ?? 0) > 0;
-  if (!haveMedicine || !projectHealth(projectId, data, now).sick) return { data, ok: false };
-  return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId }) }, ok: true };
+  if (!haveMedicine) return { data, ok: false };
+  if (petId === undefined) {
+    if (!projectHealth(projectId, data, now).sick) return { data, ok: false };
+    return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId }) }, ok: true };
+  }
+  const pet = findPet(data, petId);
+  if (!pet || pet.first || pet.projectId !== projectId || pet.caresFor === null || !petMood(pet, data, now)?.health.sick) return { data, ok: false };
+  return { data: { ...data, events: withEvent(data, { type: "medicine_given", at: stamp(now), projectId, petId }) }, ok: true };
 }
 
 // ---- Focus sessions (naps with a browser pet) ----

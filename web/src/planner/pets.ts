@@ -1,10 +1,15 @@
 // A project's pets: the first pet is the project itself (its id is the project id, so all state
 // saved before bought pets keeps working); pets bought in the Shop follow it, each in its own habitat.
 // A habitat is keyed by its pet's id: the project id for the first pet, the pet id for the others.
+import { lastCompletionAt, lastMedicineGiven } from "./history";
+import { estimateMultipliers, multiplierFor, type Multipliers } from "./learning";
 import { petStage } from "./lifecycle";
-import { isRequirementDone, tasksOfRequirement } from "./progress";
-import { EGG_HATCH_SHARE, GROW_UP_SHARE } from "./tuning";
-import type { ExtraPet, PetKind, PetStage, Project, StudiumData, StudiumEvent } from "./types";
+import { capAtWorried, lowerOneLevel, moodFromGap, neglectDays, projectMood, requirementIdleDays, sickDays, type ProjectMood } from "./mood";
+import { projectDifficulty } from "./projectKind";
+import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "./progress";
+import { DAY_MS } from "./time";
+import { EGG_HATCH_SHARE, GROW_UP_SHARE, RECOVERY_DAYS } from "./tuning";
+import type { ExtraPet, Mood, PetKind, PetStage, Project, StudiumData, StudiumEvent } from "./types";
 
 export type PetRef = {
   projectId: string;
@@ -146,4 +151,40 @@ export function settlePets(data: StudiumData, now: Date): { data: StudiumData; n
     return next;
   });
   return { data: changed ? { ...data, projects } : data, news };
+}
+
+// ---- A pet's mood and health ----
+
+/**
+ * How a pet feels. A pet sharing the project's mood feels exactly what the project's pet feels. A pet
+ * looking after a requirement gets the project's rules applied to that requirement alone, with its own
+ * health: sick after the requirement's long neglect, recovering after a dose given to this pet. Null for an egg.
+ */
+export function petMood(pet: PetRef, data: StudiumData, now: Date, multipliers: Multipliers = estimateMultipliers(data)): ProjectMood | null {
+  if (pet.stage === "egg") return null;
+  const project = data.projects.find((p) => p.id === pet.projectId);
+  const req = pet.caresFor ? data.requirements.find((r) => r.id === pet.caresFor && r.projectId === pet.projectId) : undefined;
+  if (!project || !req) return projectMood(pet.projectId, data, now, multipliers);
+
+  const done = isRequirementDone(req.id, data.tasks);
+  const planned = plannedProgress(req, project, now);
+  const gap = (requirementProgress(req.id, data.tasks, multiplierFor(multipliers, project.id)) - planned) * 100;
+  const idleDays = requirementIdleDays(req, data, now);
+  const started = !done && planned > 0;
+  const neglected = started && idleDays >= neglectDays(project) ? [{ requirement: req, idleDays }] : [];
+
+  const medAt = lastMedicineGiven(data.events, project.id, now, pet.petId);
+  const taskIds = tasksOfRequirement(req.id, data.tasks).map((t) => t.id);
+  const movedSince = (at: Date) => {
+    const last = lastCompletionAt(data.events, taskIds, now);
+    return last !== null && last > at;
+  };
+  const recovering = medAt !== null && now.getTime() - medAt.getTime() < RECOVERY_DAYS * DAY_MS && !movedSince(medAt);
+  const sick = !recovering && started && idleDays >= sickDays(project);
+
+  let mood: Mood = done ? "Proud" : moodFromGap(gap, projectDifficulty(project));
+  if (neglected.length > 0) mood = lowerOneLevel(mood);
+  if (sick) mood = "Sick";
+  else if (recovering) mood = capAtWorried(mood);
+  return { mood, gap, neglected, health: { sick, recovering, recoveringFor: recovering ? [req.id] : [] } };
 }
