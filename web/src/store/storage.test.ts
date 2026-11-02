@@ -50,6 +50,19 @@ describe("isValidData", () => {
     expect(isValidData({ ...valid(), events: [{ type: "task_completed", at: NOW.toISOString(), taskId: "t1" }] })).toBe(false);
     expect(isValidData(null)).toBe(false);
   });
+
+  it("accepts feedings and rejects damaged ones", () => {
+    const fed = (o: object = {}) => ({ type: "fed", at: NOW.toISOString(), projectId: "p1", petId: "p1", productId: "berry-bites", ...o });
+    expect(isValidData({ ...valid(), events: [fed()] })).toBe(true);
+    expect(isValidData({ ...valid(), events: [fed({ petId: undefined })] })).toBe(false);
+    expect(isValidData({ ...valid(), events: [fed({ productId: 3 })] })).toBe(false);
+  });
+
+  it("loads completions saved before the meal boost existed", () => {
+    const breakdown = { base: 10, unblockBonus: 0, neglectBonus: 0, finish: 0, dailyCurve: 1, sickMultiplier: 1 };
+    const old = { type: "task_completed", at: NOW.toISOString(), taskId: "t1", requirementId: "r1", actualMin: null, tokens: 3, breakdown };
+    expect(isValidData({ ...valid(), events: [old] })).toBe(true);
+  });
 });
 
 describe("loadData / saveData", () => {

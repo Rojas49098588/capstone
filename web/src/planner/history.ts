@@ -43,6 +43,8 @@ export function inventory(events: StudiumEvent[]): Record<string, number> {
       counts[e.productId] = (counts[e.productId] ?? 0) + 1;
     } else if (e.type === "medicine_given") {
       counts[MEDICINE_PRODUCT_ID] = Math.max(0, (counts[MEDICINE_PRODUCT_ID] ?? 0) - 1);
+    } else if (e.type === "fed") {
+      counts[e.productId] = Math.max(0, (counts[e.productId] ?? 0) - 1);
     }
   }
   return counts;

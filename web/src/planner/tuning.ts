@@ -59,6 +59,13 @@ export const EGG_HATCH_SHARE = 0.5; // a bought egg hatches once one requirement
 export const SUGGESTED_COUNT = 6;
 export const MEDICINE_PRODUCT_ID = "medicine";
 export const MEDICINE_PRICE = 80;
+
+// Food (food spec): a snack lifts the shown mood, a meal boosts the project's tokens
+export const SNACK_PRODUCT_ID = "berry-bites";
+export const MEAL_PRODUCT_ID = "power-bento";
+export const SNACK_HOURS = 2; // how long a snack's lift lasts, and the wait between snacks
+export const MEAL_HOURS = 4; // how long a meal's boost lasts (a meal while it runs adds this much)
+export const MEAL_TOKEN_MULTIPLIER = 1.1;
 export const DEFAULT_ESTIMATE_MIN = 60;
 
 // User settings

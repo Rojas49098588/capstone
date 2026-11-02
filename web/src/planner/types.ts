@@ -103,6 +103,7 @@ export type StudiumEvent =
   | { type: "requirement_edited"; at: string; requirementId: string; changes: Partial<Requirement> }
   | { type: "purchase"; at: string; productId: string; price: number }
   | { type: "medicine_given"; at: string; projectId: string; petId?: string } // petId: a pet with its own health
+  | { type: "fed"; at: string; projectId: string; petId: string; productId: string } // petId: the first pet's is the project id
   | {
       type: "focus_session"; // a nap with a browser pet (pet interactions spec)
       at: string; // when the session ended

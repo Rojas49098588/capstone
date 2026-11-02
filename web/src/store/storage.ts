@@ -102,6 +102,7 @@ export function isValidData(value: unknown): value is StudiumData {
     if (e.type === "task_completed" && !(isStr(e.taskId) && isNum(e.tokens) && isObj(e.breakdown) && isNum(e.breakdown.finish))) return false;
     if (e.type === "purchase" && !(isStr(e.productId) && isNum(e.price))) return false;
     if (e.type === "medicine_given" && !(isStr(e.projectId) && (e.petId === undefined || isStr(e.petId)))) return false;
+    if (e.type === "fed" && !(isStr(e.projectId) && isStr(e.petId) && isStr(e.productId))) return false;
     if (e.type === "focus_session" && !isValidFocusSession(e)) return false;
   }
   return true;

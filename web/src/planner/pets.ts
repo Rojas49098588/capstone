@@ -187,7 +187,7 @@ export function petMood(pet: PetRef, data: StudiumData, now: Date, multipliers: 
   if (neglected.length > 0) mood = lowerOneLevel(mood);
   if (sick) mood = "Sick";
   else if (recovering) mood = capAtWorried(mood);
-  return { mood, gap, neglected, health: { sick, recovering, recoveringFor: recovering ? [req.id] : [] } };
+  return { mood, gap, neglected, health: { sick, recovering, recoveringFor: recovering ? [req.id] : [] }, liftedFrom: null };
 }
 
 // ---- Buying eggs and naming pets ----
