@@ -176,6 +176,22 @@ describe("useStudium and the browser extension", () => {
     expect(published(storage).pets).toHaveLength(6);
   });
 
+  it("republishes when a snack stops lifting a pet's mood", () => {
+    vi.useFakeTimers();
+    let time = NOW;
+    const storage = seededStorage();
+    const data = savedData(storage);
+    // 90 minutes ago: the lift ends 30 minutes from now, well before the hourly republish.
+    data.events.push({ type: "fed", at: new Date(NOW.getTime() - 90 * 60_000).toISOString(), projectId: "webDev", petId: "webDev", productId: "berry-bites" });
+    saveData(storage, data);
+    renderHook(() => useStudium({ storage, clock: () => time }));
+    time = new Date(NOW.getTime() + 30 * 60_000);
+    act(() => {
+      vi.advanceTimersByTime(30 * 60_000);
+    });
+    expect(published(storage).updatedAt).toBe(time.toISOString());
+  });
+
   it("republishes every hour because moods change with time", () => {
     vi.useFakeTimers();
     let time = NOW;

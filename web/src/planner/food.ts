@@ -48,6 +48,13 @@ export function snackLiftUntil(events: StudiumEvent[], petId: string, now: Date)
   return end > now.getTime() ? new Date(end) : null;
 }
 
+/** The soonest end of any pet's running snack lift, or null when no snack is lifting a mood. */
+export function nextLiftEnd(events: StudiumEvent[], now: Date): Date | null {
+  const pets = new Set(feedings(events, "snack", now, () => true).map((e) => e.petId));
+  const ends = [...pets].map((petId) => snackLiftUntil(events, petId, now)).filter((d): d is Date => d !== null);
+  return ends.length > 0 ? new Date(Math.min(...ends.map((d) => d.getTime()))) : null;
+}
+
 /** When the project's meal boost ends, or null when none is running. A meal while it runs adds MEAL_HOURS. */
 export function mealBoostUntil(events: StudiumEvent[], projectId: string, now: Date): Date | null {
   let end = 0;

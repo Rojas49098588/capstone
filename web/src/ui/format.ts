@@ -234,6 +234,7 @@ export function payoutMessage(payout: Payout, task: Task): string {
   if (b.finish > 0) parts.push("finished a requirement");
   if (b.dailyCurve < 1) parts.push(`busy day ×${b.dailyCurve.toFixed(2)}`);
   if (b.sickMultiplier < 1) parts.push(`sick pet ×${b.sickMultiplier}`);
+  if ((b.foodMultiplier ?? 1) > 1) parts.push(`meal boost ×${b.foodMultiplier}`); // older saves have none
   return `+${payout.tokens} tokens${parts.length > 0 ? `: ${parts.join(", ")}` : ""}`;
 }
 

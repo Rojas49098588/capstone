@@ -61,6 +61,11 @@ describe("format", () => {
     expect(accuracyLabel("appDev", 1.42, 2)).toBeNull();
   });
 
+  it("names the meal boost in a payout", () => {
+    const payout = { tokens: 33, breakdown: { ...ZERO_BREAKDOWN, base: 100, foodMultiplier: 1.1 } };
+    expect(payoutMessage(payout, makeTask())).toBe("+33 tokens: meal boost ×1.1");
+  });
+
   it("explains a payout", () => {
     const payout = { tokens: 29, breakdown: { ...ZERO_BREAKDOWN, base: 70, unblockBonus: 0.3, neglectBonus: 0.1 } };
     expect(payoutMessage(payout, makeTask())).toBe(
