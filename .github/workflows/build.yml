@@ -1,0 +1,119 @@
+# Builds the Studium installers: the Windows .exe and the universal (Apple chip + Intel) Mac .dmg.
+# Run it from the Actions tab → "Build installers" → Run workflow. It runs the tests, builds both
+# installers, checks each packaged app starts, and puts both files on a draft Release v<version>
+# (version from desktop/package.json) for you to publish. Running it again for the same version
+# replaces the files on that release.
+name: Build installers
+
+on:
+  workflow_dispatch:
+  # Temporary, so the branch can be tested before the file is on main (the Run workflow button only
+  # appears for workflows on the default branch). Removed before merging.
+  push:
+    branches: [feature/desktop-week4-release]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    env:
+      STUDIUM_RELEASE_DIR: ${{ runner.temp }}/release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            web/package-lock.json
+            desktop/package-lock.json
+
+      - name: Install
+        run: |
+          npm ci --prefix web
+          npm ci --prefix desktop
+
+      - name: Web tests
+        working-directory: web
+        run: npx vitest run
+
+      - name: Desktop unit tests
+        working-directory: desktop
+        run: npm test
+
+      - name: Build the installer
+        working-directory: desktop
+        run: npm run dist
+
+      - name: Check the packaged app starts
+        working-directory: desktop
+        env:
+          STUDIUM_PACKAGED: '1'
+        run: npx playwright test packaged
+
+      - name: Check the Mac app is signed (ad-hoc) and universal
+        if: runner.os == 'macOS'
+        run: |
+          app="$STUDIUM_RELEASE_DIR/mac-universal/Studium.app"
+          codesign --verify --deep --strict --verbose=2 "$app"
+          archs=$(lipo -archs "$app/Contents/MacOS/Studium")
+          echo "Architectures: $archs"
+          [[ "$archs" == *x86_64* && "$archs" == *arm64* ]] || { echo "Expected both x86_64 and arm64"; exit 1; }
+
+      - name: Upload the Windows installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: studium-windows
+          path: ${{ runner.temp }}/release/*.exe
+          if-no-files-found: error
+
+      - name: Upload the Mac installer
+        if: runner.os == 'macOS'
+        uses: actions/upload-artifact@v4
+        with:
+          name: studium-mac
+          path: ${{ runner.temp }}/release/*.dmg
+          if-no-files-found: error
+
+  release:
+    name: Draft release
+    needs: build
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: files
+          merge-multiple: true
+
+      - name: Create or update the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./desktop/package.json').version")
+          tag="v$version"
+          ls -l files
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" files/* --clobber
+            echo "Replaced the files on release $tag."
+          else
+            gh release create "$tag" files/* --draft --title "Studium $version" \
+              --notes-file .github/release-notes.md --target "$GITHUB_SHA"
+            echo "Created draft release $tag. Open it on the Releases page and click Publish release."
+          fi
