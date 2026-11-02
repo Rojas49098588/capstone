@@ -138,6 +138,11 @@ export default function Shop({ openTab }: Props) {
                           <div>
                             <h3 className="font-semibold text-[var(--color-foreground)]">{product.name}</h3>
                             <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed mt-1">{product.description}</p>
+                            {product.effect && (
+                              <p className="text-xs leading-relaxed mt-2 px-2 py-1.5 bg-[var(--color-muted)] text-[var(--color-foreground)]">
+                                <span className="font-semibold">What it does:</span> <span>{product.effect}</span>
+                              </p>
+                            )}
                           </div>
                           {count > 0 && <span className="text-xs font-mono text-[var(--color-accent)] whitespace-nowrap">Owned ×{count}</span>}
                         </div>
