@@ -63,7 +63,7 @@ describe('handleStudium', () => {
   it('passes saved ids and Wake to the nap runner', () => {
     handleStudium('studium:delivered', ['a'], deps);
     handleStudium('studium:wake', 'webDev', deps);
-    expect(requests).toEqual([{ type: 'delivered', ids: ['a'] }, { type: 'wake', projectId: 'webDev' }]);
+    expect(requests).toEqual([{ type: 'delivered', ids: ['a'] }, { type: 'wake', petId: 'webDev' }]);
   });
 
   it('passes a checked-off task to the nap runner', () => {

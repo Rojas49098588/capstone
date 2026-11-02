@@ -111,6 +111,9 @@
     if (!text(p.projectId) || !PET_KINDS.includes(p.petKind) || !MOODS.includes(p.mood)) return null;
     const idle = p.idleRequirement;
     return {
+      // A project's first pet has its project's id; a pet bought in the Shop has its own. Older Studium
+      // builds send no petId: every pet is a first pet then.
+      petId: text(p.petId) ? p.petId : p.projectId,
       projectId: p.projectId,
       shortName: text(p.shortName) ? p.shortName : p.projectId,
       name: text(p.name) ? p.name : p.projectId,
@@ -154,15 +157,15 @@
     const pets = [];
     for (const p of value.pets) {
       const clean = cleanStatus(p);
-      if (clean && !seen.has(clean.projectId)) {
-        seen.add(clean.projectId);
+      if (clean && !seen.has(clean.petId)) {
+        seen.add(clean.petId);
         pets.push(clean);
       }
     }
     return { updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '', pets };
   }
 
-  /** Saved pet positions ({ [projectId]: { xRatio } }), keeping only usable entries. */
+  /** Saved pet positions ({ [petId]: { xRatio } }), keeping only usable entries. */
   function parsePositions(raw) {
     const out = {};
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
@@ -253,16 +256,19 @@
 
   // ---- Pet interactions: naps, sleep, check-ins and the focus outbox ----
   // State in chrome.storage.local, written only by the service worker:
-  //   petAway: { [projectId]: { kind: 'nap' | 'sleep', id, startedAt, until, taskId, taskTitle } }
+  //   petAway: { [petId]: { kind: 'nap' | 'sleep', id, startedAt, until, taskId, taskTitle, projectId? } }
   //   focusOutbox: { [sessionId]: FocusSession }   finished naps waiting for Studium
-  //   petCheckIn: { projectId, taskId, taskTitle, minutes, at } | null
+  //   petCheckIn: { petId, projectId, taskId, taskTitle, minutes, at } | null
+  // Pets are keyed by pet id; a first pet's is its project id, so state saved before bought pets
+  // (no projectId in petAway entries, no petId in petCheckIn) still means that project's first pet.
 
   function cleanAway(e, now) {
     if (!isObject(e) || (e.kind !== 'nap' && e.kind !== 'sleep') || !text(e.id)) return null;
     if (!isTime(e.startedAt) || !isTime(e.until) || !textOrNull(e.taskId) || !textOrNull(e.taskTitle)) return null;
     const until = Date.parse(e.until);
     if (until < Date.parse(e.startedAt) || until - now > MAX_AWAY_MS) return null;
-    return { kind: e.kind, id: e.id, startedAt: e.startedAt, until: e.until, taskId: e.taskId, taskTitle: e.taskTitle };
+    const clean = { kind: e.kind, id: e.id, startedAt: e.startedAt, until: e.until, taskId: e.taskId, taskTitle: e.taskTitle };
+    return text(e.projectId) ? { ...clean, projectId: e.projectId } : clean;
   }
 
   /** The away pets, keeping only usable entries. One more than 2 hours ahead can't hide a pet forever. */
@@ -295,7 +301,8 @@
   function parseCheckIn(raw) {
     if (!isObject(raw) || !text(raw.projectId) || !textOrNull(raw.taskId) || !textOrNull(raw.taskTitle)) return null;
     if (!Number.isFinite(raw.minutes) || raw.minutes < 0 || !text(raw.at)) return null;
-    const clean = { projectId: raw.projectId, taskId: raw.taskId, taskTitle: raw.taskTitle, minutes: raw.minutes, at: raw.at };
+    const petId = text(raw.petId) ? raw.petId : raw.projectId;
+    const clean = { petId, projectId: raw.projectId, taskId: raw.taskId, taskTitle: raw.taskTitle, minutes: raw.minutes, at: raw.at };
     return raw.finished === true ? { ...clean, finished: true } : clean;
   }
 
@@ -308,20 +315,20 @@
   /** A message from a content script, or null if it isn't one the worker accepts. */
   function parseRequest(msg) {
     if (!isObject(msg)) return null;
+    // Which pet: petId, or projectId from older callers (a project's first pet has its project's id).
+    const petId = text(msg.petId) ? msg.petId : text(msg.projectId) ? msg.projectId : null;
     switch (msg.type) {
       case 'nap':
         // taskId: the task picked from napPrompt, or null for "Just nap". Without it (older
         // callers), the nap takes the pet's suggestion.
-        if (!text(msg.projectId)) return null;
-        if (!('taskId' in msg)) return { type: 'nap', projectId: msg.projectId };
-        return textOrNull(msg.taskId) ? { type: 'nap', projectId: msg.projectId, taskId: msg.taskId } : null;
+        if (!petId) return null;
+        if (!('taskId' in msg)) return { type: 'nap', petId };
+        return textOrNull(msg.taskId) ? { type: 'nap', petId, taskId: msg.taskId } : null;
       case 'wake':
       case 'openProject':
-        return text(msg.projectId) ? { type: msg.type, projectId: msg.projectId } : null;
+        return petId ? { type: msg.type, petId } : null;
       case 'sleep':
-        return text(msg.projectId) && SLEEP_HOURS.includes(msg.hours)
-          ? { type: 'sleep', projectId: msg.projectId, hours: msg.hours }
-          : null;
+        return petId && SLEEP_HOURS.includes(msg.hours) ? { type: 'sleep', petId, hours: msg.hours } : null;
       case 'checkIn':
         return ['done', 'notYet', 'later'].includes(msg.answer) ? { type: 'checkIn', answer: msg.answer } : null;
       case 'taskDone':
@@ -333,13 +340,16 @@
     }
   }
 
-  const alarmName = (projectId) => `away:${projectId}`;
-  const statusFor = (statuses, projectId) => statuses?.pets?.find((p) => p.projectId === projectId) ?? null;
+  const alarmName = (petId) => `away:${petId}`;
+  // A pet's key: its petId, or its projectId in objects from older callers (a first pet).
+  const petKey = (p) => p.petId ?? p.projectId;
+  const statusFor = (statuses, petId) => statuses?.pets?.find((p) => petKey(p) === petId) ?? null;
   const isNapping = (petAway) => Object.values(petAway).some((e) => e.kind === 'nap');
   const without = (obj, key) => Object.fromEntries(Object.entries(obj).filter(([k]) => k !== key));
 
-  function startAway(state, projectId, kind, ms, task, ctx) {
+  function startAway(state, petId, kind, ms, task, ctx) {
     const until = ctx.now + ms;
+    const projectId = statusFor(ctx.statuses, petId)?.projectId ?? petId;
     const entry = {
       kind,
       id: ctx.newId(),
@@ -347,29 +357,31 @@
       until: new Date(until).toISOString(),
       taskId: task?.taskId ?? null,
       taskTitle: task?.title ?? null,
+      projectId, // so the nap's focus session finds its project even if the pet is gone by then
     };
     // A new nap supersedes a pending check-in for the same pet.
-    const petCheckIn = kind === 'nap' && state.petCheckIn?.projectId === projectId ? null : state.petCheckIn;
+    const petCheckIn = kind === 'nap' && state.petCheckIn && petKey(state.petCheckIn) === petId ? null : state.petCheckIn;
     return {
-      state: { ...state, petAway: { ...state.petAway, [projectId]: entry }, petCheckIn },
-      effects: [{ type: 'setAlarm', name: alarmName(projectId), when: until }],
+      state: { ...state, petAway: { ...state.petAway, [petId]: entry }, petCheckIn },
+      effects: [{ type: 'setAlarm', name: alarmName(petId), when: until }],
       changed: true,
     };
   }
 
-  const canStart = (state, projectId, ctx) => Boolean(statusFor(ctx.statuses, projectId)) && !state.petAway[projectId];
+  const canStart = (state, petId, ctx) => Boolean(statusFor(ctx.statuses, petId)) && !state.petAway[petId];
 
   /** One nap at a time. `task` is { taskId, title } or null. */
-  function startNap(state, projectId, task, ctx) {
-    if (!canStart(state, projectId, ctx) || isNapping(state.petAway)) return null;
-    return startAway(state, projectId, 'nap', ctx.napMinutes * 60000, task, ctx);
+  function startNap(state, petId, task, ctx) {
+    if (!canStart(state, petId, ctx) || isNapping(state.petAway)) return null;
+    return startAway(state, petId, 'nap', ctx.napMinutes * 60000, task, ctx);
   }
 
   /** Brings a pet back. A nap becomes a focus session and a check-in; a sleep records nothing. */
   // finished: the nap's task was checked off in Studium, so it ends early and the check-in congratulates.
-  function endAway(state, projectId, now, finished = false) {
-    const entry = state.petAway[projectId];
+  function endAway(state, petId, now, finished = false) {
+    const entry = state.petAway[petId];
     if (!entry) return null;
+    const projectId = entry.projectId ?? petId; // older entries: a first pet, keyed by its project
     let { focusOutbox, petCheckIn } = state;
     if (entry.kind === 'nap') {
       const started = Date.parse(entry.startedAt);
@@ -381,11 +393,11 @@
         ...focusOutbox,
         [entry.id]: { id: entry.id, projectId, taskId: entry.taskId, startedAt: entry.startedAt, at, minutes },
       };
-      petCheckIn = { projectId, taskId: entry.taskId, taskTitle: entry.taskTitle, minutes, at, ...(finished ? { finished: true } : {}) };
+      petCheckIn = { petId, projectId, taskId: entry.taskId, taskTitle: entry.taskTitle, minutes, at, ...(finished ? { finished: true } : {}) };
     }
     return {
-      state: { petAway: without(state.petAway, projectId), focusOutbox, petCheckIn },
-      effects: [{ type: 'clearAlarm', name: alarmName(projectId) }],
+      state: { petAway: without(state.petAway, petId), focusOutbox, petCheckIn },
+      effects: [{ type: 'clearAlarm', name: alarmName(petId) }],
       changed: true,
     };
   }
@@ -395,56 +407,58 @@
    * ({ type: 'setAlarm', name, when } | { type: 'clearAlarm', name } | { type: 'open', hash }) and
    * whether anything changed. Never changes `state`.
    *   state: { petAway, focusOutbox, petCheckIn }, already parsed
-   *   request: a parseRequest() result, { type: 'end', projectId } (its alarm) or { type: 'endOverdue' }
+   *   request: a parseRequest() result, { type: 'end', petId } (its alarm) or { type: 'endOverdue' }.
+   *            A request with projectId instead of petId (older callers) means that project's first pet.
    *   ctx: { now (ms), statuses (parsed), napMinutes, newId() }
    */
   function applyAwayRequest(state, request, ctx) {
     const unchanged = { state, effects: [], changed: false };
+    const petId = request.petId ?? request.projectId;
     switch (request.type) {
       case 'nap': {
-        const status = statusFor(ctx.statuses, request.projectId);
+        const status = statusFor(ctx.statuses, petId);
         let task = status?.suggestion ?? null;
         // A picked task counts only if it's still offered (not finished or deleted meanwhile).
         if ('taskId' in request) task = (status?.napTasks ?? []).find((t) => t.taskId === request.taskId) ?? null;
-        return startNap(state, request.projectId, task, ctx) ?? unchanged;
+        return startNap(state, petId, task, ctx) ?? unchanged;
       }
       case 'sleep':
-        if (!canStart(state, request.projectId, ctx)) return unchanged;
-        return startAway(state, request.projectId, 'sleep', request.hours * 3600000, null, ctx);
+        if (!canStart(state, petId, ctx)) return unchanged;
+        return startAway(state, petId, 'sleep', request.hours * 3600000, null, ctx);
       case 'wake':
       case 'end':
-        return endAway(state, request.projectId, ctx.now) ?? unchanged;
+        return endAway(state, petId, ctx.now) ?? unchanged;
       case 'endOverdue': {
         // After Chrome was closed or the worker restarted: end what's due, re-arm the rest.
         let result = unchanged;
         const effects = [];
-        for (const [projectId, entry] of Object.entries(state.petAway)) {
+        for (const [id, entry] of Object.entries(state.petAway)) {
           if (Date.parse(entry.until) <= ctx.now) {
-            result = endAway(result.state, projectId, ctx.now);
+            result = endAway(result.state, id, ctx.now);
             effects.push(...result.effects);
           } else {
-            effects.push({ type: 'setAlarm', name: alarmName(projectId), when: Date.parse(entry.until) });
+            effects.push({ type: 'setAlarm', name: alarmName(id), when: Date.parse(entry.until) });
           }
         }
         return { state: result.state, effects, changed: result.changed };
       }
       case 'taskDone': {
         // The task a pet is napping on was checked off in Studium: the nap ends now, with congrats.
-        const projectId = Object.keys(state.petAway).find(
+        const napper = Object.keys(state.petAway).find(
           (id) => state.petAway[id].kind === 'nap' && state.petAway[id].taskId === request.taskId,
         );
-        return (projectId && endAway(state, projectId, ctx.now, true)) || unchanged;
+        return (napper && endAway(state, napper, ctx.now, true)) || unchanged;
       }
       case 'checkIn': {
         const c = state.petCheckIn;
         if (!c) return unchanged;
         const cleared = { ...state, petCheckIn: null };
         if (request.answer === 'done') {
-          const hash = c.taskId ? `complete=${encodeURIComponent(c.taskId)}` : `project=${encodeURIComponent(c.projectId)}`;
+          const hash = c.taskId ? `complete=${encodeURIComponent(c.taskId)}` : projectLink(c.projectId, c.petId ?? c.projectId);
           return { state: cleared, effects: [{ type: 'open', hash }], changed: true };
         }
         if (request.answer === 'notYet' && c.taskId) {
-          const again = startNap(cleared, c.projectId, { taskId: c.taskId, title: c.taskTitle }, ctx);
+          const again = startNap(cleared, c.petId ?? c.projectId, { taskId: c.taskId, title: c.taskTitle }, ctx);
           if (again) return again;
         }
         return { state: cleared, effects: [], changed: true };
@@ -460,6 +474,15 @@
     }
   }
 
+  /**
+   * The Studium link to a project's page, scrolled to one pet's habitat: "project=<id>", plus
+   * "&pet=<id>" for a pet bought in the Shop (a first pet's id is its project's).
+   */
+  function projectLink(projectId, petId) {
+    const project = `project=${encodeURIComponent(projectId)}`;
+    return petId && petId !== projectId ? `${project}&pet=${encodeURIComponent(petId)}` : project;
+  }
+
   /** Studium's address, with an optional link such as "project=<id>" (ids already encoded). */
   function studiumUrl(hash = '') {
     return hash ? `${HOMEPAGE_URL}#${hash}` : HOMEPAGE_URL;
@@ -467,12 +490,12 @@
 
   // ---- The pet menu and its wording ----
 
-  const shortNameOf = (statuses, projectId) => statusFor(statuses, projectId)?.shortName ?? projectId;
+  const shortNameOf = (statuses, petId) => statusFor(statuses, petId)?.shortName ?? 'your pet';
 
   /** The right-click menu for one pet: [{ id, label, disabled?, hint?, children? }]. */
-  function petMenuItems(projectId, petAway, statuses) {
+  function petMenuItems(petId, petAway, statuses) {
     const open = { id: 'open', label: 'Open project' };
-    if (petAway[projectId]) return [{ id: 'wake', label: 'Wake' }, open];
+    if (petAway[petId]) return [{ id: 'wake', label: 'Wake' }, open];
     const napItem = { id: 'nap', label: `Nap (${NAP_MINUTES} min)` };
     const napping = Object.entries(petAway).find(([, e]) => e.kind === 'nap');
     if (napping) {
@@ -570,7 +593,7 @@
   }
 
   /**
-   * Which pets should celebrate. `seen` ({ [projectId]: at }) is what this tab has already seen. It
+   * Which pets should celebrate. `seen` ({ [petId]: at }) is what this tab has already seen. It
    * stays null until the first real statuses, which only fill it in, so old completions don't celebrate.
    */
   function newCelebrations(seen, statuses) {
@@ -579,10 +602,10 @@
     const celebrate = [];
     for (const p of statuses.pets) {
       if (!p.celebration) continue;
-      next[p.projectId] = p.celebration.at;
-      const before = seen?.[p.projectId];
+      next[petKey(p)] = p.celebration.at;
+      const before = seen?.[petKey(p)];
       if (seen && (before === undefined || Date.parse(p.celebration.at) > Date.parse(before))) {
-        celebrate.push({ projectId: p.projectId, kind: p.celebration.kind });
+        celebrate.push({ petId: petKey(p), kind: p.celebration.kind });
       }
     }
     return { seen: next, celebrate };
@@ -723,7 +746,7 @@
   }
 
   /**
-   * The note to leave now, as { projectId, text, signature, color } (the pet's nickname and its project's
+   * The note to leave now, as { petId, projectId, text, signature, color } (the pet's nickname and its project's
    * color), or null. Only Moderate pets leave notes, never on
    * Studium, in a background tab, during a nap, or while a note is open. Of the shown pets with something
    * to say, the one in the worst mood writes (project order breaks ties), once noteGapMs(its mood) has
@@ -735,7 +758,7 @@
     if (p.involvement !== 'moderate' || onStudium || noteOpen || !pageVisible || isQuiet(petAway ?? {})) return null;
     const rank = (s) => NOTE_MOOD_RANK[s.mood] ?? NOTE_MOOD_RANK.Happy;
     const writers = (statuses ?? [])
-      .filter((s) => shown.has(s.projectId) && noteText(s, p.nickname, today, () => 0) !== null)
+      .filter((s) => shown.has(petKey(s)) && noteText(s, p.nickname, today, () => 0) !== null)
       .sort((a, b) => rank(a) - rank(b));
     const writer = writers[0];
     if (!writer) return null;
@@ -743,6 +766,7 @@
     const gap = Number.isFinite(gapMs) ? gapMs : noteGapMs(writer.mood);
     if (Number.isFinite(lastNoteAt) && now - lastNoteAt < gap) return null;
     return {
+      petId: petKey(writer),
       projectId: writer.projectId,
       text: noteText(writer, p.nickname, today, random),
       signature: `- ${writer.shortName}`,
@@ -766,7 +790,7 @@
    */
   function petsOnScreen(pets, petAway, screen) {
     const { limit, order } = cleanScreen(screen);
-    const awake = pets.filter((p) => !petAway?.[p.projectId]);
+    const awake = pets.filter((p) => !petAway?.[petKey(p)]);
     const ranked =
       order === 'dueDate'
         ? awake
@@ -774,7 +798,7 @@
             .sort((a, b) => (a.p.deadline ?? '9999').localeCompare(b.p.deadline ?? '9999') || a.i - b.i)
             .map(({ p }) => p)
         : awake;
-    return new Set((limit === null ? ranked : ranked.slice(0, limit)).map((p) => p.projectId));
+    return new Set((limit === null ? ranked : ranked.slice(0, limit)).map(petKey));
   }
 
   // Where pet.js runs: 'page' (the extension, on a web page), 'overlay' (the desktop app's
@@ -790,11 +814,14 @@
    * project whose habitat shows in the desktop app's Studium window, which the overlay leaves out
    * (so the next pet can take its slot).
    */
-  function shownPets({ surface, pets, petAway, screen, boxId, liveHabitat }) {
-    const has = (id) => pets.some((p) => p.projectId === id);
+  // boxIds: the habitat boxes on the page (one per pet); liveHabitats: the pets whose boxes show in the
+  // desktop app's Studium window. boxId/liveHabitat: the single values older callers pass.
+  function shownPets({ surface, pets, petAway, screen, boxIds, liveHabitats, boxId, liveHabitat }) {
+    const boxes = Array.isArray(boxIds) ? boxIds : boxId ? [boxId] : [];
+    const live = new Set(Array.isArray(liveHabitats) ? liveHabitats : liveHabitat ? [liveHabitat] : []);
     const where = cleanSurface(surface);
-    if (where === 'overlay') return petsOnScreen(pets.filter((p) => p.projectId !== liveHabitat), petAway, screen);
-    if (boxId) return new Set(has(boxId) ? [boxId] : []);
+    if (where === 'overlay') return petsOnScreen(pets.filter((p) => !live.has(petKey(p))), petAway, screen);
+    if (boxes.length > 0) return new Set(pets.filter((p) => boxes.includes(petKey(p))).map(petKey));
     return where === 'habitat' ? new Set() : petsOnScreen(pets, petAway, screen);
   }
 
@@ -854,8 +881,9 @@
   function chooseOpenProject({ statuses, prefs, petAway, checkIn, hidden, now, lastOpenAt, studiumSeenAt, timing }) {
     if (!mischiefAllowed({ prefs, petAway, checkIn, hidden })) return null;
     if (now - (lastOpenAt || 0) < timing.openGapMs || now - (studiumSeenAt || 0) < timing.studiumRecentMs) return null;
-    const here = (statuses ?? []).filter((s) => !petAway?.[s.projectId]);
-    return (here.find((s) => s.mood === 'Sick') ?? here.find((s) => s.mood === 'Upset'))?.projectId ?? null;
+    const here = (statuses ?? []).filter((s) => !petAway?.[petKey(s)]);
+    const pick = here.find((s) => s.mood === 'Sick') ?? here.find((s) => s.mood === 'Upset');
+    return pick ? { projectId: pick.projectId, petId: petKey(pick) } : null;
   }
 
   function noteCarries(random = Math.random) {
@@ -990,6 +1018,7 @@
     parseCheckIn,
     napMinutesFrom,
     parseRequest,
+    projectLink,
     applyAwayRequest,
     studiumUrl,
     petMenuItems,

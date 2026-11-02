@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
 import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
-import { dayKey } from "./planner/testData";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { StudiumData } from "./planner/types";
+import { buildSeed } from "./store/seed";
+import { dayKey, makePet } from "./planner/testData";
 import { StudiumApp } from "./App";
 import { renderWithStudium, savedData } from "./test/render";
 import { NOW } from "./planner/testData";
@@ -164,15 +166,50 @@ describe("StudiumApp switching projects", () => {
 
 describe("StudiumApp links from the pets", () => {
   afterEach(() => history.replaceState(null, "", "/"));
-  const open = (hash: string) => {
+  const open = (hash: string, data?: StudiumData) => {
     history.replaceState(null, "", `/${hash}`);
-    return renderWithStudium(<StudiumApp />);
+    return renderWithStudium(<StudiumApp />, data ? { data } : {});
   };
 
   it("#project=<id> opens that project and clears the hash", () => {
     open("#project=webDev");
     screen.getByRole("heading", { name: "Web Development Portfolio" });
     expect(location.hash).toBe("");
+  });
+
+  it("#project=<id>&pet=<petId> opens the project and scrolls to that pet's habitat", async () => {
+    const seed = buildSeed(NOW);
+    const data = { ...seed, projects: seed.projects.map((p) => (p.id === "webDev" ? { ...p, pets: [makePet({ id: "x1" })] } : p)) };
+    const scrolled: Element[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+    try {
+      open("#project=webDev&pet=x1", data);
+      screen.getByRole("heading", { name: "Web Development Portfolio", level: 1 });
+      await vi.waitFor(() => expect(scrolled.map((el) => el.getAttribute("data-pet-habitat"))).toEqual(["x1"]));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
+  });
+
+  it("#project=<id> scrolls to the project's first habitat too, also for a link that arrives later", async () => {
+    const scrolled: Element[] = [];
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+    try {
+      open("");
+      act(() => {
+        history.replaceState(null, "", "/#project=webDev");
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      await vi.waitFor(() => expect(scrolled.map((el) => el.getAttribute("data-pet-habitat"))).toEqual(["webDev"]));
+    } finally {
+      Element.prototype.scrollIntoView = original;
+    }
   });
 
   it("an unknown project stays on the overview", () => {

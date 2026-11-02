@@ -84,4 +84,17 @@ describe('createOpenProjectTimer', () => {
     await timer.tick();
     expect(openQuietly).not.toHaveBeenCalled();
   });
+
+  it("opens a sick bought pet's project at its habitat", async () => {
+    const store = fakeStore({
+      petStatuses: { updatedAt: '', pets: [
+        { projectId: 'p1', shortName: 'p1', name: 'P1', petKind: 'cat', mood: 'Happy' },
+        { projectId: 'p1', petId: 'x1', shortName: 'Frog', name: 'P1', petKind: 'frog', mood: 'Sick' },
+      ] },
+    });
+    const { openQuietly, timer, at } = setup({ store });
+    at(31);
+    await timer.tick();
+    expect(openQuietly).toHaveBeenCalledWith('project=p1&pet=x1');
+  });
 });

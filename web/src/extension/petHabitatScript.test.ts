@@ -63,7 +63,7 @@ it("shows only the pet whose habitat box is on the page, reports the box, and sa
   document.body.appendChild(box);
   await new Promise((r) => setTimeout(r, 0));
   expect(shownPets()).toEqual([1]);
-  expect(messages[messages.length - 1]).toEqual({ type: "habitat", projectId: "b" });
+  expect(messages[messages.length - 1]).toEqual({ type: "habitat", ids: ["b"] });
   expect(box.hasAttribute("data-pet-attached")).toBe(true);
   // b, in the habitat, doesn't ask about a's nap (a asks on the desktop).
   expect(document.getElementById("capstone-pet-host")?.shadowRoot?.querySelector(".talk.show")).toBeNull();
@@ -71,7 +71,7 @@ it("shows only the pet whose habitat box is on the page, reports the box, and sa
   box.remove();
   await new Promise((r) => setTimeout(r, 0));
   expect(shownPets()).toEqual([]);
-  expect(messages[messages.length - 1]).toEqual({ type: "habitat", projectId: null });
+  expect(messages[messages.length - 1]).toEqual({ type: "habitat", ids: [] });
 
   // A tab saves positions when it's hidden or left; the habitat never does.
   Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });

@@ -71,7 +71,9 @@ describe('changeTargets', () => {
 
 describe('handlePetMessage', () => {
   const setup = () => {
-    const deps = { L, runner: { request: vi.fn() }, open: vi.fn(), reportHabitat: vi.fn() };
+    // x1 is a pet bought for project p1.
+    const statuses = () => L.parseStatuses({ pets: [{ projectId: 'p1', petId: 'x1', petKind: 'frog', mood: 'Happy' }] });
+    const deps = { L, runner: { request: vi.fn() }, open: vi.fn(), reportHabitat: vi.fn(), statuses };
     const quiet = () => {
       expect(deps.runner.request).not.toHaveBeenCalled();
       expect(deps.open).not.toHaveBeenCalled();
@@ -88,9 +90,9 @@ describe('handlePetMessage', () => {
       handlePetMessage({ type: 'wake', projectId: 'a' }, from, deps);
       handlePetMessage({ type: 'checkIn', answer: 'done' }, from, deps);
       expect(deps.runner.request.mock.calls.map((c) => c[0])).toEqual([
-        { type: 'nap', projectId: 'a' },
-        { type: 'sleep', projectId: 'a', hours: 2 },
-        { type: 'wake', projectId: 'a' },
+        { type: 'nap', petId: 'a' },
+        { type: 'sleep', petId: 'a', hours: 2 },
+        { type: 'wake', petId: 'a' },
         { type: 'checkIn', answer: 'done' },
       ]);
     }
@@ -99,7 +101,9 @@ describe('handlePetMessage', () => {
   it('opens a project page instead of asking the runner', () => {
     const { deps } = setup();
     handlePetMessage({ type: 'openProject', projectId: 'a b' }, 'overlay', deps);
-    expect(deps.open).toHaveBeenCalledWith('project=a%20b');
+    expect(deps.open).toHaveBeenCalledWith('project=a%20b'); // no status: its id as the project
+    handlePetMessage({ type: 'openProject', petId: 'x1' }, 'overlay', deps);
+    expect(deps.open).toHaveBeenLastCalledWith('project=p1&pet=x1'); // a bought pet: its project, at its habitat
     expect(deps.runner.request).not.toHaveBeenCalled();
   });
 
@@ -113,10 +117,11 @@ describe('handlePetMessage', () => {
 
   it('takes habitat reports only from the Studium window', () => {
     const { deps } = setup();
-    handlePetMessage({ type: 'habitat', projectId: 'a' }, 'studium', deps);
+    handlePetMessage({ type: 'habitat', ids: ['p1', 'x1'] }, 'studium', deps);
     handlePetMessage({ type: 'habitat' }, 'studium', deps);
-    handlePetMessage({ type: 'habitat', projectId: '' }, 'studium', deps);
-    expect(deps.reportHabitat.mock.calls.map((c) => c[0])).toEqual(['a', null, null]);
+    handlePetMessage({ type: 'habitat', ids: ['a', '', 3] }, 'studium', deps);
+    handlePetMessage({ type: 'habitat', projectId: 'a' }, 'studium', deps); // an older page
+    expect(deps.reportHabitat.mock.calls.map((c) => c[0])).toEqual([['p1', 'x1'], [], ['a'], ['a']]);
 
     const other = setup();
     handlePetMessage({ type: 'habitat', projectId: 'a' }, 'overlay', other.deps);

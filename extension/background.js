@@ -66,15 +66,22 @@ async function run(request) {
   }
 }
 
+/** Opens the pet's project page at its habitat (a pet with no status: its id as the project). */
+async function openProject(petId) {
+  const stored = await chrome.storage.local.get('petStatuses');
+  const status = L.parseStatuses(stored.petStatuses ?? null)?.pets.find((p) => p.petId === petId);
+  await openStudium(L.projectLink(status?.projectId ?? petId, petId));
+}
+
 chrome.runtime.onMessage.addListener((msg) => {
   const request = L.parseRequest(msg);
   if (!request) return;
-  if (request.type === 'openProject') openStudium(`project=${encodeURIComponent(request.projectId)}`).catch(console.error);
+  if (request.type === 'openProject') openProject(request.petId).catch(console.error);
   else update(request);
 });
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-  if (alarm.name.startsWith('away:')) update({ type: 'end', projectId: alarm.name.slice('away:'.length) });
+  if (alarm.name.startsWith('away:')) update({ type: 'end', petId: alarm.name.slice('away:'.length) });
 });
 
 // The worker starts often (and after Chrome was closed): end naps that are overdue and re-arm the
@@ -121,7 +128,7 @@ async function handleMenuClick(info) {
     // Every tab's content script listens for this change and updates itself.
     await chrome.storage.local.set({ petHidden: !petHidden });
   } else if (typeof info.menuItemId === 'string' && info.menuItemId.startsWith('wake:')) {
-    await update({ type: 'wake', projectId: info.menuItemId.slice('wake:'.length) });
+    await update({ type: 'wake', petId: info.menuItemId.slice('wake:'.length) });
   }
 }
 globalThis.handleMenuClick = handleMenuClick; // the browser check can't click the toolbar menu

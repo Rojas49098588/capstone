@@ -85,16 +85,16 @@ describe("chooseOpenProject", () => {
     now: T, lastOpenAt: 0, studiumSeenAt: T - 31 * MIN, timing: t,
   };
   it("picks the sick pet over the upset one", () => {
-    expect(L.chooseOpenProject(base)).toBe("b");
-    expect(L.chooseOpenProject({ ...base, statuses: [status("a", "Upset"), status("c", "Happy")] })).toBe("a");
+    expect(L.chooseOpenProject(base)).toEqual({ projectId: "b", petId: "b" });
+    expect(L.chooseOpenProject({ ...base, statuses: [status("a", "Upset"), status("c", "Happy")] })).toEqual({ projectId: "a", petId: "a" });
   });
   it("only Upset or Sick pets, and not away ones", () => {
     expect(L.chooseOpenProject({ ...base, statuses: [status("c", "Happy"), status("d", "Worried")] })).toBeNull();
-    expect(L.chooseOpenProject({ ...base, petAway: { b: sleep } })).toBe("a");
+    expect(L.chooseOpenProject({ ...base, petAway: { b: sleep } })).toEqual({ projectId: "a", petId: "a" });
   });
   it("at most every 2 hours, and not within 30 minutes of Studium showing", () => {
     expect(L.chooseOpenProject({ ...base, lastOpenAt: T - 119 * MIN })).toBeNull();
-    expect(L.chooseOpenProject({ ...base, lastOpenAt: T - 121 * MIN })).toBe("b");
+    expect(L.chooseOpenProject({ ...base, lastOpenAt: T - 121 * MIN })).toEqual({ projectId: "b", petId: "b" });
     expect(L.chooseOpenProject({ ...base, studiumSeenAt: T - 29 * MIN })).toBeNull();
   });
   it("never on Mild or during a nap", () => {

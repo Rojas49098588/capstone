@@ -61,7 +61,7 @@ describe('handleTrayClick', () => {
   it('wakes a pet', () => {
     const deps = setup();
     handleTrayClick('wake:webDev', deps);
-    expect(deps.runner.request).toHaveBeenCalledWith({ type: 'wake', projectId: 'webDev' });
+    expect(deps.runner.request).toHaveBeenCalledWith({ type: 'wake', petId: 'webDev' });
   });
 
   it('opens Studium and quits', () => {

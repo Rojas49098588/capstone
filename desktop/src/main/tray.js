@@ -20,7 +20,7 @@ function handleTrayClick(id, { store, runner, open, quit }) {
   if (id === 'open') open();
   else if (id === 'toggle-pets') store.set({ petHidden: !store.get().petHidden });
   else if (id === 'quit') quit();
-  else if (typeof id === 'string' && id.startsWith('wake:')) runner.request({ type: 'wake', projectId: id.slice('wake:'.length) });
+  else if (typeof id === 'string' && id.startsWith('wake:')) runner.request({ type: 'wake', petId: id.slice('wake:'.length) });
 }
 
 function createTray({ L, store, runner, open, quit, iconPath }) {

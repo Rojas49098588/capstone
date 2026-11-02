@@ -779,7 +779,7 @@
     }
 
     const api = {
-      id: status.projectId,
+      id: status.petId ?? status.projectId, // a first pet's id is its project's
       step,
       render,
       start(now) {
@@ -960,25 +960,26 @@
 
   let pets = [];
   let statuses = null; // the latest petStatuses (pets are rebuilt only when their looks change)
-  let positions = {};  // saved x positions: { [projectId]: { xRatio } }
+  let positions = {};  // saved x positions: { [petId]: { xRatio } }
   let hidden = false;
   let dirty = false;
   let prefs = L.cleanPrefs(null); // { involvement, nickname } (User Settings)
   let lastNoteAt = 0; // when any tab last left a sticky note (chrome.storage petNoteAt)
-  let note = null; // the open note: { projectId, el }
+  let note = null; // the open note: { petId, el }
   let petScreen = L.cleanScreen(null); // petScreen: { limit, order } for the pets around the page (User Settings)
-  let away = {};      // petAway: { [projectId]: { kind, until, ... } }, written by the worker
+  let away = {};      // petAway: { [petId]: { kind, until, ... } }, written by the worker
   let checkIn = null; // petCheckIn: the question a returning pet asks
-  let liveHabitat = null; // petHabitat (desktop app): the project whose habitat shows in the Studium window
+  let liveHabitats = []; // petHabitat (desktop app): the pets whose habitats show in the Studium window
   let timing = L.mischiefTiming(null); // mischief gaps (desktop app), shortened by petTimingOverride.mischiefMinutes
-  let seenCelebrations = null; // { [projectId]: at } already seen by this tab (null until the first statuses)
+  let seenCelebrations = null; // { [petId]: at } already seen by this tab (null until the first statuses)
   let pendingCelebrations = [];
 
   const send = (msg) => {
     if (!stale()) chrome.runtime.sendMessage(msg).catch(() => {});
   };
-  const statusOf = (id) => statuses?.pets.find((p) => p.projectId === id) ?? null;
-  const habitatId = (v) => (typeof v === 'string' && v ? v : null);
+  const statusOf = (id) => statuses?.pets.find((p) => p.petId === id) ?? null;
+  // petHabitat is a list of habitat (pet) ids; an older main process sent one id or null.
+  const habitatIds = (v) => (Array.isArray(v) ? v.filter((id) => typeof id === 'string' && id) : typeof v === 'string' && v ? [v] : []);
   let chaser = null; // the pet chasing the mouse right now (one at a time)
   let lastSoundAt = 0; // when a pet last made a real sound (desktop)
   const env = {
@@ -1038,7 +1039,7 @@
     const stored = await chrome.storage.local.get(['pets', 'petHidden', 'petStatuses', 'petAway', 'petCheckIn', 'petScreen', 'petPrefs', 'petNoteAt', 'petHabitat', 'petTimingOverride']);
     // Saved data may come from an older version or be damaged: use only what's valid.
     positions = L.parsePositions(stored.pets);
-    liveHabitat = habitatId(stored.petHabitat);
+    liveHabitats = habitatIds(stored.petHabitat);
     timing = L.mischiefTiming(stored.petTimingOverride);
     away = L.parseAway(stored.petAway, Date.now());
     petScreen = L.cleanScreen(stored.petScreen);
@@ -1091,14 +1092,14 @@
     if (changes.petScreen) petScreen = L.cleanScreen(changes.petScreen.newValue);
     if (changes.petPrefs) prefs = L.cleanPrefs(changes.petPrefs.newValue);
     if (changes.petNoteAt && Number.isFinite(changes.petNoteAt.newValue)) lastNoteAt = changes.petNoteAt.newValue;
-    if (changes.petHabitat) liveHabitat = habitatId(changes.petHabitat.newValue);
+    if (changes.petHabitat) liveHabitats = habitatIds(changes.petHabitat.newValue);
     if (changes.petTimingOverride) {
       timing = L.mischiefTiming(changes.petTimingOverride.newValue);
       for (const pet of pets) pet.replanChase(); // the new gaps apply now, not after the next chase
     }
     // A note goes when its own pet naps or sleeps, or Moderate is turned off. Other projects' notes
     // stay while a pet naps (user's decision, 2026-11-01); no new note is left during a nap.
-    if (note && (away[note.projectId] || prefs.involvement !== 'moderate')) closeNote();
+    if (note && (away[note.petId] || prefs.involvement !== 'moderate')) closeNote();
     if (changes.petAway || changes.petCheckIn || changes.petScreen || changes.petHabitat) applyHabitat();
   });
 
@@ -1128,7 +1129,7 @@
     if (!choice) return;
     lastNoteAt = now;
     chrome.storage.local.set({ petNoteAt: now }).catch(() => {});
-    const pet = pets.find((p) => p.id === choice.projectId);
+    const pet = pets.find((p) => p.id === choice.petId);
     const side = pet && pet.xRatio() > 0.5 ? 'right' : 'left';
     const el = document.createElement('div');
     el.className = `note ${side}`;
@@ -1146,7 +1147,7 @@
     signEl.className = 'sign';
     signEl.textContent = choice.signature;
     el.append(textEl, signEl, close);
-    const n = { projectId: choice.projectId, el, timer: null };
+    const n = { petId: choice.petId, el, timer: null };
     note = n;
     // On the desktop a pet now and then carries its note in from the screen edge and drops it.
     if (SURFACE === 'overlay' && pet && L.noteCarries()) {
@@ -1170,52 +1171,52 @@
   }
 
   function pick(pet, id) {
-    const projectId = pet.id;
-    if (id === 'suggest') pet.say(L.suggestionText(statusOf(projectId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
+    const petId = pet.id;
+    if (id === 'suggest') pet.say(L.suggestionText(statusOf(petId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
     else if (id === 'nap') askNap(pet);
-    else if (id === 'sleep1') send({ type: 'sleep', projectId, hours: 1 });
-    else if (id === 'sleep2') send({ type: 'sleep', projectId, hours: 2 });
-    else if (id === 'open') send({ type: 'openProject', projectId });
-    else if (id === 'wake') send({ type: 'wake', projectId });
+    else if (id === 'sleep1') send({ type: 'sleep', petId, hours: 1 });
+    else if (id === 'sleep2') send({ type: 'sleep', petId, hours: 2 });
+    else if (id === 'open') send({ type: 'openProject', petId });
+    else if (id === 'wake') send({ type: 'wake', petId });
   }
 
   // ---- Nap: the pet first asks what you'll work on (its project's Today tasks, then suggestions) ----
-  let napAsk = null; // { projectId, timer } while a pet is asking
+  let napAsk = null; // { petId, timer } while a pet is asking
   function endNapAsk() {
     if (!napAsk) return;
     clearTimeout(napAsk.timer);
-    pets.find((p) => p.id === napAsk.projectId)?.clearTalk();
+    pets.find((p) => p.id === napAsk.petId)?.clearTalk();
     napAsk = null;
   }
 
   function askNap(pet) {
     endNapAsk();
-    const projectId = pet.id;
-    const prompt = L.napPrompt(statusOf(projectId)?.napTasks ?? []);
+    const petId = pet.id;
+    const prompt = L.napPrompt(statusOf(petId)?.napTasks ?? []);
     if (!prompt) {
-      send({ type: 'nap', projectId, taskId: null }); // nothing to offer: it just naps
+      send({ type: 'nap', petId, taskId: null }); // nothing to offer: it just naps
       return;
     }
     // Unanswered, the question goes away and no nap starts; right-click to ask again.
-    napAsk = { projectId, timer: setTimeout(endNapAsk, L.NAP_ASK_MS) };
+    napAsk = { petId, timer: setTimeout(endNapAsk, L.NAP_ASK_MS) };
     pet.ask(prompt, (taskId) => {
       endNapAsk();
-      send({ type: 'nap', projectId, taskId });
+      send({ type: 'nap', petId, taskId });
     });
   }
 
   // ---- Check-in: the pet back from a nap asks how it went, in every tab until it's answered ----
   function showCheckIn() {
     // A pet still asking about a nap keeps its question; one that left (asleep, hidden) drops it.
-    const asker = napAsk && pets.find((p) => p.id === napAsk.projectId && p.isShown() && !p.isAway());
+    const asker = napAsk && pets.find((p) => p.id === napAsk.petId && p.isShown() && !p.isAway());
     if (napAsk && !asker) endNapAsk();
     for (const pet of pets) if (pet !== asker) pet.clearTalk();
     if (!checkIn) return;
     const shown = pets.filter((pet) => pet.isShown() && !pet.isAway());
-    let target = shown.find((pet) => pet.id === checkIn.projectId);
+    let target = shown.find((pet) => pet.id === checkIn.petId);
     // Another pet asks for it, except in the desktop app where it is shown somewhere else: the
     // habitat copy only asks for its own pet, and the overlay leaves the habitat pet's to the habitat.
-    if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && checkIn.projectId === liveHabitat)) target = shown[0];
+    if (!target && SURFACE !== 'habitat' && !(SURFACE === 'overlay' && liveHabitats.includes(checkIn.petId))) target = shown[0];
     if (!target || target === asker) return; // the check-in waits until the nap question is answered
     // Woken early because its task was checked off: a happy hop, once, before the congrats.
     if (checkIn.finished && congratsAt !== checkIn.at) {
@@ -1239,7 +1240,7 @@
   function playCelebrations() {
     if (hidden || document.visibilityState !== 'visible') return;
     for (const c of pendingCelebrations) {
-      const pet = pets.find((p) => p.id === c.projectId);
+      const pet = pets.find((p) => p.id === c.petId);
       if (pet?.isShown()) pet.celebrate(c.kind);
     }
     pendingCelebrations = [];
@@ -1293,41 +1294,44 @@
   window.addEventListener('resize', () => pets.forEach((pet) => pet.clampToWorld()));
 
   // ---- Habitat mode (Studium project pages) ----
-  // A Studium project page has <div data-pet-habitat="<projectId>">. While it's there, only that
-  // project's pet shows, living inside the box, and the box gets data-pet-attached so Studium hides
-  // its still picture. React can replace the box at any time (switching projects).
-  let habitatEl = null;
-  const habitatPet = () => (habitatEl ? pets.find((pet) => pet.id === habitatEl.dataset.petHabitat) : undefined);
+  // A Studium project page has one <div data-pet-habitat="<petId>"> per pet (a first pet's id is its
+  // project's). While they're there, only those pets show, each living inside its own box, and each
+  // box gets data-pet-attached so Studium hides its still picture. React can replace the boxes at
+  // any time (switching projects, buying an egg).
+  let habitatEls = []; // the boxes on the page, in page order
+  const boxFor = (pet) => habitatEls.find((el) => el.dataset.petHabitat === pet.id);
+  const insidePets = () => pets.filter((pet) => pet.boxEl() && boxFor(pet) === pet.boxEl());
 
   // The box also gets data-pet-away while its pet naps or sleeps, so Studium can say when it's back.
   // That stays even while pets are hidden, for Studium's still picture.
   function markAttached() {
-    if (!habitatEl) return;
-    habitatEl.toggleAttribute('data-pet-attached', !hidden && Boolean(habitatPet()));
-    const entry = away[habitatEl.dataset.petHabitat];
-    if (entry) habitatEl.setAttribute(L.PET_AWAY_ATTR, L.awayAttribute(entry));
-    else habitatEl.removeAttribute(L.PET_AWAY_ATTR);
+    for (const el of habitatEls) {
+      const id = el.dataset.petHabitat;
+      el.toggleAttribute('data-pet-attached', !hidden && pets.some((pet) => pet.id === id));
+      const entry = away[id];
+      if (entry) el.setAttribute(L.PET_AWAY_ATTR, L.awayAttribute(entry));
+      else el.removeAttribute(L.PET_AWAY_ATTR);
+    }
   }
 
   // Which pets show where. Away pets are hidden, except asleep in their own habitat box. Around
   // the page, at most petScreen.limit pets show, in its order (User Settings); a habitat always
   // shows its own pet.
   function applyHabitat() {
-    const inside = habitatPet();
     const shown = L.shownPets({
       surface: SURFACE,
-      pets: pets.map((pet) => statusOf(pet.id) ?? { projectId: pet.id }),
+      pets: pets.map((pet) => statusOf(pet.id) ?? { petId: pet.id }),
       petAway: away,
       screen: petScreen,
-      boxId: habitatEl?.dataset.petHabitat ?? null,
-      liveHabitat,
+      boxIds: habitatEls.map((el) => el.dataset.petHabitat),
+      liveHabitats,
     });
     for (const pet of pets) {
-      const inBox = pet === inside;
+      const box = boxFor(pet);
       const isAway = Boolean(away[pet.id]);
       pet.setShown(shown.has(pet.id));
-      if (inBox && pet.boxEl() !== habitatEl) pet.enterBox(habitatEl);
-      if (!inBox && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
+      if (box && pet.boxEl() !== box) pet.enterBox(box);
+      if (!box && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
       pet.setAway(isAway);
     }
     markAttached();
@@ -1339,15 +1343,16 @@
       habitatObserver?.disconnect();
       return;
     }
-    const el = document.querySelector('[data-pet-habitat]');
-    if (el === habitatEl) return;
-    if (habitatEl?.isConnected) {
-      habitatEl.removeAttribute('data-pet-attached');
-      habitatEl.removeAttribute(L.PET_AWAY_ATTR);
+    const els = [...document.querySelectorAll('[data-pet-habitat]')];
+    if (els.length === habitatEls.length && els.every((el, i) => el === habitatEls[i])) return;
+    for (const old of habitatEls) {
+      if (els.includes(old) || !old.isConnected) continue;
+      old.removeAttribute('data-pet-attached');
+      old.removeAttribute(L.PET_AWAY_ATTR);
     }
-    habitatEl = el;
-    // The desktop app hides this pet from its overlay while the box is showing.
-    if (SURFACE === 'habitat') send({ type: 'habitat', projectId: el?.dataset.petHabitat ?? null });
+    habitatEls = els;
+    // The desktop app hides these pets from its overlay while their boxes are showing.
+    if (SURFACE === 'habitat') send({ type: 'habitat', ids: els.map((el) => el.dataset.petHabitat) });
     applyHabitat();
   }
 
@@ -1367,13 +1372,22 @@
         pet.render();
       }
     }
-    // In habitat mode, draw only inside the box, so the pet can't cover the page when it scrolls away.
-    // The menu isn't clipped, and a check-in bubble gets more room above the box.
-    const inside = habitatPet();
-    host.style.clipPath =
-      inside && !globalThis.PetMenu?.isOpen()
-        ? L.habitatClip(habitatEl.getBoundingClientRect(), window.innerWidth, window.innerHeight, inside.isTalking() ? Math.max(90, inside.talkHeight() + 20) : 40)
-        : '';
+    // In habitat mode, draw only inside the boxes (the area around all of them), so pets can't cover
+    // the page when it scrolls away. The menu isn't clipped, and a talking pet gets room above.
+    const inside = insidePets();
+    if (inside.length > 0 && !globalThis.PetMenu?.isOpen()) {
+      const rects = inside.map((pet) => pet.boxEl().getBoundingClientRect());
+      const area = {
+        top: Math.min(...rects.map((r) => r.top)),
+        left: Math.min(...rects.map((r) => r.left)),
+        right: Math.max(...rects.map((r) => r.right)),
+        bottom: Math.max(...rects.map((r) => r.bottom)),
+      };
+      const talker = inside.find((pet) => pet.isTalking());
+      host.style.clipPath = L.habitatClip(area, window.innerWidth, window.innerHeight, talker ? Math.max(90, talker.talkHeight() + 20) : 40);
+    } else {
+      host.style.clipPath = '';
+    }
     requestAnimationFrame(loop);
   }
 

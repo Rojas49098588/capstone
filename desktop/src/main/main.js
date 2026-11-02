@@ -111,7 +111,7 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     });
     ipcMain.on('pets:message', (event, msg) => {
       const sender = from(event);
-      if (sender) handlePetMessage(msg, sender, { L, runner, open: (hash) => showStudium(win, hash), reportHabitat: habitat.report });
+      if (sender) handlePetMessage(msg, sender, { L, runner, open: (hash) => showStudium(win, hash), reportHabitat: habitat.report, statuses: () => L.parseStatuses(store.get().petStatuses ?? null) });
     });
     // Where the cursor is, in the overlay's own pixels (null off it), for a pet chasing the mouse.
     ipcMain.handle('overlay:cursor', (event) => {

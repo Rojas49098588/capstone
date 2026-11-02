@@ -17,7 +17,7 @@ function createOpenProjectTimer({ store, L, isStudiumShowing, openQuietly, now =
       const t = now();
       if (isStudiumShowing()) studiumSeenAt = t;
       const s = store.get();
-      const projectId = L.chooseOpenProject({
+      const choice = L.chooseOpenProject({
         statuses: L.parseStatuses(s.petStatuses ?? null)?.pets ?? [],
         prefs: L.cleanPrefs(s.petPrefs),
         petAway: L.parseAway(s.petAway, t),
@@ -28,7 +28,8 @@ function createOpenProjectTimer({ store, L, isStudiumShowing, openQuietly, now =
         studiumSeenAt,
         timing: L.mischiefTiming(s.petTimingOverride),
       });
-      if (projectId && (await openQuietly(`project=${encodeURIComponent(projectId)}`))) {
+      // The pet's project page, scrolled to its habitat.
+      if (choice && (await openQuietly(L.projectLink(choice.projectId, choice.petId)))) {
         store.set({ petOpenAt: t });
         studiumSeenAt = t;
       }

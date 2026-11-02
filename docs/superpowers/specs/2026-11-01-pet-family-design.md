@@ -1,6 +1,6 @@
 # Pets growing up, and more pets per project
 
-Date: 2026-11-01. Status: approved 2026-11-01. Part 1 (Studium window) built: plan `docs/superpowers/plans/2026-11-01-pet-family-studium.md`. Part 2 (desktop) still to plan.
+Date: 2026-11-01. Status: approved 2026-11-01. Part 1 (Studium window) built: plan `docs/superpowers/plans/2026-11-01-pet-family-studium.md`. Part 2 (desktop) built: plan `docs/superpowers/plans/2026-11-01-pet-family-desktop.md`.
 Builds on: the pet lifecycle (`2026-10-28-pet-lifecycle-design.md`), the desktop app
 (`2026-10-28-desktop-app-design.md`), and Week 3's mischief plan. Added to Week 3 at the user's request.
 
