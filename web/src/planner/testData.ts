@@ -2,6 +2,7 @@
 import { DAY_MS, addDays, localDateKey } from "./time";
 import {
   ZERO_BREAKDOWN,
+  type ExtraPet,
   type Project,
   type Requirement,
   type StudiumData,
@@ -33,6 +34,11 @@ export function makeProject(o: Partial<Project> = {}): Project {
     createdAt: daysAgo(30),
     ...o,
   };
+}
+
+/** An extra (bought) pet; by default a hatched, named juvenile frog that shares the project's mood. */
+export function makePet(o: Partial<ExtraPet> = {}): ExtraPet {
+  return { id: "x1", kind: "frog", stage: "juvenile", boughtAt: daysAgo(5), hatchedAt: daysAgo(3), name: "Frog", caresFor: null, ...o };
 }
 
 export function makeRequirement(o: Partial<Requirement> = {}): Requirement {

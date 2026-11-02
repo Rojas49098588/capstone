@@ -26,6 +26,21 @@ export type Project = {
   type?: ProjectType; // missing in projects saved before project types: they're school
   difficulty?: Difficulty; // missing in projects saved before difficulty: they're steady
   createdAt: string; // ISO time
+  pets?: ExtraPet[]; // pets bought in the Shop, after the first; missing = none (planner/pets.ts)
+};
+
+/**
+ * A pet bought as an egg in the Shop. The project itself is its first pet (id = project id); these
+ * come after it, each with its own habitat (keyed by the pet id) and, if chosen, a requirement to look after.
+ */
+export type ExtraPet = {
+  id: string;
+  kind: PetKind;
+  stage: PetStage;
+  boughtAt: string; // ISO time
+  hatchedAt: string | null; // null while it is an egg
+  name: string | null; // null until the user names it after hatching
+  caresFor: string | null; // a requirement id; null = shares the project mood
 };
 
 export type Requirement = {
@@ -87,7 +102,7 @@ export type StudiumEvent =
   | { type: "requirement_created"; at: string; requirementId: string }
   | { type: "requirement_edited"; at: string; requirementId: string; changes: Partial<Requirement> }
   | { type: "purchase"; at: string; productId: string; price: number }
-  | { type: "medicine_given"; at: string; projectId: string }
+  | { type: "medicine_given"; at: string; projectId: string; petId?: string } // petId: a pet with its own health
   | {
       type: "focus_session"; // a nap with a browser pet (pet interactions spec)
       at: string; // when the session ended

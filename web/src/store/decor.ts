@@ -1,6 +1,7 @@
 // Habitat decor (spec 2026-10-19-habitat-decor-design.md): what the Shop's Habitat tab sells and
 // where each piece can go. Art lives in web/public/<image>; replacing that file swaps the art.
 import { inventory } from "../planner/history";
+import { habitatIds } from "../planner/pets";
 import type { DecorSlot, HabitatDecor, PetKind, StudiumData } from "../planner/types";
 
 export type DecorType = "wallpaper" | "flooring" | "rug" | "wallDecor" | "bed" | "petFurniture";
@@ -83,22 +84,25 @@ export function findDecor(id: string): DecorItem | undefined {
 // ---- Copies and placements ----
 // Invariant: for every item, the copies placed across all habitats <= the copies owned.
 
-/** Copies owned of every decor item: what was bought, plus one built-in bed per project. */
+/** Copies owned of every decor item: what was bought, plus one built-in bed per habitat. */
 export function ownedDecor(data: StudiumData): Record<string, number> {
-  return { ...inventory(data.events), [DEFAULT_BED.id]: data.projects.length };
+  return { ...inventory(data.events), [DEFAULT_BED.id]: habitatIds(data).length };
 }
 
 export function ownedCopies(data: StudiumData, itemId: string): number {
   return ownedDecor(data)[itemId] ?? 0;
 }
 
-/** Where the copies of an item are, in project order and then slot order. */
+/**
+ * Where the copies of an item are, in habitat order and then slot order. `projectId` is the habitat id
+ * (the project id for a first pet, the pet id for a bought one; planner/pets.ts).
+ */
 export function placements(data: StudiumData, itemId: string): { projectId: string; slot: DecorSlot }[] {
   const out: { projectId: string; slot: DecorSlot }[] = [];
-  for (const p of data.projects) {
-    const habitat = data.decor?.[p.id];
+  for (const id of habitatIds(data)) {
+    const habitat = data.decor?.[id];
     if (!habitat) continue;
-    for (const slot of DECOR_SLOTS) if (habitat[slot] === itemId) out.push({ projectId: p.id, slot });
+    for (const slot of DECOR_SLOTS) if (habitat[slot] === itemId) out.push({ projectId: id, slot });
   }
   return out;
 }
@@ -127,8 +131,8 @@ export function cleanDecor(data: StudiumData): Record<string, HabitatDecor> {
   const owned = ownedDecor(data);
   const used: Record<string, number> = {};
   const out: Record<string, HabitatDecor> = {};
-  for (const p of data.projects) {
-    const saved: unknown = (raw as Record<string, unknown>)[p.id];
+  for (const id of habitatIds(data)) {
+    const saved: unknown = (raw as Record<string, unknown>)[id];
     if (!saved || typeof saved !== "object" || Array.isArray(saved)) continue;
     const habitat: HabitatDecor = {};
     for (const slot of DECOR_SLOTS) {
@@ -138,7 +142,7 @@ export function cleanDecor(data: StudiumData): Record<string, HabitatDecor> {
       used[itemId] = (used[itemId] ?? 0) + 1;
       habitat[slot] = itemId;
     }
-    if (Object.keys(habitat).length > 0) out[p.id] = habitat;
+    if (Object.keys(habitat).length > 0) out[id] = habitat;
   }
   return out;
 }
@@ -157,6 +161,6 @@ export function withDefaultBed(habitat: HabitatDecor): HabitatDecor {
 export function giveDefaultBeds(data: StudiumData): StudiumData {
   if (data.defaultBeds) return data;
   const decor: Record<string, HabitatDecor> = { ...(data.decor ?? {}) };
-  for (const p of data.projects) decor[p.id] = withDefaultBed(decor[p.id] ?? {});
+  for (const id of habitatIds(data)) decor[id] = withDefaultBed(decor[id] ?? {});
   return { ...data, decor, defaultBeds: true };
 }

@@ -3,6 +3,7 @@
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
+import { habitatIds, petsOf } from "../planner/pets";
 import { projectHealth } from "../planner/mood";
 import { DAY_MS, addDays, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { DEFAULT_ESTIMATE_MIN, MEDICINE_PRODUCT_ID } from "../planner/tuning";
@@ -132,14 +133,16 @@ export function updateProject(
 }
 
 export function deleteProject(data: StudiumData, id: string): StudiumData {
+  const project = data.projects.find((p) => p.id === id);
+  const habitats = project ? petsOf(project).map((p) => p.habitatId) : [id];
   const removed = new Set(data.tasks.filter((t) => t.projectId === id).map((t) => t.id));
   return {
     ...data,
     ...withoutTasks(data, removed),
     projects: data.projects.filter((p) => p.id !== id),
     requirements: data.requirements.filter((r) => r.projectId !== id),
-    // Its decor goes back to the inventory.
-    ...(data.decor ? { decor: withoutKey(data.decor, id) } : {}),
+    // Its habitats' decor goes back to the inventory.
+    ...(data.decor ? { decor: habitats.reduce((d, h) => withoutKey(d, h), data.decor) } : {}),
   };
 }
 
@@ -485,7 +488,7 @@ function withHabitat(data: StudiumData, projectId: string, habitat: HabitatDecor
 
 /** Puts a free copy of an item in a slot. Whatever was there goes back to the inventory. */
 export function placeDecor(data: StudiumData, projectId: string, slot: DecorSlot, itemId: string): StudiumData {
-  if (!data.projects.some((p) => p.id === projectId)) return data;
+  if (!habitatIds(data).includes(projectId)) return data;
   const habitat = data.decor?.[projectId] ?? {};
   if (habitat[slot] === itemId || !allowedIn(habitat, slot, itemId)) return data;
   const cleared = removeDecor(data, projectId, slot);
