@@ -102,6 +102,20 @@ describe("settlePets: growing up", () => {
   });
 });
 
+describe("settlePets: finishing a looked-after requirement", () => {
+  it("grows the pet up from its requirement, then sends it back to sharing", () => {
+    const data = makeData({
+      projects: [makeProject({ stage: "adult", pets: [makePet({ id: "x1", hatchedAt: daysAgo(2), caresFor: "r2" })] })],
+      requirements: [makeRequirement({ id: "r1" }), makeRequirement({ id: "r2" })],
+      tasks: [...["a", "b", "c", "d"].map((id) => task(id)), task("e", { requirementId: "r2", done: true })],
+      events: [doneAt("e", daysAgo(1), "r2")],
+    });
+    const r = settlePets(data, NOW);
+    expect(r.data.projects[0].pets?.[0]).toMatchObject({ stage: "adult", caresFor: null });
+    expect(r.news).toEqual([{ kind: "grewUp", projectId: "p1", habitatId: "x1" }]);
+  });
+});
+
 describe("settlePets: bought eggs", () => {
   const withEgg = (tasks: Task[], events: StudiumEvent[]) =>
     makeData({

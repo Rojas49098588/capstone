@@ -135,14 +135,15 @@ export function settlePets(data: StudiumData, now: Date): { data: StudiumData; n
     let petsChanged = false;
     const pets = (project.pets ?? []).map((pet) => {
       let p: ExtraPet = pet;
-      if (p.caresFor !== null && !openRequirement(p.caresFor, project.id)) p = { ...p, caresFor: null };
       if (p.stage === "egg" && eggReady(data, project.id, p.boughtAt)) {
         p = { ...p, stage: "juvenile", hatchedAt: at };
         news.push({ kind: "hatched", projectId: project.id, habitatId: p.id });
       } else if (p.stage === "juvenile" && grows(data, project.id, p.caresFor, p.hatchedAt)) {
+        // Measured on what it cared about before the reset below: finishing its own requirement counts.
         p = { ...p, stage: "adult" };
         news.push({ kind: "grewUp", projectId: project.id, habitatId: p.id });
       }
+      if (p.caresFor !== null && !openRequirement(p.caresFor, project.id)) p = { ...p, caresFor: null };
       if (p !== pet) petsChanged = true;
       return p;
     });

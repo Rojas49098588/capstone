@@ -2,7 +2,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { NOW } from "../planner/testData";
+import { NOW, makePet } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
 import { placeDecor } from "../store/actions";
 import { buildSeed } from "../store/seed";
@@ -118,5 +118,32 @@ describe("Inventory", () => {
     screen.getByText("Placing Clock: pick a free spot in the habitat.");
     await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onCancel).toHaveBeenCalled();
+  });
+});
+
+describe("Inventory with a bought pet's habitat", () => {
+  /** Owning a wallpaper and a rug; webDev has a bought frog "Ribbit" (habitat "x1") with the rug placed in it. */
+  function withPet(): StudiumData {
+    const data = owning("sage-stripes", "round-rug");
+    data.projects = data.projects.map((p) => (p.id === "webDev" ? { ...p, pets: [makePet({ id: "x1", name: "Ribbit" })] } : p));
+    return placeDecor(data, "x1", "floorMiddle", "round-rug");
+  }
+
+  it("decorates and clears the habitat chosen in the picker", async () => {
+    const { storage } = renderWithStudium(<Inventory projectId="webDev" {...props} />, { data: withPet() });
+    await furnitureTab();
+    await userEvent.selectOptions(screen.getByLabelText("Habitat"), "x1");
+    await userEvent.click(screen.getByRole("button", { name: "Use Sage Stripes here" }));
+    expect(savedData(storage).decor?.x1?.wallpaper).toBe("sage-stripes");
+    await userEvent.click(screen.getByRole("button", { name: "Remove Round Rug from the middle floor spot" }));
+    expect(savedData(storage).decor?.x1?.floorMiddle).toBeUndefined();
+    await userEvent.click(screen.getByRole("button", { name: "Plain wallpaper" }));
+    expect(savedData(storage).decor?.x1?.wallpaper).toBeUndefined();
+  });
+
+  it("has no picker for a project with one pet", async () => {
+    renderWithStudium(<Inventory projectId="appDev" {...props} />, { data: withPet() });
+    await furnitureTab();
+    expect(screen.queryByLabelText("Habitat")).toBeNull();
   });
 });

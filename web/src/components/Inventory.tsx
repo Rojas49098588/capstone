@@ -7,7 +7,7 @@ import { ALL_DECOR, DECOR_GROUPS, freeCopies, ownedDecor, placements, type Decor
 import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
 import { useStudiumContext } from "../store/useStudium";
 import { SLOT_NAMES, type SpotSlot } from "../ui/decorLayout";
-import { findPet } from "../planner/pets";
+import { findPet, petsOf, suggestedPetName } from "../planner/pets";
 import { capitalize, copiesLabel } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SMALL, CARD, LABEL, SERIF } from "../ui/styles";
 import DecorArt from "./DecorArt";
@@ -32,8 +32,13 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
   const [tab, setTab] = useState<Tab>("items");
   const owned = inventory(s.data.events);
   const ownedFurniture = ownedDecor(s.data);
-  const color = s.data.projects.find((p) => p.id === projectId)?.color ?? "currentColor";
-  const habitat = s.data.decor?.[projectId] ?? {};
+  const project = s.data.projects.find((p) => p.id === projectId);
+  const color = project?.color ?? "currentColor";
+  // Each pet has its own habitat; the Furniture tab works on the one chosen in its picker.
+  const pets = project ? petsOf(project) : [];
+  const [picked, setPicked] = useState(projectId);
+  const habitatId = pets.some((x) => x.habitatId === picked) ? picked : projectId;
+  const habitat = s.data.decor?.[habitatId] ?? {};
   // Copies can be in any habitat: a project's first pet (its nickname) or a bought pet (its name).
   const shortName = (id: string) => {
     const pet = findPet(s.data, id);
@@ -66,8 +71,8 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
 
   function decorRow(item: DecorItem) {
     const copies = placements(s.data, item.id);
-    const here = copies.filter((c) => c.projectId === projectId);
-    const elsewhere = copies.filter((c) => c.projectId !== projectId);
+    const here = copies.filter((c) => c.projectId === habitatId);
+    const elsewhere = copies.filter((c) => c.projectId !== habitatId);
     const free = freeCopies(s.data, item.id);
     const byProject = new Map<string, number>();
     for (const c of elsewhere) byProject.set(c.projectId, (byProject.get(c.projectId) ?? 0) + 1);
@@ -84,13 +89,13 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
       if (habitat[slot] !== item.id) {
         if (free > 0) {
           actions.push(
-            <button key="use" type="button" aria-label={`Use ${item.name} here`} onClick={() => s.placeDecor(projectId, slot, item.id)} className={BUTTON_SMALL}>
+            <button key="use" type="button" aria-label={`Use ${item.name} here`} onClick={() => s.placeDecor(habitatId, slot, item.id)} className={BUTTON_SMALL}>
               Use here
             </button>,
           );
         } else if (elsewhere[0]) {
           actions.push(
-            <button key="move" type="button" aria-label={`Move ${item.name} here`} onClick={() => s.moveDecor(elsewhere[0], { projectId, slot })} className={BUTTON_SMALL}>
+            <button key="move" type="button" aria-label={`Move ${item.name} here`} onClick={() => s.moveDecor(elsewhere[0], { projectId: habitatId, slot })} className={BUTTON_SMALL}>
               Move here
             </button>,
           );
@@ -116,7 +121,7 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
             key={`remove-${c.slot}`}
             type="button"
             aria-label={`Remove ${item.name} from ${SLOT_NAMES[c.slot as SpotSlot]}`}
-            onClick={() => s.removeDecor(projectId, c.slot)}
+            onClick={() => s.removeDecor(habitatId, c.slot)}
             className={BUTTON_SMALL}
           >
             Remove
@@ -203,7 +208,27 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
               ))
           : decor.length === 0
             ? empty("furniture")
-            : decor.map((g) => (
+            : [
+                pets.length > 1 && project && (
+                  <div key="habitat-picker">
+                    <label htmlFor="inventory-habitat" className={LABEL}>
+                      Habitat
+                    </label>
+                    <select
+                      id="inventory-habitat"
+                      value={habitatId}
+                      onChange={(e) => setPicked(e.target.value)}
+                      className="w-full border border-[var(--color-border)] bg-[var(--color-card)] px-2 py-1.5 text-sm"
+                    >
+                      {pets.map((pet) => (
+                        <option key={pet.habitatId} value={pet.habitatId}>
+                          {pet.name ?? suggestedPetName(project, pet.kind)}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ),
+                ...decor.map((g) => (
                 <section key={g.type} aria-labelledby={`inv-${g.type}`}>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <h3 id={`inv-${g.type}`} className="text-sm font-semibold">
@@ -213,7 +238,7 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
                       <button
                         type="button"
                         aria-label={`Plain ${SURFACE_NAMES[g.type]}`}
-                        onClick={() => s.removeDecor(projectId, g.type as DecorSlot)}
+                        onClick={() => s.removeDecor(habitatId, g.type as DecorSlot)}
                         className={BUTTON_SMALL}
                       >
                         Plain
@@ -222,7 +247,8 @@ export default function Inventory({ projectId, placing, onPlace, onCancel, onOpe
                   </div>
                   <ul className="space-y-2">{g.items.map(decorRow)}</ul>
                 </section>
-              ))}
+              )),
+              ]}
       </div>
     </section>
   );
