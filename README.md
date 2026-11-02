@@ -1,5 +1,27 @@
 # Capstone
 
+**Studium** is a study and project manager with project pets, as a desktop app for Windows and Mac.
+
+## Installing
+
+Download the latest version from this repo's **[Releases](https://github.com/Rojas49098588/capstone/releases)** page, under **Assets**:
+
+- **Windows:** `Studium-Setup-<version>.exe`
+- **Mac** (Apple chip or Intel): `Studium-<version>-mac.dmg`
+
+Studium isn't signed with a paid certificate, so your computer warns you the first time.
+
+- **Windows:** open the `.exe`. At "Windows protected your PC", click **More info → Run anyway**.
+- **Mac:**
+  1. Open the `.dmg`, drag **Studium** into **Applications**, then open it. macOS says it can't check it for malware; click **Done**.
+  2. Go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to Studium (macOS 15 and later). On macOS 14 or earlier, you can instead right-click Studium → **Open**.
+  3. If macOS says Studium "is damaged and can't be opened", run `xattr -cr /Applications/Studium.app` in Terminal and open it again.
+  4. On a Mac, Studium's icon is in the menu bar at the top right, and pets walk along the top of the Dock.
+
+To update, install the new version over the old one. Your projects and pets stay.
+
+## The code
+
 Two parts:
 
 - **`extension/`**: a Chrome extension (Manifest V3, plain JavaScript, no build step). It puts a virtual pet on every page you visit and remembers where it was. Clicking the toolbar icon opens the homepage.
@@ -15,9 +37,9 @@ npm run dev
 
 It runs at http://localhost:5173 (the port is fixed because the extension opens that URL).
 
-## Desktop app (in progress)
+## Desktop app
 
-Studium is moving from the browser and the Chrome extension to a Windows desktop app in `desktop/` (Electron). See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer and opens its window (Settings can turn that off, or start it quietly in the tray instead), and naps and sleep run in the app. Week 2 is done: hatched pets walk along the top of the taskbar, on top of every app, even with Studium closed. Clicks pass through to whatever is underneath except on a pet, so you can drag, throw and click them, and right-click one for its menu (What should I work on?, Nap, Sleep, Open project). A project page in Studium shows its pet in the habitat; that pet leaves the desktop until the window is closed or minimized. **Hide pets** / **Show pets** is in the tray menu. Week 3 is done: on Moderate, pets leave sticky notes anywhere on the desktop (gone after 15 minutes, some carried in from the screen edge), chase the mouse now and then, make their sounds out loud (Settings → **Pet sounds**), and an upset or sick pet brings Studium up at its project page without taking your keyboard focus. None of this happens during a nap, while a pet asks how a nap went, or on Mild or Minimal.
+The desktop app in `desktop/` (Electron, Windows and Mac) is the way to run Studium. Running Studium in a browser and the Chrome extension are retired (the last extension version is tagged `chrome-extension-final`); the desktop app still reuses the extension's pet code. See the spec `docs/superpowers/specs/2026-10-28-desktop-app-design.md`. Week 1 is done: Studium opens in its own window, closing it keeps the app in the tray by the clock, the app starts with the computer and opens its window (Settings can turn that off, or start it quietly in the tray instead), and naps and sleep run in the app. Week 2 is done: hatched pets walk along the top of the taskbar, on top of every app, even with Studium closed. Clicks pass through to whatever is underneath except on a pet, so you can drag, throw and click them, and right-click one for its menu (What should I work on?, Nap, Sleep, Open project). A project page in Studium shows its pet in the habitat; that pet leaves the desktop until the window is closed or minimized. **Hide pets** / **Show pets** is in the tray menu. Week 3 is done: on Moderate, pets leave sticky notes anywhere on the desktop (gone after 15 minutes, some carried in from the screen edge), chase the mouse now and then, make their sounds out loud (Settings → **Pet sounds**), and an upset or sick pet brings Studium up at its project page without taking your keyboard focus. None of this happens during a nap, while a pet asks how a nap went, or on Mild or Minimal.
 
 ```sh
 cd desktop
@@ -26,11 +48,13 @@ npm start          # builds web/ and opens the app
 npm run dev        # the app on the Vite dev server: run `npm run dev` in web/ first
 npm test           # unit tests
 npm run test:e2e   # starts the real app (builds web/ first)
-npm run dist       # Windows installer in your home folder's StudiumBuilds\
+npm run dist       # this computer's installer (Windows .exe or Mac .dmg) in your home folder's StudiumBuilds
 ```
 
+- **Releases:** GitHub → **Actions** → **Build installers** → **Run workflow** (`.github/workflows/build.yml`). It runs the tests, builds the Windows `.exe` and the universal Mac `.dmg`, checks each packaged app starts, and puts both on a draft Release `v<version>` (from `desktop/package.json`). Open it on the Releases page and click **Publish release**. Bump the version first for a new release; running it again for the same version replaces the files.
+
 - Dev mode (`npm run dev`) loads `http://localhost:5173`, so its Studium data is separate from the built app's.
-- Closing the window only hides it. To quit, right-click Studium's taskbar button (or the egg in the tray; Windows may tuck it under the **^** by the clock) and choose **Quit Studium**.
+- Closing the window only hides it. To quit, right-click Studium's taskbar button (or the egg in the tray; Windows may tuck it under the **^** by the clock) and choose **Quit Studium**. On a Mac, use the menu bar icon's **Quit** or press Cmd+Q; clicking the Dock icon brings a closed window back.
 - The installer isn't signed: Windows shows "Windows protected your PC", so click **More info → Run anyway**.
 - The installer is built outside the repo (set `STUDIUM_RELEASE_DIR` to change where): built inside OneDrive, the installer step timed out while OneDrive synced the 120 MB file.
 - `desktop/node_modules` holds the Electron program. Like `web/node_modules`, it's best kept out of OneDrive sync. On a new PC, OneDrive may leave these folders "online-only", which makes tests time out; right-click them → **Always keep on this device**.
