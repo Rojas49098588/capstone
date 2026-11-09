@@ -166,6 +166,8 @@ test('Reload pets and waking the computer replace the pet window', async () => {
   await hoverPetInNewWindow();
   await new Promise((r) => setTimeout(r, 2500));
   expect(await overlayId()).toBe(third);
+  await app.close();
+});
 
 // Recorded clips are bigger than the old placeholders; media over studium:// needs the scheme's
 // stream privilege once a file is past about 512 KB, or the audio fails to load. Each clip must
