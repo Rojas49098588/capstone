@@ -118,3 +118,53 @@ test('Show/Hide pets from the tray', async () => {
   await expect(host).toBeVisible();
   await app.close();
 });
+
+// The overlay window can get stuck ignoring mouse presses after a wake from sleep (bugs.md), so it is
+// replaced on Reload pets and after a wake or unlock. The new window must take clicks on a pet.
+test('Reload pets and waking the computer replace the pet window', async () => {
+  const { app } = await start();
+  const overlayId = () => app.evaluate(() => globalThis.studiumTest.overlay.id);
+  const overlayCount = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.getTitle() === 'Studium pets').length);
+  const hoverPetInNewWindow = async () => {
+    // The page of the current overlay window (the old one may still be listed for a moment).
+    const id = await overlayId();
+    let page = null;
+    await expect.poll(async () => {
+      for (const p of app.windows()) {
+        if (p.isClosed() || !p.url().startsWith('studium://overlay/')) continue;
+        const winId = await (await app.browserWindow(p)).evaluate((w) => w.id).catch(() => null);
+        if (winId === id) page = p;
+      }
+      return page !== null;
+    }).toBe(true);
+    const pet = page.locator('#capstone-pet-host .pet');
+    await expect(pet).toBeVisible();
+    await expect.poll(async () => {
+      const box = await pet.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      return mouse(app);
+    }).toBe(true);
+  };
+
+  const first = await overlayId();
+  await trayClick(app, 'reload-pets');
+  const second = await overlayId();
+  expect(second).not.toBe(first);
+  await expect.poll(overlayCount).toBe(1);
+  expect(await mouse(app)).toBe(false);
+  await hoverPetInNewWindow();
+
+  // Waking fires resume and unlock-screen: one new window, a moment later.
+  await app.evaluate(() => {
+    globalThis.studiumTest.powerMonitor.emit('resume');
+    globalThis.studiumTest.powerMonitor.emit('unlock-screen');
+  });
+  expect(await overlayId()).toBe(second);
+  await expect.poll(overlayId, { timeout: 10000 }).not.toBe(second);
+  const third = await overlayId();
+  await expect.poll(overlayCount).toBe(1);
+  await hoverPetInNewWindow();
+  await new Promise((r) => setTimeout(r, 2500));
+  expect(await overlayId()).toBe(third);
+  await app.close();
+});
