@@ -1,7 +1,7 @@
 {
   "name": "studium-desktop",
   "productName": "Studium",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "description": "Studium and its project pets as a desktop app",
   "private": true,
   "main": "src/main/main.js",
