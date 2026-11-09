@@ -12,10 +12,11 @@ const statuses = L.parseStatuses({ pets: [pet] });
 const napping = { webDev: { kind: 'nap', id: 'n1', startedAt: '2026-10-30T12:00:00.000Z', until: '2026-10-30T12:15:00.000Z', taskId: null, taskTitle: null } };
 
 describe('trayItems', () => {
-  it('has Open, Hide pets and Quit when no pet is away', () => {
+  it('has Open, Hide pets, Reload pets and Quit when no pet is away', () => {
     expect(trayItems(L, { statuses: null, away: {}, hidden: false })).toEqual([
       { id: 'open', label: 'Open Studium' },
       { id: 'toggle-pets', label: 'Hide pets' },
+      { id: 'reload-pets', label: 'Reload pets' },
       { type: 'separator' },
       { id: 'quit', label: 'Quit Studium' },
     ]);
@@ -27,8 +28,8 @@ describe('trayItems', () => {
 
   it('lists a Wake item for each away pet', () => {
     const items = trayItems(L, { statuses, away: napping, hidden: false });
-    expect(items[2]).toEqual({ id: 'wake:webDev', label: 'Wake webDev' });
-    expect(items[3]).toEqual({ type: 'separator' });
+    expect(items[3]).toEqual({ id: 'wake:webDev', label: 'Wake webDev' });
+    expect(items[4]).toEqual({ type: 'separator' });
   });
 });
 
@@ -46,7 +47,7 @@ describe('trayTooltip', () => {
 describe('handleTrayClick', () => {
   const setup = () => {
     const store = createStore({ file: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'studium-tray-')), 'pet-state.json') });
-    const deps = { store, runner: { request: vi.fn() }, open: vi.fn(), quit: vi.fn() };
+    const deps = { store, runner: { request: vi.fn() }, open: vi.fn(), quit: vi.fn(), reloadPets: vi.fn() };
     return deps;
   };
 
@@ -70,5 +71,11 @@ describe('handleTrayClick', () => {
     handleTrayClick('quit', deps);
     expect(deps.open).toHaveBeenCalledTimes(1);
     expect(deps.quit).toHaveBeenCalledTimes(1);
+  });
+
+  it('reloads the pets', () => {
+    const deps = setup();
+    handleTrayClick('reload-pets', deps);
+    expect(deps.reloadPets).toHaveBeenCalledTimes(1);
   });
 });

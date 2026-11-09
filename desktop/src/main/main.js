@@ -2,7 +2,7 @@
 // the modules next to it, which have unit tests.
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, ipcMain, screen, session } = require('electron');
+const { app, ipcMain, powerMonitor, screen, session } = require('electron');
 const { parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
 const { registerStudiumScheme, handleStudiumScheme } = require('./protocol');
 const { createStudiumWindow, showStudium, showStudiumQuietly } = require('./studiumWindow');
@@ -13,7 +13,7 @@ const { CHANNELS, handleStudium } = require('./bridge');
 const { createTray } = require('./tray');
 const { loginItemSettings } = require('./loginItem');
 const { quitTask } = require('./taskbar');
-const { createOverlayWindow, setOverlayMouse } = require('./overlayWindow');
+const { REBUILD_AFTER_WAKE_MS, createOverlayWindow, createRebuildTimer, setOverlayMouse } = require('./overlayWindow');
 const { createHabitatTracker } = require('./habitat');
 const { readPetState, cleanPetWrite, changesFor, changeTargets, handlePetMessage } = require('./petChannel');
 const { habitatFiles, habitatScript } = require('./petScripts');
@@ -148,8 +148,21 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     for (const event of ['show', 'hide', 'minimize', 'restore']) win.on(event, windowState);
     windowState();
 
-    overlay = createOverlayWindow({ url: OVERLAY_URL, screen });
-    Object.assign(globalThis.studiumTest, { win, overlay, habitat, overlayMouse: () => overlayMouse });
+    // A new overlay replaces the old one, which can get stuck ignoring clicks (overlayWindow.js).
+    // The old page's messages stop counting at once: from() only accepts the current overlay.
+    const openOverlay = () => {
+      const old = overlay;
+      overlay = createOverlayWindow({ url: OVERLAY_URL, screen });
+      overlayMouse = false;
+      if (old && !old.isDestroyed()) old.destroy();
+      globalThis.studiumTest.overlay = overlay;
+    };
+    openOverlay();
+    const rebuildAfterWake = createRebuildTimer(openOverlay, REBUILD_AFTER_WAKE_MS);
+    powerMonitor.on('resume', () => rebuildAfterWake.request());
+    powerMonitor.on('unlock-screen', () => rebuildAfterWake.request());
+    app.on('before-quit', () => rebuildAfterWake.dispose());
+    Object.assign(globalThis.studiumTest, { win, habitat, overlayMouse: () => overlayMouse, powerMonitor });
     tray = createTray({
       L,
       store,
@@ -157,6 +170,7 @@ if (!app.requestSingleInstanceLock() || args.quit) {
       iconPath: paths.trayIcon,
       open: () => showStudium(win),
       quit: quitApp,
+      reloadPets: openOverlay,
     });
     // Quit Studium in the taskbar button's right-click menu. Only for an installed build: in
     // development it would point at electron.exe.
