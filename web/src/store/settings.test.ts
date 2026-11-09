@@ -18,6 +18,8 @@ describe("settings", () => {
       startWithComputer: true,
       startQuietly: false,
       petSounds: true,
+      petVolume: 30,
+      soundBubbles: true,
     });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings("{not json")).toEqual(DEFAULT_SETTINGS);
@@ -42,6 +44,8 @@ describe("settings", () => {
       startWithComputer: true,
       startQuietly: false,
       petSounds: true,
+      petVolume: 30,
+      soundBubbles: true,
     });
     expect(parseSettings(JSON.stringify({ projectType: "poetry", setupDone: "yes" }))).toEqual(DEFAULT_SETTINGS);
     expect(parseSettings(JSON.stringify({ difficulty: "extreme", petCount: 0, petOrder: "random", progressStyle: 5 }))).toEqual(DEFAULT_SETTINGS);
@@ -75,6 +79,16 @@ describe("settings", () => {
     expect(parseSettings(JSON.stringify({ petInvolvement: "moderate" })).petSounds).toBe(true);
     expect(parseSettings(JSON.stringify({ petSounds: "no" })).petSounds).toBe(true);
     expect(parseSettings(JSON.stringify({ petSounds: false })).petSounds).toBe(false);
+    // Volume: a whole percent from 0 to 100, 30 if missing or invalid.
+    expect(parseSettings(JSON.stringify({ petVolume: 0 })).petVolume).toBe(0);
+    expect(parseSettings(JSON.stringify({ petVolume: 100 })).petVolume).toBe(100);
+    expect(parseSettings(JSON.stringify({ petVolume: 55.6 })).petVolume).toBe(56);
+    expect(parseSettings(JSON.stringify({ petVolume: 140 })).petVolume).toBe(30);
+    expect(parseSettings(JSON.stringify({ petVolume: -1 })).petVolume).toBe(30);
+    expect(parseSettings(JSON.stringify({ petVolume: "loud" })).petVolume).toBe(30);
+    // Sound bubbles: on unless turned off.
+    expect(parseSettings(JSON.stringify({ soundBubbles: "no" })).soundBubbles).toBe(true);
+    expect(parseSettings(JSON.stringify({ soundBubbles: false })).soundBubbles).toBe(false);
     expect(parseSettings(JSON.stringify({ petInvolvement: "mild" })).startQuietly).toBe(false);
     expect(parseSettings(JSON.stringify({ startQuietly: "yes" })).startQuietly).toBe(false);
     expect(parseSettings(JSON.stringify({ startQuietly: true })).startQuietly).toBe(true);

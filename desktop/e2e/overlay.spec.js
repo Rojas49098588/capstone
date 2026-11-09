@@ -169,6 +169,30 @@ test('Reload pets and waking the computer replace the pet window', async () => {
   await app.close();
 });
 
+// Settings → Sound: the volume reaches the overlay, and with Sound bubbles off a pet's "Meow!" is
+// heard but not shown.
+test('a clicked pet plays its sound at the chosen volume, with or without the bubble', async () => {
+  const { app, overlay, pet } = await start();
+  await overlay.evaluate(() => {
+    window.e2eSounds = [];
+    globalThis.PetSound.play = (key, volume) => window.e2eSounds.push([key, volume]);
+  });
+  const setPrefs = (prefs) => app.evaluate((_e, p) => globalThis.studiumTest.store.set({ petPrefs: p }), prefs)
+    .then(() => new Promise((r) => setTimeout(r, 500))); // the overlay hears about it a moment later
+  const bubble = pet.locator('.bubble');
+
+  await setPrefs({ involvement: 'moderate', nickname: '', sounds: true, volume: 0.7, soundBubbles: false });
+  await pet.click();
+  await expect.poll(() => overlay.evaluate(() => window.e2eSounds)).toEqual([['meow', 0.7]]);
+  await expect(bubble).not.toHaveClass(/show/);
+
+  await setPrefs({ involvement: 'moderate', nickname: '', sounds: true, volume: 0.7, soundBubbles: true });
+  await pet.click();
+  await expect(bubble).toHaveClass(/show/);
+  await expect(bubble).toHaveText('Meow!');
+  await app.close();
+});
+
 // Recorded clips are bigger than the old placeholders; media over studium:// needs the scheme's
 // stream privilege once a file is past about 512 KB, or the audio fails to load. Each clip must
 // play to its end (muted) within 8 seconds: they are cut to at most 6.

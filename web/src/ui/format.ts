@@ -278,6 +278,9 @@ export const START_WITH_COMPUTER_LABEL = "Start Studium when your computer start
 export const START_WITH_COMPUTER_HINT = "Your pets are there as soon as you log in.";
 export const PET_SOUNDS_LABEL = "Pet sounds";
 export const PET_SOUNDS_HINT = "On Moderate, pets make their sounds out loud, at most one every 30 seconds.";
+export const PET_VOLUME_LABEL = "Volume";
+export const SOUND_BUBBLES_LABEL = "Sound bubbles";
+export const SOUND_BUBBLES_HINT = "Show a pet's sounds as words in a bubble, like captions (\"Meow!\"). Questions from your pets always show.";
 export const START_OPEN_LABEL = "Open the window";
 export const START_QUIETLY_LABEL = "Start quietly in the tray";
 export const START_QUIETLY_HINT = "Studium waits in the tray by the clock (Windows may tuck it under the ^) until you open it.";
@@ -296,13 +299,10 @@ export const FIRST_PROJECT_TEXT =
 
 export const SETUP_COPY = {
   welcome: "Welcome to Studium",
-  makeTitle: "What do you make?",
-  makeHint: "This sets the words your new projects use, like chapters for writing. You can pick a different type for each project.",
   nameTitle: "What should we call you?",
   namePlaceholder: "Optional",
   nameHint: "Shown on your Overview and in your pets' notes. Leave it blank to go without.",
   petsTitle: "Your pets",
-  difficultyLegend: "Difficulty",
   involvementLegend: "How much they interact",
   lookTitle: "Your look",
   progressLegend: "How should Total Progress look?",

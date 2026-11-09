@@ -204,13 +204,13 @@ describe("pet stages", () => {
 
 describe("interaction level and nickname", () => {
   it("prefsFromSettings reads the interaction level and nickname", () => {
-    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate", nickname: " Abby " }))).toEqual({ involvement: "moderate", nickname: "Abby", sounds: true });
-    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "notMuch" }))).toEqual({ involvement: "minimal", nickname: "", sounds: true });
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate", nickname: " Abby " }))).toEqual({ involvement: "moderate", nickname: "Abby", sounds: true, volume: 0.3, soundBubbles: true });
+    expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "notMuch" }))).toEqual({ involvement: "minimal", nickname: "", sounds: true, volume: 0.3, soundBubbles: true });
     expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "very" })).involvement).toBe("mild");
     expect(L.prefsFromSettings(JSON.stringify({ nickname: "A".repeat(25) })).nickname).toBe("A".repeat(20));
-    expect(L.prefsFromSettings("{broken")).toEqual({ involvement: "mild", nickname: "", sounds: true });
-    expect(L.prefsFromSettings(null)).toEqual({ involvement: "mild", nickname: "", sounds: true });
-    expect(L.cleanPrefs({ involvement: "wild", nickname: 3 })).toEqual({ involvement: "mild", nickname: "", sounds: true });
+    expect(L.prefsFromSettings("{broken")).toEqual({ involvement: "mild", nickname: "", sounds: true, volume: 0.3, soundBubbles: true });
+    expect(L.prefsFromSettings(null)).toEqual({ involvement: "mild", nickname: "", sounds: true, volume: 0.3, soundBubbles: true });
+    expect(L.cleanPrefs({ involvement: "wild", nickname: 3 })).toEqual({ involvement: "mild", nickname: "", sounds: true, volume: 0.3, soundBubbles: true });
   });
 
   it("prefsFromSettings reads Pet sounds: on unless turned off", () => {
@@ -218,6 +218,17 @@ describe("interaction level and nickname", () => {
     expect(L.prefsFromSettings(JSON.stringify({ petInvolvement: "moderate" })).sounds).toBe(true);
     expect(L.cleanPrefs({ involvement: "moderate", sounds: "no" }).sounds).toBe(true);
     expect(L.cleanPrefs({ involvement: "moderate", sounds: false }).sounds).toBe(false);
+  });
+
+  it("prefsFromSettings reads the volume (a percent) and sound bubbles", () => {
+    expect(L.prefsFromSettings(JSON.stringify({ petVolume: 75, soundBubbles: false }))).toMatchObject({ volume: 0.75, soundBubbles: false });
+    expect(L.prefsFromSettings(JSON.stringify({ petVolume: 0 })).volume).toBe(0);
+    expect(L.prefsFromSettings(JSON.stringify({ petVolume: 400 })).volume).toBe(0.3);
+    expect(L.cleanPrefs({ volume: 1 }).volume).toBe(1);
+    expect(L.cleanPrefs({ volume: 1.5 }).volume).toBe(0.3);
+    expect(L.cleanPrefs({ volume: "x" }).volume).toBe(0.3);
+    expect(L.cleanPrefs({ soundBubbles: "no" }).soundBubbles).toBe(true);
+    expect(L.cleanPrefs({ soundBubbles: false }).soundBubbles).toBe(false);
   });
 
   it("keeps the nickname limit equal to Studium's", () => {

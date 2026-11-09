@@ -17,7 +17,7 @@ test('the packaged build opens Studium and loads the pet rules', async () => {
     env: electronEnv(),
   });
   const page = await studiumPage(app);
-  await expect(page.getByRole('heading', { name: 'What do you make?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What should we call you?' })).toBeVisible();
   expect(await app.evaluate(() => typeof globalThis.PetLogic?.applyAwayRequest)).toBe('function');
   expect(await app.evaluate(({ app: a }) => a.isPackaged)).toBe(true);
   await app.close();
