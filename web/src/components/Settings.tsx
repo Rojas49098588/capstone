@@ -1,16 +1,7 @@
-import {
-  DIFFICULTIES,
-  PET_INVOLVEMENTS,
-  PET_ORDERS,
-  PROGRESS_STYLES,
-  PROJECT_TYPE_OPTIONS,
-  type PetCount,
-  type Settings as SettingsValues,
-} from "../store/settings";
+import { PET_INVOLVEMENTS, PET_ORDERS, PROGRESS_STYLES, type PetCount, type Settings as SettingsValues } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
 import { NICKNAME_MAX } from "../planner/tuning";
 import {
-  DIFFICULTY_HINTS,
   INVOLVEMENT_HINTS,
   PET_SOUNDS_HINT,
   PET_SOUNDS_LABEL,
@@ -107,22 +98,6 @@ export default function Settings({ onReplayTutorial }: Props) {
         <h2 id="settings-settings" style={SERIF} className="text-xl">
           Settings
         </h2>
-        {choices(
-          "project-type",
-          "Default project type",
-          PROJECT_TYPE_OPTIONS,
-          settings.projectType,
-          (projectType) => change({ projectType }),
-          "The type new projects start as. It sets the words a project uses, like chapters for writing.",
-        )}
-        {choices(
-          "difficulty",
-          "Default difficulty for new projects",
-          DIFFICULTIES,
-          settings.difficulty,
-          (difficulty) => change({ difficulty }),
-          `${DIFFICULTY_HINTS[settings.difficulty]} Each project can change its own.`,
-        )}
         <div>
           <label htmlFor="settings-pet-count" className="text-sm font-semibold block mb-2">
             Pets on screen at once

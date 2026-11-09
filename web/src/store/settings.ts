@@ -1,7 +1,7 @@
 // User settings: preferences saved in this browser, apart from the project data (like the theme).
 // "Pets on screen at once" and "Which pets show first" are read by the browser extension (content/pet.js copies it on the Studium
 // page, on SETTINGS_EVENT). Progress style switches the Overview's Total Progress between rings and
-// bars. Setup (components/Setup.tsx) fills in the nickname, default project type, default difficulty
+// bars. Setup (components/Setup.tsx) fills in the nickname
 // and how much pets interact; the extension reads the interaction level and the nickname.
 import { NICKNAME_MAX } from "../planner/tuning";
 import { DIFFICULTY_LEVELS, PROJECT_TYPES, type Difficulty, type ProjectType } from "../planner/types";
@@ -20,13 +20,13 @@ export type PetCount = number | "all";
 export type PetOrder = "project" | "dueDate";
 
 export type Settings = {
-  difficulty: Difficulty; // the difficulty new projects start with
+  difficulty: Difficulty; // the difficulty a new project starts with: the last one picked in the New Project form
   petCount: PetCount;
   petOrder: PetOrder;
   progressStyle: ProgressStyle;
   petInvolvement: PetInvolvement;
   nickname: string; // "" = none
-  projectType: ProjectType; // the type new projects start with
+  projectType: ProjectType; // the same for the project type
   setupDone: boolean; // the first-run setup has been finished
   tutorialDone: boolean; // the project tutorial has been finished or skipped (Settings can replay it)
   shopTutorialDone: boolean; // the same for the Shop tutorial

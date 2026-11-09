@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NOW, dayKey } from "../planner/testData";
 import { PET_KINDS } from "../planner/types";
 import { buildSeed } from "../store/seed";
+import { SETTINGS_KEY } from "../store/settings";
 import { renderWithStudium, savedData, withEgg } from "../test/render";
 import ProjectModal from "./ProjectModal";
 
@@ -82,7 +83,27 @@ describe("ProjectModal", () => {
     expect(savedData(storage).projects.find((p) => p.id === "webDev")).toMatchObject({ name: "Portfolio Site", petKind: "pigeon" });
   });
 
-  it("a new project starts with the default type and difficulty from settings", async () => {
+  it("a new project remembers the type and difficulty picked for it, for the next one", async () => {
+    const { storage } = renderWithStudium(<ProjectModal onClose={vi.fn()} />);
+    expect(screen.getByRole("radio", { name: "School" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("radio", { name: "Steady" }).getAttribute("aria-checked")).toBe("true");
+    await userEvent.type(screen.getByLabelText("Project name"), "Album");
+    fireEvent.change(screen.getByLabelText("Deadline"), { target: { value: dayKey(40) } });
+    await userEvent.click(screen.getAllByRole("radio", { name: /^Egg / })[0]);
+    await userEvent.click(screen.getByRole("radio", { name: "Music" }));
+    await userEvent.click(screen.getByRole("radio", { name: "Gentle" }));
+    await userEvent.click(screen.getByRole("button", { name: "Create project" }));
+    expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ projectType: "music", difficulty: "gentle" });
+  });
+
+  it("editing a project doesn't change what the next new one starts with", async () => {
+    const { storage } = renderWithStudium(<ProjectModal project={webDev()} onClose={vi.fn()} />, { settings: { projectType: "art", difficulty: "strict" } });
+    await userEvent.click(screen.getByRole("radio", { name: "Music" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save project" }));
+    expect(JSON.parse(storage?.getItem(SETTINGS_KEY) ?? "{}")).not.toMatchObject({ projectType: "music" });
+  });
+
+  it("a new project starts with the type and difficulty used last", async () => {
     const { storage } = renderWithStudium(<ProjectModal onClose={vi.fn()} />, { settings: { projectType: "writing", difficulty: "strict" } });
     expect(screen.getByRole("radio", { name: "Writing" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("radio", { name: "Strict" }).getAttribute("aria-checked")).toBe("true");

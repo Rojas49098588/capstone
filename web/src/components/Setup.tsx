@@ -1,40 +1,29 @@
 import { useState, type ReactNode } from "react";
 import { NICKNAME_MAX } from "../planner/tuning";
-import { DIFFICULTY_LEVELS, PROJECT_TYPES, type Difficulty, type ProjectType } from "../planner/types";
 import { PET_INVOLVEMENT_LEVELS, cleanNickname, type PetInvolvement, type ProgressStyle } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
-import {
-  DIFFICULTY_HINTS,
-  DIFFICULTY_LABELS,
-  INVOLVEMENT_HINTS,
-  INVOLVEMENT_LABELS,
-  PROJECT_TYPE_HINTS,
-  PROJECT_TYPE_LABELS,
-  SETUP_COPY,
-  SETUP_SAMPLE_PROJECTS,
-} from "../ui/format";
+import { INVOLVEMENT_HINTS, INVOLVEMENT_LABELS, SETUP_COPY, SETUP_SAMPLE_PROJECTS } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 
 type Theme = "light" | "dark";
 type Props = { theme: Theme; onTheme: (theme: Theme) => void; onFinish: () => void };
 
-const STEPS = 4;
+const STEPS = 3;
 
 /**
- * The first-run setup: what you make, a nickname, your pets, your look. Nothing is saved until the
+ * The first-run setup: a nickname, your pets, your look. (Each new project picks its own type and
+ * difficulty, starting from the last ones used.) Nothing is saved until the
  * last step, so leaving part-way starts it again next time. The theme switches as soon as it's picked.
  */
 export default function Setup({ theme, onTheme, onFinish }: Props) {
   const s = useStudiumContext();
   const [step, setStep] = useState(0);
-  const [projectType, setProjectType] = useState<ProjectType>(s.settings.projectType);
   const [nickname, setNickname] = useState(s.settings.nickname);
-  const [difficulty, setDifficulty] = useState<Difficulty>(s.settings.difficulty);
   const [involvement, setInvolvement] = useState<PetInvolvement>(s.settings.petInvolvement);
   const [progressStyle, setProgressStyle] = useState<ProgressStyle>(s.settings.progressStyle);
 
   function finish() {
-    s.updateSettings({ projectType, nickname: cleanNickname(nickname), difficulty, petInvolvement: involvement, progressStyle, setupDone: true });
+    s.updateSettings({ nickname: cleanNickname(nickname), petInvolvement: involvement, progressStyle, setupDone: true });
     onFinish();
   }
 
@@ -50,18 +39,6 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
         <p className={`text-xs font-mono ${MUTED}`}>{`Step ${step + 1} of ${STEPS}`}</p>
 
         {step === 0 && (
-          <Step title={SETUP_COPY.makeTitle}>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {PROJECT_TYPES.map((t) => (
-                <Choice key={t} name="setup-type" checked={projectType === t} onPick={() => setProjectType(t)} label={PROJECT_TYPE_LABELS[t]} />
-              ))}
-            </div>
-            <p className="text-sm">{PROJECT_TYPE_HINTS[projectType]}</p>
-            <p className={`text-xs ${MUTED}`}>{SETUP_COPY.makeHint}</p>
-          </Step>
-        )}
-
-        {step === 1 && (
           <Step title={SETUP_COPY.nameTitle}>
             <input
               aria-label="Nickname"
@@ -76,14 +53,8 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
           </Step>
         )}
 
-        {step === 2 && (
+        {step === 1 && (
           <Step title={SETUP_COPY.petsTitle}>
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-semibold mb-1">{SETUP_COPY.difficultyLegend}</legend>
-              {DIFFICULTY_LEVELS.map((d) => (
-                <Choice key={d} name="setup-difficulty" checked={difficulty === d} onPick={() => setDifficulty(d)} label={DIFFICULTY_LABELS[d]} hint={DIFFICULTY_HINTS[d]} />
-              ))}
-            </fieldset>
             <fieldset className="space-y-2">
               <legend className="text-sm font-semibold mb-1">{SETUP_COPY.involvementLegend}</legend>
               {PET_INVOLVEMENT_LEVELS.map((v) => (
@@ -93,7 +64,7 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
           </Step>
         )}
 
-        {step === 3 && (
+        {step === 2 && (
           <Step title={SETUP_COPY.lookTitle}>
             <fieldset className="space-y-3">
               <legend className="text-sm font-semibold mb-1">{SETUP_COPY.progressLegend}</legend>

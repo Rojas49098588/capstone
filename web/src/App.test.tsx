@@ -51,13 +51,13 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
 
   it("shows setup first for someone who hasn't done it", () => {
     renderWithStudium(<StudiumApp />, { settings: { setupDone: false } });
-    screen.getByRole("heading", { name: "What do you make?" });
+    screen.getByRole("heading", { name: "What should we call you?" });
     expect(screen.queryByRole("heading", { name: "Your Projects" })).toBeNull();
   });
 
   it("an existing user with projects sees setup once, then their Overview, with no tutorial", async () => {
     const { storage } = renderWithStudium(<StudiumApp />, { settings: { setupDone: false } });
-    for (let i = 0; i < 3; i++) await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    for (let i = 0; i < 2; i++) await userEvent.click(screen.getByRole("button", { name: "Continue" }));
     await userEvent.click(screen.getByRole("button", { name: "Start using Studium" }));
     screen.getByRole("heading", { name: "Your Projects" });
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -67,10 +67,10 @@ describe("StudiumApp", { timeout: 15_000 }, () => {
   it("reloading mid-setup starts setup again", async () => {
     const { storage, unmount } = renderWithStudium(<StudiumApp />, { settings: { setupDone: false } });
     await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    screen.getByText("Step 2 of 4");
+    screen.getByText("Step 2 of 3");
     unmount();
     renderWithStudium(<StudiumApp />, { storage });
-    screen.getByText("Step 1 of 4");
+    screen.getByText("Step 1 of 3");
   });
 
   it("the gear button opens User Settings", async () => {

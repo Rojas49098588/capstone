@@ -299,13 +299,10 @@ export const FIRST_PROJECT_TEXT =
 
 export const SETUP_COPY = {
   welcome: "Welcome to Studium",
-  makeTitle: "What do you make?",
-  makeHint: "This sets the words your new projects use, like chapters for writing. You can pick a different type for each project.",
   nameTitle: "What should we call you?",
   namePlaceholder: "Optional",
   nameHint: "Shown on your Overview and in your pets' notes. Leave it blank to go without.",
   petsTitle: "Your pets",
-  difficultyLegend: "Difficulty",
   involvementLegend: "How much they interact",
   lookTitle: "Your look",
   progressLegend: "How should Total Progress look?",

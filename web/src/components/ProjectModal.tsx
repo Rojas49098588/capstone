@@ -66,6 +66,8 @@ export default function ProjectModal({ project, onClose, onCreated, onDeleted }:
       });
     } else if (petKind) {
       const created = s.createProject({ ...fields, petKind, type, difficulty });
+      // The next new project starts with the same type and difficulty.
+      s.updateSettings({ projectType: type, difficulty });
       onCreated?.(created);
     }
     onClose();

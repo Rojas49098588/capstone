@@ -16,9 +16,10 @@ describe("Settings", () => {
     screen.getByRole("heading", { name: "Settings" });
     // Sounds only play in the desktop app.
     expect(screen.queryByRole("heading", { name: "Sound" })).toBeNull();
-    expect((screen.getByRole("radio", { name: "Steady" }) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByRole("radio", { name: "School" }) as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByRole("radio", { name: "Project order" }) as HTMLInputElement).checked).toBe(true);
+    // A new project starts with the type and difficulty used last, so neither is a setting.
+    expect(screen.queryByRole("radio", { name: "Steady" })).toBeNull();
+    expect(screen.queryByRole("radio", { name: "School" })).toBeNull();
+    expect((screen.getByRole("radio", { name: "Project order" })as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("radio", { name: "Circle" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("radio", { name: "Mild" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("textbox", { name: "Nickname" }) as HTMLInputElement).value).toBe("");
@@ -30,13 +31,12 @@ describe("Settings", () => {
 
   it("saves each change", async () => {
     const { storage } = renderWithStudium(<Settings />);
-    await userEvent.click(screen.getByRole("radio", { name: "Strict" }));
     await userEvent.click(screen.getByRole("radio", { name: "Closest due date" }));
     await userEvent.click(screen.getByRole("radio", { name: "Bar" }));
     await userEvent.click(screen.getByRole("radio", { name: "Minimal" }));
     await userEvent.selectOptions(screen.getByRole("combobox", { name: "Pets on screen at once" }), "2");
     expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toEqual({
-      difficulty: "strict",
+      difficulty: "steady",
       petCount: 2,
       petOrder: "dueDate",
       progressStyle: "bar",
@@ -49,18 +49,15 @@ describe("Settings", () => {
       startWithComputer: true,
       startQuietly: false,
       petSounds: true,
-
       petVolume: 30,
-
       soundBubbles: true,
     });
   });
 
-  it("saves the nickname and the default project type", async () => {
+  it("saves the nickname", async () => {
     const { storage } = renderWithStudium(<Settings />);
     await userEvent.type(screen.getByRole("textbox", { name: "Nickname" }), "Abby");
-    await userEvent.click(screen.getByRole("radio", { name: "Art & design" }));
-    expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ nickname: "Abby", projectType: "art" });
+    expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ nickname: "Abby" });
   });
 
   describe("in the desktop app", () => {

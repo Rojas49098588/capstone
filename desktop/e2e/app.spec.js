@@ -7,7 +7,7 @@ const isVisible = (app) => app.evaluate(() => globalThis.studiumTest.win.isVisib
 test('opens Studium in its own window', async () => {
   const app = await launch({ userData: tempUserData() });
   const page = await studiumPage(app);
-  await expect(page.getByRole('heading', { name: 'What do you make?' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'What should we call you?' })).toBeVisible();
   await app.close();
 });
 

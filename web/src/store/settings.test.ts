@@ -18,9 +18,7 @@ describe("settings", () => {
       startWithComputer: true,
       startQuietly: false,
       petSounds: true,
-
       petVolume: 30,
-
       soundBubbles: true,
     });
     expect(parseSettings(null)).toEqual(DEFAULT_SETTINGS);
@@ -46,9 +44,7 @@ describe("settings", () => {
       startWithComputer: true,
       startQuietly: false,
       petSounds: true,
-
       petVolume: 30,
-
       soundBubbles: true,
     });
     expect(parseSettings(JSON.stringify({ projectType: "poetry", setupDone: "yes" }))).toEqual(DEFAULT_SETTINGS);
