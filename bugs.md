@@ -66,7 +66,7 @@ _Opened 2026-11-05. Waiting for the next time it happens (can't reproduce yet)._
 
 **Conclusion:** the overlay window's native mouse handling (Chromium's Windows message to input step for that one HWND) gets stuck dropping button-down messages while still passing moves. It's per-window and persists until the window is replaced. This is Electron/Chromium state, not app code. Probable trigger: sleep/wake (unconfirmed). Fix direction: replace the overlay window when this happens (for example on `powerMonitor` `resume`/`unlock-screen`), and add a tray **Reload pets** that recreates it.
 
-**Fix (2026-11-09, branch `fix/overlay-clicks`, not yet committed):** the app now builds a fresh overlay window and closes the old one:
+**Fix (2026-11-09, `2c31743` on branch `fix/overlay-clicks`, not yet in an installer):** the app now builds a fresh overlay window and closes the old one:
 
 - automatically, 2 seconds after the computer wakes or the screen unlocks (`powerMonitor` `resume`/`unlock-screen`, merged into one rebuild by `createRebuildTimer` in `desktop/src/main/overlayWindow.js`);
 - on demand, from a new tray item, **Reload pets**.
