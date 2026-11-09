@@ -31,9 +31,9 @@ it("copies the interaction level and nickname from Studium's settings", async ()
   // @ts-expect-error pet.js is a plain browser script with no type declarations.
   await import("../../../extension/content/pet.js");
   await new Promise((r) => setTimeout(r, 0));
-  expect(store.petPrefs).toEqual({ involvement: "minimal", nickname: "Abby", sounds: true });
+  expect(store.petPrefs).toEqual({ involvement: "minimal", nickname: "Abby", sounds: true, volume: 0.3, soundBubbles: true });
 
   saveSettings(localStorage, { ...DEFAULT_SETTINGS, petInvolvement: "moderate" });
   await new Promise((r) => setTimeout(r, 0));
-  expect(store.petPrefs).toEqual({ involvement: "moderate", nickname: "", sounds: true });
+  expect(store.petPrefs).toEqual({ involvement: "moderate", nickname: "", sounds: true, volume: 0.3, soundBubbles: true });
 });

@@ -21,7 +21,7 @@ describe("mischiefTiming", () => {
       soundGapMs: M.SOUND_GAP_MS,
       noteGapMs: null,
     });
-    expect(M).toMatchObject({ NOTE_STAY_MS: 15 * MIN, CHASE_GAP_MS: [10 * MIN, 20 * MIN], CHASE_MS: 10000, OPEN_GAP_MS: 120 * MIN, STUDIUM_RECENT_MS: 30 * MIN, SOUND_GAP_MS: 30000, SOUND_VOLUME: 0.3 });
+    expect(M).toMatchObject({ NOTE_STAY_MS: 15 * MIN, CHASE_GAP_MS: [10 * MIN, 20 * MIN], CHASE_MS: 10000, OPEN_GAP_MS: 120 * MIN, STUDIUM_RECENT_MS: 30 * MIN, SOUND_GAP_MS: 30000 });
   });
 
   it("uses mischiefMinutes for every gap when it's set (for checking by hand)", () => {

@@ -33,6 +33,8 @@ export type Settings = {
   startWithComputer: boolean; // desktop app only: start Studium when the computer starts
   startQuietly: boolean; // desktop app only: at that start, stay in the tray instead of opening the window
   petSounds: boolean; // desktop app only: Moderate pets make their sounds out loud
+  petVolume: number; // desktop app only: how loud those sounds are, a whole percent from 0 to 100
+  soundBubbles: boolean; // show a pet's sound as a bubble ("Meow!"), like captions
 };
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -49,6 +51,8 @@ export const DEFAULT_SETTINGS: Settings = {
   startWithComputer: true,
   startQuietly: false,
   petSounds: true,
+  petVolume: 30,
+  soundBubbles: true,
 };
 
 export const DIFFICULTIES: { value: Difficulty; label: string }[] = DIFFICULTY_LEVELS.map((value) => ({ value, label: DIFFICULTY_LABELS[value] }));
@@ -103,6 +107,8 @@ export function parseSettings(raw: string | null): Settings {
     startWithComputer: o.startWithComputer !== false,
     startQuietly: o.startQuietly === true,
     petSounds: o.petSounds !== false,
+    petVolume: typeof o.petVolume === "number" && o.petVolume >= 0 && o.petVolume <= 100 ? Math.round(o.petVolume) : DEFAULT_SETTINGS.petVolume,
+    soundBubbles: o.soundBubbles !== false,
   };
 }
 

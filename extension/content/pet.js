@@ -330,7 +330,7 @@
     // What a pet says on its own (sounds, naps, reminders). Quiet while another pet naps.
     function chatter(text, ms) {
       if (env.quiet()) return;
-      say(text, ms);
+      if (env.showsBubble(text)) say(text, ms);
       env.sound?.(text); // desktop: out loud too ("Meow!", "*cough*")
     }
 
@@ -999,6 +999,8 @@
       chaser = pet;
     },
     cursor: () => Promise.resolve(globalThis.petBridge?.cursor?.() ?? null).catch(() => null),
+    // Settings → Sound → Sound bubbles off: a sound ("Meow!", "*cough*") is heard, not shown.
+    showsBubble: (text) => prefs.soundBubbles || !L.soundKey(text),
     // Real sounds (desktop overlay, Moderate, Pet sounds on): at most one every soundGapMs across all pets.
     sound: (text) => {
       const key = L.soundKey(text);
@@ -1006,7 +1008,7 @@
       if (!key || SURFACE !== 'overlay' || !prefs.sounds || !globalThis.PetSound) return;
       if (!L.mischiefAllowed({ prefs, petAway: away, checkIn, hidden }) || !L.soundAllowed(lastSoundAt, now, timing)) return;
       lastSoundAt = now;
-      globalThis.PetSound.play(key);
+      globalThis.PetSound.play(key, prefs.volume);
     },
   };
 

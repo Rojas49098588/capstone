@@ -14,6 +14,9 @@ import {
   INVOLVEMENT_HINTS,
   PET_SOUNDS_HINT,
   PET_SOUNDS_LABEL,
+  PET_VOLUME_LABEL,
+  SOUND_BUBBLES_HINT,
+  SOUND_BUBBLES_LABEL,
   START_OPEN_LABEL,
   START_QUIETLY_HINT,
   START_QUIETLY_LABEL,
@@ -168,15 +171,6 @@ export default function Settings({ onReplayTutorial }: Props) {
         {window.studiumDesktop?.desktop && (
           <div>
             <label className="flex items-center gap-2 text-sm font-semibold">
-              <input type="checkbox" checked={settings.petSounds} onChange={(e) => change({ petSounds: e.target.checked })} />
-              {PET_SOUNDS_LABEL}
-            </label>
-            <p className={`text-xs mt-2 ${MUTED}`}>{PET_SOUNDS_HINT}</p>
-          </div>
-        )}
-        {window.studiumDesktop?.desktop && (
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold">
               <input
                 type="checkbox"
                 checked={settings.startWithComputer}
@@ -210,6 +204,48 @@ export default function Settings({ onReplayTutorial }: Props) {
           </div>
         )}
       </section>
+
+      {/* Sounds only play in the desktop app. */}
+      {window.studiumDesktop?.desktop && (
+        <section aria-labelledby="settings-sound" className={`${CARD} p-6 space-y-6`}>
+          <h2 id="settings-sound" style={SERIF} className="text-xl">
+            Sound
+          </h2>
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={settings.petSounds} onChange={(e) => change({ petSounds: e.target.checked })} />
+              {PET_SOUNDS_LABEL}
+            </label>
+            <p className={`text-xs mt-2 ${MUTED}`}>{PET_SOUNDS_HINT}</p>
+          </div>
+          <div className={settings.petSounds ? undefined : "opacity-50"}>
+            <label htmlFor="settings-volume" className="text-sm font-semibold block mb-2">
+              {PET_VOLUME_LABEL}
+            </label>
+            <div className="flex items-center gap-3">
+              <input
+                id="settings-volume"
+                type="range"
+                min={0}
+                max={100}
+                step={5}
+                value={settings.petVolume}
+                disabled={!settings.petSounds}
+                onChange={(e) => change({ petVolume: Number(e.target.value) })}
+                className="w-full max-w-[16rem] accent-[var(--color-primary)]"
+              />
+              <span className="text-sm tabular-nums w-10">{settings.petVolume}%</span>
+            </div>
+          </div>
+          <div>
+            <label className="flex items-center gap-2 text-sm font-semibold">
+              <input type="checkbox" checked={settings.soundBubbles} onChange={(e) => change({ soundBubbles: e.target.checked })} />
+              {SOUND_BUBBLES_LABEL}
+            </label>
+            <p className={`text-xs mt-2 ${MUTED}`}>{SOUND_BUBBLES_HINT}</p>
+          </div>
+        </section>
+      )}
 
       <section aria-labelledby="settings-tutorial" data-tour="settings-tutorial" className={`${CARD} p-6 space-y-3`}>
         <h2 id="settings-tutorial" style={SERIF} className="text-xl">

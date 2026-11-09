@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it } from "vitest";
 import { SETTINGS_KEY } from "../store/settings";
@@ -14,6 +14,8 @@ describe("Settings", () => {
     screen.getByText("Email");
     screen.getByText("Nickname");
     screen.getByRole("heading", { name: "Settings" });
+    // Sounds only play in the desktop app.
+    expect(screen.queryByRole("heading", { name: "Sound" })).toBeNull();
     expect((screen.getByRole("radio", { name: "Steady" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("radio", { name: "School" }) as HTMLInputElement).checked).toBe(true);
     expect((screen.getByRole("radio", { name: "Project order" }) as HTMLInputElement).checked).toBe(true);
@@ -47,6 +49,10 @@ describe("Settings", () => {
       startWithComputer: true,
       startQuietly: false,
       petSounds: true,
+
+      petVolume: 30,
+
+      soundBubbles: true,
     });
   });
 
@@ -62,13 +68,33 @@ describe("Settings", () => {
       delete window.studiumDesktop;
     });
 
-    it("can turn pet sounds off", async () => {
+    it("has a Sound section: pet sounds on, volume at 30%, sound bubbles on", () => {
+      window.studiumDesktop = { desktop: true };
+      renderWithStudium(<Settings />);
+      screen.getByRole("heading", { name: "Sound" });
+      expect((screen.getByRole("checkbox", { name: "Pet sounds" }) as HTMLInputElement).checked).toBe(true);
+      const volume = screen.getByRole("slider", { name: "Volume" }) as HTMLInputElement;
+      expect(volume.value).toBe("30");
+      expect(volume.disabled).toBe(false);
+      screen.getByText("30%");
+      expect((screen.getByRole("checkbox", { name: "Sound bubbles" }) as HTMLInputElement).checked).toBe(true);
+    });
+
+    it("can turn pet sounds off, which greys out the volume", async () => {
       window.studiumDesktop = { desktop: true };
       const { storage } = renderWithStudium(<Settings />);
-      const box = screen.getByRole("checkbox", { name: "Pet sounds" }) as HTMLInputElement;
-      expect(box.checked).toBe(true);
-      await userEvent.click(box);
+      await userEvent.click(screen.getByRole("checkbox", { name: "Pet sounds" }));
       expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ petSounds: false });
+      expect((screen.getByRole("slider", { name: "Volume" }) as HTMLInputElement).disabled).toBe(true);
+    });
+
+    it("saves the volume and sound bubbles", async () => {
+      window.studiumDesktop = { desktop: true };
+      const { storage } = renderWithStudium(<Settings />);
+      fireEvent.change(screen.getByRole("slider", { name: "Volume" }), { target: { value: "75" } });
+      screen.getByText("75%");
+      await userEvent.click(screen.getByRole("checkbox", { name: "Sound bubbles" }));
+      expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ petVolume: 75, soundBubbles: false, petSounds: true });
     });
 
     it("can stop Studium from starting with the computer", async () => {

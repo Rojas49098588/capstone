@@ -641,7 +641,8 @@
   const OLD_INVOLVEMENT = { notMuch: 'minimal', very: 'mild' }; // saved before setup existed
   // Same value as Studium's NICKNAME_MAX (web/src/planner/tuning.ts), checked by petLogic.test.ts.
   const NICKNAME_MAX = 20;
-  const DEFAULT_PREFS = { involvement: 'mild', nickname: '', sounds: true }; // sounds: Pet sounds (desktop app)
+  // sounds: Pet sounds (desktop app). volume: how loud, 0 to 1. soundBubbles: show "Meow!" as a bubble.
+  const DEFAULT_PREFS = { involvement: 'mild', nickname: '', sounds: true, volume: 0.3, soundBubbles: true };
 
   function cleanNickname(v) {
     return typeof v === 'string' ? v.trim().slice(0, NICKNAME_MAX).trim() : '';
@@ -654,6 +655,8 @@
       involvement: INVOLVEMENTS.includes(v.involvement) ? v.involvement : DEFAULT_PREFS.involvement,
       nickname: cleanNickname(v.nickname),
       sounds: v.sounds !== false,
+      volume: typeof v.volume === 'number' && v.volume >= 0 && v.volume <= 1 ? v.volume : DEFAULT_PREFS.volume,
+      soundBubbles: v.soundBubbles !== false,
     };
   }
 
@@ -672,6 +675,8 @@
       involvement: OLD_INVOLVEMENT[value.petInvolvement] ?? value.petInvolvement,
       nickname: value.nickname,
       sounds: value.petSounds,
+      volume: typeof value.petVolume === 'number' ? value.petVolume / 100 : undefined, // Studium saves a percent
+      soundBubbles: value.soundBubbles,
     });
   }
 
@@ -834,7 +839,6 @@
     OPEN_GAP_MS: 2 * 3600000, // at most one "open its project" this often
     STUDIUM_RECENT_MS: 30 * 60000, // not if Studium was showing this recently
     SOUND_GAP_MS: 30000, // at most one sound this often, across all pets
-    SOUND_VOLUME: 0.3,
     CURSOR_POLL_MS: 100, // how often a chasing pet looks for the cursor
     POUNCE_STILL_MS: 500, // the cursor stops this long…
     POUNCE_RANGE_PX: 120, // …this close to the pet: it pounces

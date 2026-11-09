@@ -53,7 +53,7 @@ it("plays a pet's sound when it talks, at most every 30 seconds, and not when mu
 
   click(pets[0]);
   click(pets[1]);
-  expect(play.mock.calls).toEqual([["meow"]]); // one sound for both: 30 seconds apart at least
+  expect(play.mock.calls).toEqual([["meow", 0.3]]); // at the default volume; one sound for both: 30 seconds apart at least
 
   await vi.advanceTimersByTimeAsync(30_000);
   click(pets[1]);
@@ -70,4 +70,19 @@ it("plays a pet's sound when it talks, at most every 30 seconds, and not when mu
   await vi.advanceTimersByTimeAsync(30_000);
   click(pets[0]);
   expect(play).toHaveBeenCalledTimes(2);
+
+  // Settings → Sound: louder, and Sound bubbles off: heard but not shown.
+  const bubble = pets[0].querySelector(".bubble") as HTMLElement;
+  await set({ petPrefs: { involvement: "moderate", nickname: "", sounds: true, volume: 0.8, soundBubbles: false } });
+  await vi.advanceTimersByTimeAsync(30_000);
+  click(pets[0]);
+  expect(play.mock.calls[play.mock.calls.length - 1]).toEqual(["meow", 0.8]);
+  expect(bubble.classList.contains("show")).toBe(false);
+
+  // Sound bubbles back on: "Meow!" shows again.
+  await set({ petPrefs: { involvement: "moderate", nickname: "", sounds: true, volume: 0.8, soundBubbles: true } });
+  await vi.advanceTimersByTimeAsync(30_000);
+  click(pets[0]);
+  expect(bubble.classList.contains("show")).toBe(true);
+  expect(bubble.textContent).toBe("Meow!");
 });
