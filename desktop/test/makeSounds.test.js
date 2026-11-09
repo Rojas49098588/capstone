@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { SAMPLE_RATE, SOUNDS, render, wavBytes } from '../scripts/makeSounds.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { RECORDED, SAMPLE_RATE, SOUNDS, placeholderKeys, render, wavBytes } from '../scripts/makeSounds.js';
 
 describe('wavBytes', () => {
   it('writes a 16-bit mono PCM WAV file', () => {
@@ -23,6 +25,25 @@ describe('SOUNDS', () => {
       expect(samples.length / SAMPLE_RATE).toBeLessThan(0.6);
       expect(samples.length).toBeGreaterThan(0);
       expect(Math.max(...samples.map(Math.abs))).toBeLessThanOrEqual(1);
+    }
+  });
+});
+
+describe('recorded sounds', () => {
+  const dir = path.join(__dirname, '..', '..', 'extension', 'assets', 'sounds');
+
+  it('are never overwritten by the placeholders', () => {
+    expect(placeholderKeys().sort()).toEqual(['cough', 'sigh', 'sneeze', 'sniffle']);
+    for (const key of RECORDED) expect(placeholderKeys()).not.toContain(key);
+  });
+
+  it('are mono 16-bit WAVs of at most 6 seconds', () => {
+    for (const key of RECORDED) {
+      const b = fs.readFileSync(path.join(dir, `${key}.wav`));
+      expect(b.toString('ascii', 0, 4)).toBe('RIFF');
+      expect(b.readUInt16LE(22)).toBe(1);
+      expect(b.readUInt16LE(34)).toBe(16);
+      expect(b.readUInt32LE(40) / 2 / b.readUInt32LE(24)).toBeLessThanOrEqual(6);
     }
   });
 });
