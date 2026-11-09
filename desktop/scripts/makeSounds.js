@@ -1,7 +1,8 @@
 // Makes the pets' placeholder sounds: extension/assets/sounds/<key>.wav, short synthesized clips
 // (no recordings, so no licences to track). Run it once: node scripts/makeSounds.js
-// To use a real clip instead, replace the .wav with one of the same name (and list its source in
-// README.md). The keys are PetLogic.soundKey's: one per animal, plus the sick and upset sounds.
+// To use a real clip instead, replace the .wav with one of the same name, add its key to RECORDED
+// (so this script leaves it alone), and list its source in README.md. The keys are
+// PetLogic.soundKey's: one per animal, plus the sick and upset sounds.
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -46,6 +47,14 @@ const SOUNDS = {
   })(),
 };
 
+// Sounds that are real recordings now: this script doesn't write them.
+const RECORDED = ['meow', 'bark', 'ribbit', 'coo'];
+
+/** The sounds this script writes: every placeholder that hasn't been replaced by a recording. */
+function placeholderKeys() {
+  return Object.keys(SOUNDS).filter((key) => !RECORDED.includes(key));
+}
+
 /** The samples of one sound, clamped to [-1, 1]. */
 function render(key) {
   const { seconds, at } = SOUNDS[key];
@@ -78,8 +87,8 @@ function wavBytes(samples, sampleRate) {
 if (require.main === module) {
   const dir = path.join(__dirname, '..', '..', 'extension', 'assets', 'sounds');
   fs.mkdirSync(dir, { recursive: true });
-  for (const key of Object.keys(SOUNDS)) fs.writeFileSync(path.join(dir, `${key}.wav`), wavBytes(render(key), SAMPLE_RATE));
-  console.log(`Wrote ${Object.keys(SOUNDS).length} sounds to ${dir}`);
+  for (const key of placeholderKeys()) fs.writeFileSync(path.join(dir, `${key}.wav`), wavBytes(render(key), SAMPLE_RATE));
+  console.log(`Wrote ${placeholderKeys().length} placeholder sounds to ${dir}`);
 }
 
-module.exports = { SAMPLE_RATE, SOUNDS, render, wavBytes };
+module.exports = { SAMPLE_RATE, SOUNDS, RECORDED, placeholderKeys, render, wavBytes };

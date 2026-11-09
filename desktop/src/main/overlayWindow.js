@@ -38,6 +38,31 @@ function overlayPlatformSetup(win, platform) {
   win.setAlwaysOnTop(true, 'floating');
 }
 
+// On Windows the overlay window can stop getting mouse presses (moves still arrive), so the pets
+// ignore every click until the window is replaced. Seen after waking from sleep; a fresh window in
+// the same app works (bugs.md, 2026-11-05). So main.js builds a new overlay after a wake or an
+// unlock, and the tray has Reload pets for any other time.
+const REBUILD_AFTER_WAKE_MS = 2000;
+
+/** Calls rebuild once, ms after the last request (waking fires both resume and unlock-screen). */
+function createRebuildTimer(rebuild, ms) {
+  let timer = null;
+  const dispose = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+  return {
+    request() {
+      dispose();
+      timer = setTimeout(() => {
+        timer = null;
+        rebuild();
+      }, ms);
+    },
+    dispose,
+  };
+}
+
 function createOverlayWindow({ url, screen }) {
   const { BrowserWindow } = require('electron');
   const win = new BrowserWindow(overlayOptions(screen.getPrimaryDisplay().workArea));
@@ -68,4 +93,12 @@ function createOverlayWindow({ url, screen }) {
   return win;
 }
 
-module.exports = { overlayBounds, overlayOptions, overlayPlatformSetup, setOverlayMouse, createOverlayWindow };
+module.exports = {
+  REBUILD_AFTER_WAKE_MS,
+  overlayBounds,
+  overlayOptions,
+  overlayPlatformSetup,
+  setOverlayMouse,
+  createRebuildTimer,
+  createOverlayWindow,
+};

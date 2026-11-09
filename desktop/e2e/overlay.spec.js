@@ -118,3 +118,81 @@ test('Show/Hide pets from the tray', async () => {
   await expect(host).toBeVisible();
   await app.close();
 });
+
+// The overlay window can get stuck ignoring mouse presses after a wake from sleep (bugs.md), so it is
+// replaced on Reload pets and after a wake or unlock. The new window must take clicks on a pet.
+test('Reload pets and waking the computer replace the pet window', async () => {
+  const { app } = await start();
+  const overlayId = () => app.evaluate(() => globalThis.studiumTest.overlay.id);
+  const overlayCount = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().filter((w) => w.getTitle() === 'Studium pets').length);
+  const hoverPetInNewWindow = async () => {
+    // The page of the current overlay window (the old one may still be listed for a moment).
+    const id = await overlayId();
+    let page = null;
+    await expect.poll(async () => {
+      for (const p of app.windows()) {
+        if (p.isClosed() || !p.url().startsWith('studium://overlay/')) continue;
+        const winId = await (await app.browserWindow(p)).evaluate((w) => w.id).catch(() => null);
+        if (winId === id) page = p;
+      }
+      return page !== null;
+    }).toBe(true);
+    const pet = page.locator('#capstone-pet-host .pet');
+    await expect(pet).toBeVisible();
+    await expect.poll(async () => {
+      const box = await pet.boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      return mouse(app);
+    }).toBe(true);
+  };
+
+  const first = await overlayId();
+  await trayClick(app, 'reload-pets');
+  const second = await overlayId();
+  expect(second).not.toBe(first);
+  await expect.poll(overlayCount).toBe(1);
+  expect(await mouse(app)).toBe(false);
+  await hoverPetInNewWindow();
+
+  // Waking fires resume and unlock-screen: one new window, a moment later.
+  await app.evaluate(() => {
+    globalThis.studiumTest.powerMonitor.emit('resume');
+    globalThis.studiumTest.powerMonitor.emit('unlock-screen');
+  });
+  expect(await overlayId()).toBe(second);
+  await expect.poll(overlayId, { timeout: 10000 }).not.toBe(second);
+  const third = await overlayId();
+  await expect.poll(overlayCount).toBe(1);
+  await hoverPetInNewWindow();
+  await new Promise((r) => setTimeout(r, 2500));
+  expect(await overlayId()).toBe(third);
+  await app.close();
+});
+
+// Recorded clips are bigger than the old placeholders; media over studium:// needs the scheme's
+// stream privilege once a file is past about 512 KB, or the audio fails to load. Each clip must
+// play to its end (muted) within 8 seconds: they are cut to at most 6.
+test('every pet sound plays in the overlay', async () => {
+  test.setTimeout(60000);
+  const app = await launch({ userData: tempUserData() });
+  const overlay = await overlayPage(app);
+  await overlay.waitForLoadState('load');
+  const keys = ['meow', 'bark', 'ribbit', 'coo', 'sneeze', 'sniffle', 'cough', 'sigh'];
+  const results = await overlay.evaluate((list) => Promise.all(list.map((key) => new Promise((resolve) => {
+    const audio = new Audio(`studium://pets/assets/sounds/${key}.wav`);
+    audio.muted = true;
+    const started = performance.now();
+    const timer = setTimeout(() => resolve(`${key}: still playing after 8 s`), 8000);
+    audio.addEventListener('ended', () => {
+      clearTimeout(timer);
+      resolve(`${key}: ended after ${Math.round((performance.now() - started) / 100) / 10} s`);
+    });
+    audio.addEventListener('error', () => {
+      clearTimeout(timer);
+      resolve(`${key}: error ${audio.error?.code}`);
+    });
+    audio.play().catch((e) => resolve(`${key}: ${e.message}`));
+  }))), keys);
+  for (const r of results) expect(r).toMatch(/: ended after/);
+  await app.close();
+});

@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { overlayBounds, overlayOptions, overlayPlatformSetup } from '../src/main/overlayWindow.js';
+import { describe, expect, it, vi } from 'vitest';
+import { REBUILD_AFTER_WAKE_MS, createRebuildTimer, overlayBounds, overlayOptions, overlayPlatformSetup } from '../src/main/overlayWindow.js';
 
 const workArea = { x: 0, y: 0, width: 1920, height: 1040 };
 
@@ -49,5 +49,38 @@ describe('overlayPlatformSetup', () => {
     const win = fakeWin();
     overlayPlatformSetup(win, 'win32');
     expect(win.calls).toEqual([]);
+  });
+});
+
+describe('createRebuildTimer', () => {
+  it('rebuilds once, a moment after the last request (wake and unlock both fire)', () => {
+    vi.useFakeTimers();
+    try {
+      const rebuild = vi.fn();
+      const timer = createRebuildTimer(rebuild, REBUILD_AFTER_WAKE_MS);
+      timer.request();
+      vi.advanceTimersByTime(REBUILD_AFTER_WAKE_MS - 1);
+      timer.request();
+      vi.advanceTimersByTime(REBUILD_AFTER_WAKE_MS - 1);
+      expect(rebuild).not.toHaveBeenCalled();
+      vi.advanceTimersByTime(1);
+      expect(rebuild).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('does nothing once disposed', () => {
+    vi.useFakeTimers();
+    try {
+      const rebuild = vi.fn();
+      const timer = createRebuildTimer(rebuild, 10);
+      timer.request();
+      timer.dispose();
+      vi.advanceTimersByTime(100);
+      expect(rebuild).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

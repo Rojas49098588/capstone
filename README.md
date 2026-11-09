@@ -64,10 +64,20 @@ npm run dist       # this computer's installer (Windows .exe or Mac .dmg) in you
 
 On Moderate, desktop pets make their sounds out loud (Settings → **Pet sounds** turns this off). The
 files are `extension/assets/sounds/<sound>.wav`: `meow`, `bark`, `ribbit`, `coo`, `sneeze`, `sniffle`,
-`cough` and `sigh`. They are placeholders synthesized by `desktop/scripts/makeSounds.js` (no
-recordings, so there are no licences to track). To use a real clip, replace a file with one of the same
-name, a short `.wav` under a second, and list its source here. Use only clips you may share, such as
-CC0.
+`cough` and `sigh`.
+
+- **Recorded:** `meow`, `bark`, `ribbit` and `coo`. Each is cut to start at its first sound and last
+  at most 6 seconds, then mixed to mono and levelled, with a short fade-out. The source MP3s are kept
+  outside the repo in `Fall_26/Studium sound sources/`. Sources:
+  - `meow`: "Cat Meowing - Sound Effect" (source link and licence: _to add_)
+  - `bark`: "Dog Barking Sound Effect - Copyright free" (source link and licence: _to add_)
+  - `ribbit`: "Frog (Croaking) - Sound Effect", ProSounds (source link and licence: _to add_)
+  - `coo`: "Pigeon - Sound Effect" (source link and licence: _to add_)
+- **Placeholders:** `sneeze`, `sniffle`, `cough` and `sigh` are synthesized by
+  `desktop/scripts/makeSounds.js`, which leaves the recorded ones alone (its `RECORDED` list).
+
+To use another real clip, replace the `.wav` with one of the same name (at most 6 seconds), add its
+key to `RECORDED`, and list its source here. Use only clips you may share, such as CC0.
 
 ## Load the extension
 
