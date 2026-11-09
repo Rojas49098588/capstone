@@ -39,7 +39,8 @@ function fileForRequest(url, roots) {
 function registerStudiumScheme() {
   const { protocol } = require('electron');
   protocol.registerSchemesAsPrivileged([
-    { scheme: 'studium', privileges: { standard: true, secure: true, supportFetchAPI: true } },
+    // stream: audio past about 512 KB (the recorded pet sounds) loads in pieces and fails without it.
+    { scheme: 'studium', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
   ]);
 }
 

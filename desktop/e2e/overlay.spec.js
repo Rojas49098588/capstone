@@ -118,3 +118,31 @@ test('Show/Hide pets from the tray', async () => {
   await expect(host).toBeVisible();
   await app.close();
 });
+
+// Recorded clips are bigger than the old placeholders; media over studium:// needs the scheme's
+// stream privilege once a file is past about 512 KB, or the audio fails to load. Each clip must
+// play to its end (muted) within 8 seconds: they are cut to at most 6.
+test('every pet sound plays in the overlay', async () => {
+  test.setTimeout(60000);
+  const app = await launch({ userData: tempUserData() });
+  const overlay = await overlayPage(app);
+  await overlay.waitForLoadState('load');
+  const keys = ['meow', 'bark', 'ribbit', 'coo', 'sneeze', 'sniffle', 'cough', 'sigh'];
+  const results = await overlay.evaluate((list) => Promise.all(list.map((key) => new Promise((resolve) => {
+    const audio = new Audio(`studium://pets/assets/sounds/${key}.wav`);
+    audio.muted = true;
+    const started = performance.now();
+    const timer = setTimeout(() => resolve(`${key}: still playing after 8 s`), 8000);
+    audio.addEventListener('ended', () => {
+      clearTimeout(timer);
+      resolve(`${key}: ended after ${Math.round((performance.now() - started) / 100) / 10} s`);
+    });
+    audio.addEventListener('error', () => {
+      clearTimeout(timer);
+      resolve(`${key}: error ${audio.error?.code}`);
+    });
+    audio.play().catch((e) => resolve(`${key}: ${e.message}`));
+  }))), keys);
+  for (const r of results) expect(r).toMatch(/: ended after/);
+  await app.close();
+});
