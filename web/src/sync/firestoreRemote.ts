@@ -167,12 +167,18 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
   }
 
   type Op = (b: WriteBatch) => void;
-  async function commit(ops: Op[]) {
-    for (const group of batchChanges(ops)) {
+  /**
+   * Queues every batch at once, in order, and resolves when the server has acknowledged them all. Firestore
+   * applies queued batches in the order they were committed, and keeps them while offline, so nothing waits
+   * for one acknowledgement before queuing the next.
+   */
+  function commit(ops: Op[]): Promise<void> {
+    const acks = batchChanges(ops).map((group) => {
       const b = writeBatch(db);
       for (const op of group) op(b);
-      await b.commit();
-    }
+      return b.commit();
+    });
+    return Promise.all(acks).then(() => undefined);
   }
 
   const setOp = (d: Doc): Op => (b) => (d.fields ? b.set(doc(db, d.path), d.data, { mergeFields: d.fields }) : b.set(doc(db, d.path), d.data));
@@ -241,9 +247,8 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
         if (c.key === "user") userStamp = c.updatedAt;
         (c.key.startsWith("project:") ? projects : rest).push(docFor(uid, c, path));
       }
-      // A project must exist before anything is written under it: the rules read its members.
-      await commitProjects(uid, projects);
-      await commit([...rest.map(setOp), metaOp(uid, meta, userStamp)]);
+      // A project must exist before anything is written under it (the rules read its members), so its batch is queued first.
+      await Promise.all([commitProjects(uid, projects), commit([...rest.map(setOp), metaOp(uid, meta, userStamp)])]);
     },
 
     async replaceAll(uid, r, meta) {
@@ -288,17 +293,16 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       const docs = [...wanted.values()];
       const projectDocs = docs.filter((d) => isProjectPath(d.path));
       const rest = docs.filter((d) => !isProjectPath(d.path));
-      await commitProjects(uid, projectDocs);
       // With no user record in r the user doc is replaced by just the save info and the record stamp, so it reads back as deleted.
       const userDoc: Op = userLive
         ? metaOp(uid, meta, r.user.updatedAt)
         : setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt } });
-      await commit([...subDeletes.map(deleteOp), ...rest.map(setOp), userDoc]);
-      // Last: a project's members are what lets the rules reach its subdocuments.
-      await commit(projectDeletes.map(deleteOp));
-      for (const p of projectDeletes) known.delete(p.split("/")[1]);
       for (const [id, p] of idx.tasks) index.tasks.set(id, p);
       for (const [id, p] of idx.requirements) index.requirements.set(id, p);
+      // Queued in this order: projects first, then what goes under them, and project deletes last, since a project's members are what lets the rules reach its subdocuments.
+      const written = Promise.all([commitProjects(uid, projectDocs), commit([...subDeletes.map(deleteOp), ...rest.map(setOp), userDoc]), commit(projectDeletes.map(deleteOp))]);
+      for (const p of projectDeletes) known.delete(p.split("/")[1]);
+      await written;
     },
 
     async deleteAll(uid) {

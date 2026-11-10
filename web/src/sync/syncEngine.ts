@@ -187,8 +187,9 @@ export function createSyncEngine(deps: EngineDeps) {
   let session = 0; // bumped on stop and connect, so callbacks from an earlier session do nothing
   let unsubscribe: (() => void) | null = null;
   let timer: ReturnType<typeof setTimeout> | null = null;
-  let changedAt: Date | null = null; // the latest local edit not yet stamped
+  const unsent = new Set<RecordKey>(); // stamped here, not yet sent
   let queue: Promise<void> = Promise.resolve();
+  const sending = new Set<Promise<void>>(); // writes the cloud hasn't acknowledged yet
   let synced: string | null = null;
   let pending: { uid: string; remote: StampedRecords | null } | null = null; // waiting for the picker
 
@@ -208,8 +209,23 @@ export function createSyncEngine(deps: EngineDeps) {
   const accountData = (remote: StampedRecords | null) => (remote ? reconcile(nothingHere(), remote, defaultUser(deps.clock()))?.data : null) ?? null;
 
   function enqueue(job: () => Promise<void>): void {
-    // A failed write is left for the next change or snapshot; it must not stop later work.
+    // A failed job is left for the next change or snapshot; it must not stop later work.
     queue = queue.then(() => job().catch(() => undefined));
+  }
+
+  /**
+   * Sends a write without waiting for the cloud to acknowledge it: offline, Firestore keeps it queued and the
+   * acknowledgement can take hours, which must hold up neither later pushes nor a connect.
+   */
+  function send(s: number, write: () => Promise<void>): void {
+    const sent = write().then(
+      () => {
+        if (s === session) synced = now();
+      },
+      () => undefined, // left for the next change or snapshot to send again
+    );
+    sending.add(sent);
+    void sent.finally(() => sending.delete(sent));
   }
 
   /** Keeps a copy of data about to be replaced. Throws, and nothing is replaced, if it can't. */
@@ -225,13 +241,12 @@ export function createSyncEngine(deps: EngineDeps) {
     }
   }
 
-  /** Stamps local edits not yet stamped; returns the keys that changed. */
+  /** Stamps local edits not yet stamped with the time now; returns the keys that changed. */
   function stampChanges(): RecordKey[] {
-    const before = state;
-    state = stampLocalChanges(state, localRecords(), changedAt ?? deps.clock());
-    changedAt = null;
-    const keys = Object.keys(state.stamps).filter((k) => state.stamps[k] !== before.stamps[k]);
-    return keys.concat(Object.keys(state.tombstones).filter((k) => state.tombstones[k] !== before.tombstones[k]));
+    const before = state.hashes;
+    state = stampLocalChanges(state, localRecords(), deps.clock());
+    const keys = Object.keys(state.hashes).filter((k) => state.hashes[k] !== before[k]);
+    return keys.concat(Object.keys(before).filter((k) => !(k in state.hashes)));
   }
 
   /** Makes the app show the reconciled data (if it differs) and remembers it as synced. */
@@ -244,18 +259,20 @@ export function createSyncEngine(deps: EngineDeps) {
     return true;
   }
 
-  async function write(s: number, uid: string, kept: StampedRecords, keys: RecordKey[]): Promise<void> {
+  function write(s: number, uid: string, kept: StampedRecords, keys: RecordKey[]): void {
     const changes = changesFor(flatten(kept), keys);
-    if (changes.length > 0) await deps.remote.write(uid, changes, meta());
-    if (s === session) synced = now();
+    const m = meta();
+    send(s, async () => {
+      if (changes.length > 0) await deps.remote.write(uid, changes, m);
+    });
   }
 
   /** Merges the account's data in. `fallbackUser`: the user record to use if the account's is missing or invalid. */
-  async function mergeIn(uid: string, local: StampedRecords, remote: StampedRecords, fallbackUser: UserRecord): Promise<void> {
+  function mergeIn(uid: string, local: StampedRecords, remote: StampedRecords, fallbackUser: UserRecord): void {
     const r = reconcile(local, remote, fallbackUser);
     if (!r) return; // nothing valid to take: this device's data stays
     if (!settle(r)) throw new Error(NOT_APPLIED);
-    await write(session, uid, r.kept, r.push);
+    write(session, uid, r.kept, r.push);
   }
 
   /** Throws if a newer connect or a stop has started since session `s` began. */
@@ -266,7 +283,8 @@ export function createSyncEngine(deps: EngineDeps) {
   /**
    * Runs a connect or a choice for `uid`. If this device couldn't keep a backup or take the account's data, it is
    * left signed out with its data as it was. Any other failure (the cloud unreachable) leaves it signed in as `uid`
-   * but not connected: edits are stamped when a later connect succeeds, never taken for edits made signed out.
+   * but not connected: edits keep being stamped as they happen and go up when a later connect succeeds, never
+   * taken for edits made signed out. Writes are sent, not awaited, so a cloud that never answers can't hold this up.
    */
   async function signingIn<T>(s: number, uid: string, work: () => Promise<T>): Promise<T> {
     try {
@@ -282,15 +300,16 @@ export function createSyncEngine(deps: EngineDeps) {
   }
 
   /** The account becomes exactly this device's data. `replacing`: the account's data the user chose not to keep. */
-  async function upload(uid: string, replacing: StampedRecords | null = null): Promise<void> {
+  function upload(uid: string, replacing: StampedRecords | null = null): void {
     const at = now();
     const records = localRecords();
     // A chosen save is stamped now throughout, so it beats any older copy still on other devices.
     const f = flatten(stampedLocal(records, replacing ? { ...state, stamps: {} } : state, at));
     if (replacing) for (const key of flatten(replacing).keys()) if (!f.has(key) && !isEvent(key)) f.set(key, { updatedAt: at, deleted: true, value: null });
-    await deps.remote.replaceAll(uid, unflatten(f), meta());
+    const all = unflatten(f);
+    const m = meta();
+    send(session, () => deps.remote.replaceAll(uid, all, m));
     state = { ...state, ...stampsOf(f), hashes: recordHashes(records) };
-    synced = at;
   }
 
   function startSession(uid: string): void {
@@ -312,25 +331,30 @@ export function createSyncEngine(deps: EngineDeps) {
 
   async function onSnapshot(s: number, uid: string, remote: StampedRecords): Promise<void> {
     if (s !== session) return;
-    stampChanges(); // edits not yet sent are stamped first, so the snapshot can't overwrite them
+    stampChanges(); // edits not yet stamped are stamped first, so the snapshot can't overwrite them
     const r = reconcile(stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
     if (r) settle(r);
     save();
-    if (r) await write(s, uid, r.kept, r.push);
+    if (!r) return;
+    unsent.clear(); // the merge sends every record of this device's that is newer than the cloud's
+    write(s, uid, r.kept, r.push);
   }
 
   async function pushChanges(s: number): Promise<void> {
     if (s !== session || state.uid === null) return;
     const uid = state.uid;
-    const keys = stampChanges();
+    for (const key of stampChanges()) unsent.add(key);
     save();
-    await write(s, uid, stampedLocal(localRecords(), state, EPOCH), keys);
+    const keys = [...unsent];
+    unsent.clear();
+    write(s, uid, stampedLocal(localRecords(), state, EPOCH), keys);
   }
 
   return {
     connect(uid: string): Promise<ConnectResult> {
       endSession();
       pending = null;
+      unsent.clear(); // connecting merges, which sends every record of this device's that is newer than the cloud's
       const s = session;
       return signingIn(s, uid, async (): Promise<ConnectResult> => {
         const remote = await deps.remote.load(uid);
@@ -356,13 +380,13 @@ export function createSyncEngine(deps: EngineDeps) {
           // An empty account taking over from another account's data starts this device afresh.
           if (decision === "backup-and-take" && !deps.applyLocal(emptyData(deps.clock()), DEFAULT_SYNCED)) throw new Error(NOT_APPLIED);
           if (decision === "rejoin") stampChanges();
-          await upload(uid);
+          upload(uid);
         } else if (decision === "rejoin") {
           // Edits made here since the last sync (signed out, or closed before they were sent) are stamped first, so they win.
           stampChanges();
-          await mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
+          mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
         } else {
-          await mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+          mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
         current(s);
         startSession(uid);
@@ -379,11 +403,11 @@ export function createSyncEngine(deps: EngineDeps) {
           const account = accountData(remote);
           if (account) backup(account);
           pending = null; // only once the backup is safe, so a failed one can be retried
-          await upload(uid, remote);
+          upload(uid, remote);
         } else {
           backup(deps.getLocal().data);
           pending = null;
-          if (remote) await mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+          if (remote) mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
         current(s);
         startSession(uid);
@@ -399,8 +423,12 @@ export function createSyncEngine(deps: EngineDeps) {
         }
         return;
       }
-      if (!unsubscribe) return; // signed in but not connected yet: connecting stamps this edit
-      changedAt = deps.clock();
+      // This account's own data: every edit is stamped, and the stamp kept, when it happens, connected or not.
+      if (state.owner === state.uid) {
+        for (const key of stampChanges()) unsent.add(key);
+        save();
+      }
+      if (!unsubscribe) return; // not connected yet: connecting sends this edit
       if (timer) clearTimeout(timer);
       const s = session;
       timer = setTimeout(() => {
@@ -409,7 +437,7 @@ export function createSyncEngine(deps: EngineDeps) {
       }, DEBOUNCE_MS);
     },
 
-    /** Runs any waiting debounced push now and resolves once all pending work and writes are done. */
+    /** Runs any waiting debounced push now and resolves once all pending work is done and the cloud has acknowledged every write. */
     async flush(): Promise<void> {
       if (timer) {
         clearTimeout(timer);
@@ -421,7 +449,8 @@ export function createSyncEngine(deps: EngineDeps) {
       do {
         q = queue;
         await q;
-      } while (q !== queue);
+        await Promise.all([...sending]);
+      } while (q !== queue || sending.size > 0);
     },
 
     stop(): void {

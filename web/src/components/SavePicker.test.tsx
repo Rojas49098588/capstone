@@ -123,15 +123,14 @@ describe("SavePicker", () => {
     screen.getByRole("button", { name: "Link account" });
   });
 
-  it("Not now (sign out) still works while a choice hangs (offline)", async () => {
+  it("a choice the cloud never acknowledges (offline) doesn't hang: the picker closes and the device stays signed in", async () => {
     const user = userEvent.setup();
     const { picker, auth, remote } = await withPicker();
     vi.spyOn(remote, "replaceAll").mockImplementation(() => new Promise(() => {})); // never answers
     await user.click(within(picker).getByRole("button", { name: "Keep this computer's" }));
-    await user.click(within(picker).getByRole("button", { name: "Not now (sign out)" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(auth.current()).toBeNull();
-    screen.getByRole("button", { name: "Link account" });
+    expect(auth.current()).not.toBeNull();
+    expect(shownNames()).not.toContain("Novel");
   });
 
   it("if the backup can't be written, says so, changes nothing and leaves the device signed out", async () => {

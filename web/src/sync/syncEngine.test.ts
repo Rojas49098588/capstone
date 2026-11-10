@@ -254,6 +254,7 @@ describe("sync engine: connecting", () => {
     const storage = memoryStorage();
     const a = device(remote, "Laptop", made.data, ABBY, storage);
     await a.engine.connect("u1");
+    a.advance(1_000);
     a.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
     a.engine.localChanged(); // closed within the debounce: never flushed
 
@@ -562,5 +563,90 @@ describe("sync engine: two devices, stale copies", () => {
     a.advance(600_000);
     await a.engine.connect("u1");
     for (const d of [a.data, b.data]) expect(d.tasks[0]).toMatchObject({ title: "Outline v2", done: false, actualMin: null });
+  });
+});
+
+/** Rejects if `p` hasn't settled within `ms`. */
+function within<T>(p: Promise<T>, ms = 500): Promise<T> {
+  return Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error("still waiting")), ms))]);
+}
+const ticks = () => new Promise((r) => setTimeout(r, 0));
+
+describe("sync engine: edits are stamped when they happen", () => {
+  it("an edit made at 09:00 and never sent loses to one made at 10:00 elsewhere, though it reaches the cloud at 13:00", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const storage = memoryStorage();
+    const a = device(quiet(remote), "Laptop", made.data, ABBY, storage);
+    await a.engine.connect("u1");
+    const b = device(quiet(remote), "Desktop");
+    await b.engine.connect("u1");
+
+    a.edit((d) => A.updateProject(d, made.id, { name: "Laptop 9am" }));
+    a.engine.localChanged(); // closed within the debounce: never sent
+    b.advance(3_600_000);
+    b.edit((d) => A.updateProject(d, made.id, { name: "Desktop 10am" }));
+    b.engine.localChanged();
+    await b.engine.flush();
+
+    const relaunched = device(remote, "Laptop", a.data, ABBY, storage);
+    relaunched.advance(4 * 3_600_000);
+    await relaunched.engine.connect("u1");
+    expect(names(relaunched.data)).toEqual(["Desktop 10am"]);
+    expect(names(await accountData(remote, "u1"))).toEqual(["Desktop 10am"]);
+  });
+
+  it("an edit made while signed in but not connected keeps its own time", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+    vi.spyOn(remote, "load").mockRejectedValueOnce(new Error("offline"));
+    await expect(a.engine.connect("u1")).rejects.toThrow("offline");
+
+    const editedAt = new Date(a.now().getTime() + 60_000).toISOString();
+    a.advance(60_000);
+    a.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
+    a.engine.localChanged();
+    a.advance(3_600_000);
+    await a.engine.connect("u1");
+    expect((await remote.load("u1"))?.projects[made.id]).toMatchObject({ updatedAt: editedAt, value: { project: { name: "Thesis" } } });
+  });
+
+  it("a write the cloud never acknowledges doesn't hold up the next push", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+    const write = vi.spyOn(remote, "write").mockImplementation(() => new Promise(() => {}));
+
+    a.advance(1_000);
+    a.edit((d) => A.updateProject(d, made.id, { name: "One" }));
+    a.engine.localChanged();
+    void a.engine.flush();
+    await ticks();
+    a.advance(1_000);
+    a.edit((d) => A.updateProject(d, made.id, { name: "Two" }));
+    a.engine.localChanged();
+    void a.engine.flush();
+    await ticks();
+    expect(write).toHaveBeenCalledTimes(2);
+  });
+
+  it("connecting doesn't wait for the cloud to acknowledge its writes", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    vi.spyOn(remote, "replaceAll").mockImplementation(() => new Promise(() => {}));
+    expect(await within(a.engine.connect("u1"))).toEqual({ kind: "synced" }); // first upload
+
+    const b = device(remote, "Desktop", withProject("Novel").data);
+    await b.engine.connect("u2");
+    b.engine.stop();
+    b.advance(60_000);
+    b.edit((d) => A.updateProject(d, d.projects[0].id, { name: "Edited offline" }));
+    vi.spyOn(remote, "write").mockImplementation(() => new Promise(() => {}));
+    expect(await within(b.engine.connect("u2"))).toEqual({ kind: "synced" }); // rejoin sends the edit
   });
 });
