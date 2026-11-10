@@ -51,20 +51,36 @@ function asLookup(index: ProjectIndex): Pick<StudiumData, "tasks" | "requirement
 
 const idOf = (key: RecordKey) => key.slice(key.indexOf(":") + 1);
 
+/**
+ * A project's document id: its owner's uid, "_", then the app's project id. App ids repeat across accounts
+ * (the example data's are fixed), so the document id carries the owner; the rules require the prefix on create.
+ */
+export const projectDocId = (owner: string, projectId: string) => `${owner}_${projectId}`;
+
+/** The app's project id for a project document, from its owner field. */
+function appProjectId(docId: string, d: DocumentData | undefined): string {
+  const owner = d?.owner;
+  return typeof owner === "string" && docId.startsWith(`${owner}_`) ? docId.slice(owner.length + 1) : docId;
+}
+
+/** The app's id of the project a task or requirement belongs to, or null when it cannot be determined. */
+function ownerProject(key: RecordKey, data: unknown, index: ProjectIndex): string | null {
+  const own = (data as { projectId?: string } | null | undefined)?.projectId;
+  return own ?? (key.startsWith("task:") ? index.tasks : index.requirements).get(idOf(key)) ?? null;
+}
+
 /** The document path for a record, or null when a task or requirement's project cannot be determined. */
 export function docPath(uid: string, key: RecordKey, data: unknown, index: ProjectIndex = newIndex()): string | null {
   if (key === "user") return `users/${uid}`;
   const id = idOf(key);
-  if (key.startsWith("project:")) return `projects/${id}`;
+  if (key.startsWith("project:")) return `projects/${projectDocId(uid, id)}`;
   if (key.startsWith("task:") || key.startsWith("requirement:")) {
-    const isTask = key.startsWith("task:");
-    const own = (data as { projectId?: string } | null | undefined)?.projectId;
-    const project = own ?? (isTask ? index.tasks : index.requirements).get(id);
-    return project ? `projects/${project}/${isTask ? "tasks" : "requirements"}/${id}` : null;
+    const project = ownerProject(key, data, index);
+    return project ? `projects/${projectDocId(uid, project)}/${key.startsWith("task:") ? "tasks" : "requirements"}/${id}` : null;
   }
   if (key.startsWith("event:")) {
     const project = data ? eventProject(data as StudiumEvent, asLookup(index)) : null;
-    return project ? `projects/${project}/events/${id}` : `users/${uid}/events/${id}`;
+    return project ? `projects/${projectDocId(uid, project)}/events/${id}` : `users/${uid}/events/${id}`;
   }
   return null;
 }
@@ -72,9 +88,8 @@ export function docPath(uid: string, key: RecordKey, data: unknown, index: Proje
 /** `fields`: write only these fields, each replaced whole (a plain merge would deep-merge maps, so removed keys would survive). Missing: replace the document. */
 type Doc = { path: string; data: DocumentData; fields?: string[] };
 
-function remember(index: ProjectIndex, key: RecordKey, path: string | null) {
-  if (path === null) return;
-  const project = path.split("/")[1];
+function remember(index: ProjectIndex, key: RecordKey, project: string | null) {
+  if (project === null) return;
   if (key.startsWith("task:")) index.tasks.set(idOf(key), project);
   else if (key.startsWith("requirement:")) index.requirements.set(idOf(key), project);
 }
@@ -111,7 +126,7 @@ type Pieces = {
   user: DocumentData | undefined;
   userEvents: Map<string, DocumentData>;
   projects: Map<string, DocumentData>;
-  subs: Map<string, Map<string, DocumentData>>; // "<projectId>/<sub>" -> docs by id
+  subs: Map<string, Map<string, DocumentData>>; // "<project document id>/<sub>" -> docs by id
 };
 
 function build(p: Pieces, index: ProjectIndex): StampedRecords | null {
@@ -119,16 +134,17 @@ function build(p: Pieces, index: ProjectIndex): StampedRecords | null {
   const out: StampedRecords = { user: parseUser(p.user), projects: {}, requirements: {}, tasks: {}, events: {} };
   if (typeof p.user?.saveId === "string") out.saveId = p.user.saveId;
   for (const [id, d] of p.userEvents) if (d.event) out.events[id] = d.event as StudiumEvent;
-  for (const [id, d] of p.projects) {
+  for (const [docId, d] of p.projects) {
+    const id = appProjectId(docId, d);
     const s = stampedDoc<{ project: never; decor: never }>(d, "project");
     // The project and its decor live on the same doc.
     out.projects[id] = s.deleted ? s : { ...s, value: { project: d.project, decor: d.decor ?? {} } };
-    for (const [eid, e] of p.subs.get(`${id}/events`) ?? []) if (e.event) out.events[eid] = e.event as StudiumEvent;
-    for (const [tid, t] of p.subs.get(`${id}/tasks`) ?? []) {
+    for (const [eid, e] of p.subs.get(`${docId}/events`) ?? []) if (e.event) out.events[eid] = e.event as StudiumEvent;
+    for (const [tid, t] of p.subs.get(`${docId}/tasks`) ?? []) {
       out.tasks[tid] = stampedDoc<Task>(t, "data");
       index.tasks.set(tid, id);
     }
-    for (const [rid, r] of p.subs.get(`${id}/requirements`) ?? []) {
+    for (const [rid, r] of p.subs.get(`${docId}/requirements`) ?? []) {
       out.requirements[rid] = stampedDoc<Requirement>(r, "data");
       index.requirements.set(rid, id);
     }
@@ -146,7 +162,7 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
   });
   if (opts.emulator) connectFirestoreEmulator(db, opts.emulator.host, opts.emulator.port);
   const index = newIndex();
-  const known = new Set<string>(); // projects seen to exist, so a write knows to update rather than create
+  const known = new Set<string>(); // project document ids seen to exist, so a write knows to update rather than create
   const warned = new Set<string>();
 
   const memberProjects = (uid: string) => getDocs(query(collection(db, "projects"), where("members", "array-contains", uid)));
@@ -233,7 +249,7 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       // Learn every task and requirement's project first, so events and deletes can find theirs.
       for (const c of changes) {
         if (c.key.startsWith("task:") || c.key.startsWith("requirement:")) {
-          remember(index, c.key, docPath(uid, c.key, c.kind === "upsert" ? c.value : null, index));
+          remember(index, c.key, ownerProject(c.key, c.kind === "upsert" ? c.value : null, index));
         }
       }
       const projects: Doc[] = [];
@@ -256,8 +272,10 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       // What this account holds now. Projects shared with others are left alone.
       const existing: string[] = [];
       const projectPaths: string[] = [];
+      const appIds = new Map<string, string>(); // project document id -> the app's project id
       for (const p of (await memberProjects(uid)).docs) {
         known.add(p.id);
+        appIds.set(p.id, appProjectId(p.id, p.data()));
         if ((p.data().members as string[]).length !== 1) continue;
         projectPaths.push(`projects/${p.id}`);
         for (const sub of SUBS) for (const d of (await getDocs(collection(db, "projects", p.id, sub))).docs) existing.push(d.ref.path);
@@ -267,7 +285,8 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       // A tombstone has no value to say which project it belongs to, so that comes from the session or from where it is stored now.
       const idx: ProjectIndex = { tasks: new Map(index.tasks), requirements: new Map(index.requirements) };
       for (const path of existing) {
-        const [, project, sub, id] = path.split("/");
+        const [, docId, sub, id] = path.split("/");
+        const project = appIds.get(docId) ?? docId;
         if (sub === "tasks") idx.tasks.set(id, project);
         else if (sub === "requirements") idx.requirements.set(id, project);
       }

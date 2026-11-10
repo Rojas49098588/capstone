@@ -8,13 +8,13 @@ describe("firestore remote helpers", () => {
     expect(batches.map((b) => b.length)).toEqual([450, 450, 300]);
   });
 
-  it("record keys map to the right document paths", () => {
-    expect(docPath("u1", "task:t1", { projectId: "p1" })).toBe("projects/p1/tasks/t1");
-    expect(docPath("u1", "requirement:r1", { projectId: "p1" })).toBe("projects/p1/requirements/r1");
-    expect(docPath("u1", "project:p1", undefined)).toBe("projects/p1");
+  it("record keys map to the right document paths; a project's document id starts with its owner's uid", () => {
+    expect(docPath("u1", "task:t1", { projectId: "p1" })).toBe("projects/u1_p1/tasks/t1");
+    expect(docPath("u1", "requirement:r1", { projectId: "p1" })).toBe("projects/u1_p1/requirements/r1");
+    expect(docPath("u1", "project:p1", undefined)).toBe("projects/u1_p1");
     expect(docPath("u1", "event:abc", { type: "purchase", at: "2026-01-01T00:00:00Z" })).toBe("users/u1/events/abc");
     expect(docPath("u1", "event:xyz", { type: "fed", at: "2026-01-01T00:00:00Z", projectId: "p2", petId: "p2", productId: "x" })).toBe(
-      "projects/p2/events/xyz",
+      "projects/u1_p2/events/xyz",
     );
     expect(docPath("u1", "user", undefined)).toBe("users/u1");
   });

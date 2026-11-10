@@ -7,9 +7,11 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // A shared project. Membership changes are not allowed here.
+    // A shared project. Membership changes are not allowed here. Its id is "<owner uid>_<project id>",
+    // so two accounts' projects never collide and nobody can take an id another account will need.
     match /projects/{pid} {
       allow create: if request.auth != null
+        && pid.matches(request.auth.uid + '_.*')
         && request.resource.data.owner == request.auth.uid
         && request.resource.data.members == [request.auth.uid];
       allow read, delete: if request.auth != null

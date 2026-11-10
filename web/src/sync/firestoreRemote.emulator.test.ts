@@ -137,10 +137,31 @@ describe("firestore remote against the emulator", () => {
     await one.remote.write(one.uid, [up("user", user), up("project:p1", { project: project("p1"), decor: {} }), up("task:t1", task("t1", "p1"))], meta);
     const seen = await two.remote.load(two.uid);
     expect(seen?.projects.p1).toBeUndefined();
-    await expect(two.remote.write(two.uid, [up("project:p1", { project: project("p1", { name: "mine" }), decor: {} }, 9)], meta)).rejects.toThrow();
+    // The same project id is the second user's own project, in a document of its own.
+    await two.remote.write(two.uid, [up("project:p1", { project: project("p1", { name: "mine" }), decor: {} }, 9), del("task:t1", 9)], meta);
     expect((await one.remote.load(one.uid))?.projects.p1.value?.project).toEqual(project("p1"));
-    await expect(two.remote.write(two.uid, [del("task:t1", 9)], meta)).resolves.toBeUndefined(); // unknown project: skipped, nothing written
     expect((await one.remote.load(one.uid))?.tasks.t1.deleted).toBe(false);
+    expect((await two.remote.load(two.uid))?.projects.p1.value?.project).toEqual(project("p1", { name: "mine" }));
+  });
+
+  it("two accounts that both have the example data's project ids sync side by side", async () => {
+    const one = await newUser();
+    const two = await newUser();
+    for (const [n, c] of [one, two].entries()) {
+      await c.remote.replaceAll(
+        c.uid,
+        records({ projects: { webDev: live({ project: project("webDev", { name: `web ${n}` }), decor: {} }) }, tasks: { "webDev-t1": live(task("webDev-t1", "webDev")) } }),
+        meta,
+      );
+      await c.remote.write(c.uid, [up("task:webDev-t1", task("webDev-t1", "webDev"), 5), up("event:e1", { type: "fed", at: T(5), projectId: "webDev", petId: "webDev", productId: "f" }, 5)], meta);
+    }
+    for (const [n, c] of [one, two].entries()) {
+      const r = await c.remote.load(c.uid);
+      expect(Object.keys(r?.projects ?? {})).toEqual(["webDev"]);
+      expect(r?.projects.webDev.value?.project).toEqual(project("webDev", { name: `web ${n}` }));
+      expect(r?.tasks["webDev-t1"].updatedAt).toBe(T(5));
+      expect(Object.keys(r?.events ?? {})).toEqual(["e1"]);
+    }
   });
 });
 

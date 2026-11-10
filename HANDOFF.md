@@ -90,11 +90,11 @@ Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs
 - UI: `components/AccountSection.tsx` (Settings → Account, backups with Download), `SignInDialog.tsx`, `SavePicker.tsx`; setup has "Already use Studium? Sign in". Tests (fakes for auth and remote) sit next to each file.
 
 **Firestore layout** (`firebase/firestore.rules` enforces it)
-- `users/{uid}`: `{ updatedAt: string, savedAt: string, savedBy: string, startingTokens: number, defaultBeds: boolean, today: {date, taskIds}, settings: {nickname, petInvolvement, petOrder} }`
+- `users/{uid}`: `{ updatedAt: string, savedAt: string, savedBy: string, saveId: string, startingTokens: number, defaultBeds: boolean, today: {date, taskIds}, settings: {nickname, petInvolvement, petOrder} }`. `saveId` is the save generation: every `replaceAll` (first upload, "Keep this computer's") writes a new one, and a device whose remembered `saveId` differs backs up its data and takes the account's instead of merging.
 - `users/{uid}/events/{eventId}`: `{ event: StudiumEvent }` (personal events: `purchase`).
-- `projects/{projectId}`: `{ members: string[], owner: string, updatedAt: string, deleted: boolean, project: Project | null, decor: Record<habitatId, HabitatDecor> }`
-- `projects/{projectId}/requirements/{id}` and `.../tasks/{id}`: `{ updatedAt: string, deleted: boolean, data: Requirement | Task | null }`
-- `projects/{projectId}/events/{eventId}`: `{ event: StudiumEvent, by: string }`
+- `projects/{ownerUid}_{projectId}`: `{ members: string[], owner: string, updatedAt: string, deleted: boolean, project: Project | null, decor: Record<habitatId, HabitatDecor> }`. The document id carries the owner's uid because project ids repeat across accounts (the example data's `webDev`, `appDev`, ...); the rules require the prefix on create.
+- `projects/{ownerUid}_{projectId}/requirements/{id}` and `.../tasks/{id}`: `{ updatedAt: string, deleted: boolean, data: Requirement | Task | null }`
+- `projects/{ownerUid}_{projectId}/events/{eventId}`: `{ event: StudiumEvent, by: string }`
 
 **Rules and tests.** Users reach only their own `users/{uid}` tree. A project is created with yourself as owner and only member; only members read or write it and its subcollections; an update can't change `members` or `owner` (collab's job later). Rules tests: `cd firebase && npm test` (starts the emulator; needs Java). The real Firestore adapter against the emulators: `cd web && npm run test:emulator`. Both passed on 2026-11-09. `npx vitest run` in `web/` skips the emulator test.
 

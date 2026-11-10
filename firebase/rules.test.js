@@ -41,21 +41,29 @@ describe('firestore rules', () => {
   })
 
   it('a project is created only with yourself as owner and only member', async () => {
-    await assertSucceeds(setDoc(doc(as('alice'), 'projects/p1'), { members: ['alice'], owner: 'alice' }))
+    await assertSucceeds(setDoc(doc(as('alice'), 'projects/alice_p1'), { members: ['alice'], owner: 'alice' }))
     await assertFails(
-      setDoc(doc(as('bob'), 'projects/p2'), { members: ['alice', 'bob'], owner: 'bob' }),
+      setDoc(doc(as('bob'), 'projects/bob_p2'), { members: ['alice', 'bob'], owner: 'bob' }),
     )
-    await assertFails(setDoc(doc(as('bob'), 'projects/p3'), { members: ['alice'], owner: 'alice' }))
+    await assertFails(setDoc(doc(as('bob'), 'projects/bob_p3'), { members: ['alice'], owner: 'alice' }))
+  })
+
+  it("a project's document id must start with its creator's uid and an underscore", async () => {
+    const bob = as('bob')
+    await assertSucceeds(setDoc(doc(bob, 'projects/bob_webDev'), { members: ['bob'], owner: 'bob' }))
+    await assertFails(setDoc(doc(bob, 'projects/webDev'), { members: ['bob'], owner: 'bob' }))
+    await assertFails(setDoc(doc(bob, 'projects/alice_webDev'), { members: ['bob'], owner: 'bob' }))
+    await assertFails(setDoc(doc(bob, 'projects/bobby_webDev'), { members: ['bob'], owner: 'bob' }))
   })
 
   it('only members read or write a project and its subcollections', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'projects/p1'), { members: ['alice'], owner: 'alice' })
+      await setDoc(doc(ctx.firestore(), 'projects/alice_p1'), { members: ['alice'], owner: 'alice' })
     })
     const alice = as('alice')
     const bob = as('bob')
-    for (const path of ['projects/p1', 'projects/p1/tasks/t1', 'projects/p1/events/e1']) {
-      const data = path === 'projects/p1' ? { members: ['alice'], owner: 'alice', x: 1 } : { x: 1 }
+    for (const path of ['projects/alice_p1', 'projects/alice_p1/tasks/t1', 'projects/alice_p1/events/e1']) {
+      const data = path === 'projects/alice_p1' ? { members: ['alice'], owner: 'alice', x: 1 } : { x: 1 }
       await assertFails(getDoc(doc(bob, path)))
       await assertFails(setDoc(doc(bob, path), data))
       await assertSucceeds(setDoc(doc(alice, path), data))
@@ -65,22 +73,22 @@ describe('firestore rules', () => {
 
   it("members and owner can't be changed by an update", async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
-      await setDoc(doc(ctx.firestore(), 'projects/p1'), { members: ['alice'], owner: 'alice' })
+      await setDoc(doc(ctx.firestore(), 'projects/alice_p1'), { members: ['alice'], owner: 'alice' })
     })
     const alice = as('alice')
-    await assertFails(setDoc(doc(alice, 'projects/p1'), { members: ['alice', 'bob'], owner: 'alice' }))
-    await assertFails(setDoc(doc(alice, 'projects/p1'), { members: ['alice'], owner: 'bob' }))
+    await assertFails(setDoc(doc(alice, 'projects/alice_p1'), { members: ['alice', 'bob'], owner: 'alice' }))
+    await assertFails(setDoc(doc(alice, 'projects/alice_p1'), { members: ['alice'], owner: 'bob' }))
   })
 
   it('signed-out requests are denied everywhere', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore()
       await setDoc(doc(db, 'users/alice'), { a: 1 })
-      await setDoc(doc(db, 'projects/p1'), { members: ['alice'], owner: 'alice' })
-      await setDoc(doc(db, 'projects/p1/tasks/t1'), { a: 1 })
+      await setDoc(doc(db, 'projects/alice_p1'), { members: ['alice'], owner: 'alice' })
+      await setDoc(doc(db, 'projects/alice_p1/tasks/t1'), { a: 1 })
     })
     const anon = env.unauthenticatedContext().firestore()
-    for (const path of ['users/alice', 'projects/p1', 'projects/p1/tasks/t1']) {
+    for (const path of ['users/alice', 'projects/alice_p1', 'projects/alice_p1/tasks/t1']) {
       await assertFails(getDoc(doc(anon, path)))
       await assertFails(setDoc(doc(anon, path), { members: [], owner: 'x' }))
     }
