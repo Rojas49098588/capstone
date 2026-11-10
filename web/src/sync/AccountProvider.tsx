@@ -124,7 +124,9 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
   useEffect(() => {
     if (!loading) return;
     let live = true;
-    (loadRef.current ?? createFirebaseServices)().then(
+    // The desktop app signs in through the system browser (its window can't run Google's popup).
+    const browserSignIn = typeof window !== "undefined" ? window.studiumDesktop?.signInWithBrowser : undefined;
+    (loadRef.current ?? (() => createFirebaseServices({ browserSignIn })))().then(
       (s) => {
         if (live) setStatus(s ? withEngine(s) : null);
       },

@@ -78,7 +78,11 @@ function installBridge({ win, storage, ipc, signal }) {
 
 if (typeof process !== 'undefined' && process.type === 'renderer') {
   const { contextBridge, ipcRenderer } = require('electron');
-  contextBridge.exposeInMainWorld('studiumDesktop', { desktop: true });
+  contextBridge.exposeInMainWorld('studiumDesktop', {
+    desktop: true,
+    // Google sign-in in the system browser: resolves with { idToken, accessToken?, rawNonce? }, rejects if cancelled.
+    signInWithBrowser: (provider) => ipcRenderer.invoke('auth:browser', provider),
+  });
   installBridge({ win: window, storage: window.localStorage, ipc: ipcRenderer });
 }
 
