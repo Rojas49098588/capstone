@@ -32,6 +32,9 @@ const MODES: { mode: SignInMode; label: string }[] = [
   { mode: "signin", label: SIGN_IN_LABEL },
   { mode: "create", label: CREATE_ACCOUNT_LABEL },
 ];
+// The desktop app signs in through the browser; Apple's id token carries a nonce Firebase's popup result
+// doesn't expose publicly, so Apple is offered on the web only.
+const onDesktop = () => typeof window !== "undefined" && !!window.studiumDesktop?.desktop;
 const codeOf = (e: unknown) => (typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined);
 
 /** The sign-in box: email and password (signing in or creating an account), Google and Apple. */
@@ -186,9 +189,11 @@ export default function SignInDialog({ auth, reason, initialMode, onSignedIn, on
           <button type="button" disabled={busy} onClick={() => void run(() => auth.signInGoogle())} className={`${BUTTON_SECONDARY} w-full`}>
             {GOOGLE_SIGN_IN_LABEL}
           </button>
-          <button type="button" disabled={busy} onClick={() => void run(() => auth.signInApple())} className={`${BUTTON_SECONDARY} w-full`}>
-            {APPLE_SIGN_IN_LABEL}
-          </button>
+          {!onDesktop() && (
+            <button type="button" disabled={busy} onClick={() => void run(() => auth.signInApple())} className={`${BUTTON_SECONDARY} w-full`}>
+              {APPLE_SIGN_IN_LABEL}
+            </button>
+          )}
         </div>
 
         <div className="flex justify-end">

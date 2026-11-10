@@ -54,15 +54,20 @@ async function mapped<T>(run: () => Promise<T>): Promise<T> {
   }
 }
 
+/** The provider for a button: Apple asks for the person's email and name (Apple only sends the name the first time). */
+export function providerFor(name: "google" | "apple"): GoogleAuthProvider | OAuthProvider {
+  if (name === "google") return new GoogleAuthProvider();
+  const apple = new OAuthProvider("apple.com");
+  apple.addScope("email");
+  apple.addScope("name");
+  return apple;
+}
+
 export function createFirebaseAuth(app: FirebaseApp, opts: { browserSignIn?: BrowserSignIn } = {}): AuthClient {
   const auth = getAuth(app);
 
   async function viaProvider(name: "google" | "apple"): Promise<Account> {
-    const provider = name === "google" ? new GoogleAuthProvider() : new OAuthProvider("apple.com");
-    if (name === "apple") {
-      provider.addScope("email");
-      provider.addScope("name");
-    }
+    const provider = providerFor(name);
     if (opts.browserSignIn) {
       // The browser flow rejects with no code when the person backs out.
       const t = await opts.browserSignIn(name).catch((e: unknown) => {

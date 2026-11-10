@@ -65,6 +65,30 @@ describe("SignInDialog", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
+  it("Continue with Apple signs in", async () => {
+    const user = userEvent.setup();
+    const { auth } = renderWithAccount(<Settings />);
+    await user.click(screen.getByRole("button", { name: "Link account" }));
+    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Continue with Apple" }));
+    await screen.findByText("Last synced just now");
+    expect(auth.current()).not.toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("the desktop app does not offer Apple (its browser hand-off has no verified nonce)", async () => {
+    window.studiumDesktop = { desktop: true };
+    try {
+      const user = userEvent.setup();
+      renderWithAccount(<Settings />);
+      await user.click(screen.getByRole("button", { name: "Link account" }));
+      const dialog = screen.getByRole("dialog");
+      within(dialog).getByRole("button", { name: "Continue with Google" });
+      expect(within(dialog).queryByRole("button", { name: "Continue with Apple" })).toBeNull();
+    } finally {
+      delete window.studiumDesktop;
+    }
+  });
+
   it("says why it is asking, and always mentions the bonus", async () => {
     const user = userEvent.setup();
     renderWithAccount(<AskToSignIn reason="purchase" />);
