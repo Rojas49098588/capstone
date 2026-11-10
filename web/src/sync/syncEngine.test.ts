@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
 import { screen } from "@testing-library/react";
 import { createElement } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import Shop from "../components/Shop";
 import { tokenBalance } from "../planner/history";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
 import * as A from "../store/actions";
 import { emptyData } from "../store/seed";
+import { DEFAULT_SETTINGS } from "../store/settings";
 import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { FakeRemote } from "../test/fakeRemote";
 import { memoryStorage, renderWithStudium } from "../test/render";
@@ -25,10 +26,9 @@ function withProject(name: string, data: StudiumData = emptyData(NOW)): { data: 
 }
 
 /** One device: its own storage, its own data, and a clock the test moves. */
-function device(remote: FakeRemote, name: string, data: StudiumData = emptyData(NOW), settings: SyncedSettings = ABBY) {
+function device(remote: FakeRemote, name: string, data: StudiumData = emptyData(NOW), settings: SyncedSettings = ABBY, storage = memoryStorage()) {
   let local = { data, settings };
   let now = NOW;
-  const storage = memoryStorage();
   const engine = createSyncEngine({
     remote,
     storage,
@@ -177,9 +177,139 @@ describe("sync engine: connecting", () => {
 
     expect(await a.engine.connect("u2")).toEqual({ kind: "synced" });
     expect(names(a.data)).toEqual(["Novel"]);
+    expect(a.settings).toEqual(BEE); // the new account's, not the previous account's
     expect(backups(a.storage).map(names)).toEqual([["Essay"]]);
     expect(names(await accountData(remote, "u2"))).toEqual(["Novel"]); // never uploaded to u2
     expect(loadSyncState(a.storage)).toMatchObject({ uid: "u2", owner: "u2" });
+  });
+
+  it("backup-and-take into an empty account starts afresh with default settings", async () => {
+    const remote = new FakeRemote();
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+
+    expect(await a.engine.connect("u2")).toEqual({ kind: "synced" });
+    const defaults: SyncedSettings = { nickname: DEFAULT_SETTINGS.nickname, petInvolvement: DEFAULT_SETTINGS.petInvolvement, petOrder: DEFAULT_SETTINGS.petOrder };
+    expect(a.data.projects).toEqual([]);
+    expect(a.settings).toEqual(defaults);
+    expect(((await remote.load("u2")) as StampedRecords).user.value?.settings).toEqual(defaults);
+    expect(names(await accountData(remote, "u2"))).toEqual([]);
+    expect(backups(a.storage).map(names)).toEqual([["Essay"]]);
+  });
+
+  it("a failed backup leaves the device signed out with its data, and nothing is written", async () => {
+    const remote = new FakeRemote();
+    const b = device(remote, "Desktop", withProject("Novel").data, BEE);
+    await b.engine.connect("u2");
+    b.engine.stop();
+    const made = withProject("Essay");
+    const storage = memoryStorage();
+    const a = device(remote, "Laptop", made.data, ABBY, storage);
+    await a.engine.connect("u1"); // the app then closes while signed in as u1
+
+    const setItem = storage.setItem;
+    storage.setItem = (k: string, v: string) => {
+      if (k.startsWith(BACKUP_PREFIX)) throw new Error("storage full");
+      setItem(k, v);
+    };
+    const relaunched = device(remote, "Laptop", made.data, ABBY, storage);
+    const before = relaunched.data;
+    await expect(relaunched.engine.connect("u2")).rejects.toThrow();
+    expect(relaunched.data).toBe(before);
+    expect(loadSyncState(storage)).toMatchObject({ uid: null, owner: "u1" });
+
+    const write = vi.spyOn(remote, "write");
+    relaunched.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
+    relaunched.engine.localChanged();
+    await relaunched.engine.flush();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("a choice whose backup fails can be tried again", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const storage = memoryStorage();
+    const setItem = storage.setItem;
+    let full = true;
+    storage.setItem = (k: string, v: string) => {
+      if (full && k.startsWith(BACKUP_PREFIX)) throw new Error("storage full");
+      setItem(k, v);
+    };
+    const a = device(remote, "Laptop", withProject("Essay").data, ABBY, storage);
+    expect((await a.engine.connect("u1")).kind).toBe("picker");
+    await expect(a.engine.choose("u1", "account")).rejects.toThrow();
+    expect(names(a.data)).toEqual(["Essay"]);
+    expect(loadSyncState(storage).uid).toBeNull();
+
+    full = false;
+    await a.engine.choose("u1", "account");
+    expect(names(a.data)).toEqual(["Novel"]);
+    expect(backups(storage).map(names)).toEqual([["Essay"]]);
+  });
+
+  it("an edit not yet sent when the app closed survives the next launch's rejoin", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const storage = memoryStorage();
+    const a = device(remote, "Laptop", made.data, ABBY, storage);
+    await a.engine.connect("u1");
+    a.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
+    a.engine.localChanged(); // closed within the debounce: never flushed
+
+    const relaunched = device(remote, "Laptop", a.data, ABBY, storage);
+    relaunched.advance(60_000);
+    expect(await relaunched.engine.connect("u1")).toEqual({ kind: "synced" });
+    expect(names(relaunched.data)).toEqual(["Thesis"]);
+    expect(names(await accountData(remote, "u1"))).toEqual(["Thesis"]);
+  });
+
+  it("a project deleted while signed out stays deleted on rejoin", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+    a.advance(60_000);
+    a.edit((d) => A.deleteProject(d, made.id));
+    a.engine.localChanged();
+
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" });
+    expect(a.data.projects).toEqual([]);
+    expect((await remote.load("u1"))?.projects[made.id].deleted).toBe(true);
+  });
+
+  it("if the app can't take the account's data, connect rejects and the device stays signed out", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const storage = memoryStorage();
+    const subscribe = vi.spyOn(remote, "subscribe");
+    const engine = createSyncEngine({
+      remote, storage, clock: () => NOW, device: "Laptop",
+      getLocal: () => ({ data: emptyData(NOW), settings: ABBY }),
+      applyLocal: () => false,
+    });
+    await expect(engine.connect("u1")).rejects.toThrow();
+    expect(subscribe).not.toHaveBeenCalled();
+    expect(loadSyncState(storage).uid).toBeNull();
+    expect(names(await accountData(remote, "u1"))).toEqual(["Novel"]);
+  });
+
+  it("taking data the app normalizes doesn't echo the normalizing back as an edit", async () => {
+    const remote = new FakeRemote();
+    const old = { ...withProject("Novel").data, decor: undefined, defaultBeds: undefined }; // saved before built-in beds
+    const b = device(remote, "Desktop", old, BEE);
+    await b.engine.connect("u1");
+    b.engine.stop();
+
+    const a = device(remote, "Laptop");
+    await a.engine.connect("u1");
+    expect(a.data.defaultBeds).toBe(true);
+    const write = vi.spyOn(remote, "write");
+    a.advance(60_000);
+    a.engine.localChanged();
+    await a.engine.flush();
+    expect(write).not.toHaveBeenCalled();
   });
 });
 

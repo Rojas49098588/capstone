@@ -2,8 +2,10 @@
 // pushing local edits and taking in edits from other devices.
 import type { StudiumData, StudiumEvent } from "../planner/types";
 import { emptyData } from "../store/seed";
-import { PET_INVOLVEMENT_LEVELS, PET_ORDERS } from "../store/settings";
-import { BACKUP_PREFIX, isValidData } from "../store/storage";
+import { LEGACY_STARTING_TOKENS } from "../planner/tuning";
+import { localDateKey } from "../planner/time";
+import { DEFAULT_SETTINGS, PET_INVOLVEMENT_LEVELS, PET_ORDERS } from "../store/settings";
+import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { decideLink } from "./linkDecision";
 import { liveRecords, mergeRecords, type Stamped, type StampedRecords } from "./merge";
 import { fromRecords, recordHashes, toRecords, type RecordKey, type Records, type SyncedSettings, type UserRecord } from "./records";
@@ -24,7 +26,20 @@ export type ConnectResult =
   | { kind: "picker"; local: SaveSummary & { more: number }; account: SaveSummary & { more: number } };
 
 const EPOCH = new Date(0).toISOString(); // never stamped here: any cloud copy is newer
+const DEFAULT_SYNCED: SyncedSettings = {
+  nickname: DEFAULT_SETTINGS.nickname,
+  petInvolvement: DEFAULT_SETTINGS.petInvolvement,
+  petOrder: DEFAULT_SETTINGS.petOrder,
+};
+/** A user record owing nothing to this device, for an account that has none: nothing of the replaced data leaks in. */
+const defaultUser = (now: Date): UserRecord => ({
+  startingTokens: LEGACY_STARTING_TOKENS,
+  defaultBeds: false,
+  today: { date: localDateKey(now), taskIds: [] },
+  settings: DEFAULT_SYNCED,
+});
 const DEBOUNCE_MS = 1000;
+const NOT_APPLIED = "Couldn't show the account's data, so this device stays signed out.";
 const TABLES = { project: "projects", requirement: "requirements", task: "tasks" } as const;
 type Table = keyof typeof TABLES;
 
@@ -95,7 +110,7 @@ const validSettings = (s: SyncedSettings | undefined) =>
 
 type Assembled = { data: StudiumData; settings: SyncedSettings; records: Records };
 
-/** What the app would see, or null if it isn't valid. A missing user record falls back to this device's. */
+/** What the app would see, or null if it isn't valid. A missing user record falls back to `fallbackUser`. */
 function assemble(s: StampedRecords, fallbackUser: UserRecord): Assembled | null {
   try {
     const user = !s.user || s.user.deleted || s.user.value === null ? { updatedAt: EPOCH, deleted: false, value: fallbackUser } : s.user;
@@ -180,11 +195,13 @@ export function createSyncEngine(deps: EngineDeps) {
     const l = deps.getLocal();
     return toRecords(l.data, l.settings);
   };
-  /** Nothing but this device's user record, which loses to the cloud's: taking the cloud's data whole. */
+  /** No records of this device's at all: taking the cloud's data whole. */
   const nothingHere = (): StampedRecords => ({
-    user: { updatedAt: EPOCH, deleted: false, value: localRecords().user },
+    user: { updatedAt: EPOCH, deleted: false, value: defaultUser(deps.clock()) },
     projects: {}, requirements: {}, tasks: {}, events: {},
   });
+  /** The account's data as this device would see it; null if the account has nothing valid. */
+  const accountData = (remote: StampedRecords | null) => (remote ? reconcile(nothingHere(), remote, defaultUser(deps.clock()))?.data : null) ?? null;
 
   function enqueue(job: () => Promise<void>): void {
     // A failed write is left for the next change or snapshot; it must not stop later work.
@@ -216,7 +233,8 @@ export function createSyncEngine(deps: EngineDeps) {
   /** Makes the app show the reconciled data (if it differs) and remembers it as synced. */
   function settle(r: Reconciled): boolean {
     const local = deps.getLocal();
-    const hashes = recordHashes(r.records);
+    // Hashed as the app will hold it (normalized), so normalizing isn't later taken for a local edit.
+    const hashes = recordHashes(toRecords(normalizeData(r.data), r.settings));
     if (!sameHashes(hashes, recordHashes(toRecords(local.data, local.settings))) && !deps.applyLocal(r.data, r.settings)) return false;
     state = { ...state, ...stampsOf(flatten(r.kept)), hashes };
     return true;
@@ -228,9 +246,24 @@ export function createSyncEngine(deps: EngineDeps) {
     if (s === session) synced = now();
   }
 
-  async function mergeIn(uid: string, local: StampedRecords, remote: StampedRecords): Promise<void> {
-    const r = reconcile(local, remote, localRecords().user);
-    if (r && settle(r)) await write(session, uid, r.kept, r.push);
+  /** Merges the account's data in. `fallbackUser`: the user record to use if the account's is missing or invalid. */
+  async function mergeIn(uid: string, local: StampedRecords, remote: StampedRecords, fallbackUser: UserRecord): Promise<void> {
+    const r = reconcile(local, remote, fallbackUser);
+    if (!r) return; // nothing valid to take: this device's data stays
+    if (!settle(r)) throw new Error(NOT_APPLIED);
+    await write(session, uid, r.kept, r.push);
+  }
+
+  /** Runs a connect or a choice; if it fails, this device is left signed out with its data as it was. */
+  async function signingIn<T>(work: () => Promise<T>): Promise<T> {
+    try {
+      return await work();
+    } catch (e) {
+      endSession();
+      state = { ...state, uid: null };
+      save();
+      throw e;
+    }
   }
 
   /** The account becomes exactly this device's data. `replacing`: the account's data the user chose not to keep. */
@@ -280,52 +313,59 @@ export function createSyncEngine(deps: EngineDeps) {
   }
 
   return {
-    async connect(uid: string): Promise<ConnectResult> {
+    connect(uid: string): Promise<ConnectResult> {
       endSession();
       pending = null;
-      const remote = await deps.remote.load(uid);
-      const local = deps.getLocal();
-      const decision = decideLink({ uid, state, localHasProjects: local.data.projects.length > 0, remoteHasProjects: hasProjects(remote) });
-      if (decision === "picker") {
-        pending = { uid, remote };
-        const account = remote ? reconcile(nothingHere(), remote, localRecords().user)?.data : null;
-        return {
-          kind: "picker",
-          local: summarize(local.data, { savedAt: lastChange(local.data, state) ?? now(), savedBy: deps.device }),
-          account: summarize(account ?? emptyData(deps.clock()), await deps.remote.savedInfo(uid)),
-        };
-      }
-      if (decision === "backup-and-take" || (decision === "take" && (local.data.projects.length > 0 || local.data.events.length > 0))) {
-        backup(local.data);
-        // Nothing about the replaced data may reach this account, not even what was deleted.
-        state = { ...state, stamps: {}, tombstones: {}, hashes: {} };
-      }
-      if (decision === "upload" || !remote) {
-        // An empty account taking over from another account's data starts this device afresh.
-        if (decision === "backup-and-take") deps.applyLocal(emptyData(deps.clock()), local.settings);
-        await upload(uid);
-      } else if (decision === "rejoin") {
-        await mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote);
-      } else {
-        await mergeIn(uid, nothingHere(), remote);
-      }
-      startSession(uid);
-      return { kind: "synced" };
+      return signingIn(async (): Promise<ConnectResult> => {
+        const remote = await deps.remote.load(uid);
+        const local = deps.getLocal();
+        const decision = decideLink({ uid, state, localHasProjects: local.data.projects.length > 0, remoteHasProjects: hasProjects(remote) });
+        if (decision === "picker") {
+          pending = { uid, remote };
+          return {
+            kind: "picker",
+            local: summarize(local.data, { savedAt: lastChange(local.data, state) ?? now(), savedBy: deps.device }),
+            account: summarize(accountData(remote) ?? emptyData(deps.clock()), await deps.remote.savedInfo(uid)),
+          };
+        }
+        if (decision === "backup-and-take" || (decision === "take" && (local.data.projects.length > 0 || local.data.events.length > 0))) {
+          backup(local.data);
+          // Nothing about the replaced data may reach this account, not even what was deleted.
+          state = { ...state, stamps: {}, tombstones: {}, hashes: {} };
+        }
+        if (decision === "upload" || !remote) {
+          // An empty account taking over from another account's data starts this device afresh.
+          if (decision === "backup-and-take" && !deps.applyLocal(emptyData(deps.clock()), DEFAULT_SYNCED)) throw new Error(NOT_APPLIED);
+          if (decision === "rejoin") stampChanges();
+          await upload(uid);
+        } else if (decision === "rejoin") {
+          // Edits made here since the last sync (signed out, or closed before they were sent) are stamped first, so they win.
+          stampChanges();
+          await mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
+        } else {
+          await mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+        }
+        startSession(uid);
+        return { kind: "synced" };
+      });
     },
 
-    async choose(uid: string, keep: "local" | "account"): Promise<void> {
-      if (!pending || pending.uid !== uid) throw new Error("No two-saves choice is waiting for this account.");
+    choose(uid: string, keep: "local" | "account"): Promise<void> {
+      if (!pending || pending.uid !== uid) return Promise.reject(new Error("No two-saves choice is waiting for this account."));
       const { remote } = pending;
-      pending = null;
-      if (keep === "local") {
-        const account = remote ? reconcile(nothingHere(), remote, localRecords().user)?.data : null;
-        if (account) backup(account);
-        await upload(uid, remote);
-      } else {
-        backup(deps.getLocal().data);
-        if (remote) await mergeIn(uid, nothingHere(), remote);
-      }
-      startSession(uid);
+      return signingIn(async () => {
+        if (keep === "local") {
+          const account = accountData(remote);
+          if (account) backup(account);
+          pending = null; // only once the backup is safe, so a failed one can be retried
+          await upload(uid, remote);
+        } else {
+          backup(deps.getLocal().data);
+          pending = null;
+          if (remote) await mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+        }
+        startSession(uid);
+      });
     },
 
     localChanged(): void {
@@ -337,6 +377,7 @@ export function createSyncEngine(deps: EngineDeps) {
         }
         return;
       }
+      if (!unsubscribe) return; // signed in but not connected yet: connecting stamps this edit
       changedAt = deps.clock();
       if (timer) clearTimeout(timer);
       const s = session;
