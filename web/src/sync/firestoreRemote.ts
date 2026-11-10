@@ -386,20 +386,26 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       );
       const stopProjects = onSnapshot(
         query(collection(db, "projects"), where("members", "array-contains", uid)),
+        // Metadata changes too, to hear when a project this device just wrote is saved on the server.
+        { includeMetadataChanges: true },
         (s) => {
           pieces.projects = byId(s);
-          for (const id of pieces.projects.keys()) {
+          for (const d of s.docs) {
+            const id = d.id;
             known.add(id);
             for (const sub of SUBS) {
               const key = `${id}/${sub}`;
               if (subUnsubs.has(key)) continue;
               pending.add(key);
+              // The rules check membership against the saved project, so a project still on its way up would
+              // have its listeners refused. Wait (counted as not reported yet) until the server has it.
+              if (d.metadata.hasPendingWrites) continue;
               subUnsubs.set(
                 key,
                 onSnapshot(
                   collection(db, "projects", id, sub),
-                  (d) => {
-                    pieces.subs.set(key, byId(d));
+                  (snap) => {
+                    pieces.subs.set(key, byId(snap));
                     reported(key);
                   },
                   failed(key),
@@ -414,6 +420,8 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
             pieces.subs.delete(key);
             pending.delete(key);
           }
+          // A project that was waiting for the server and is gone now (its write was refused) stops being waited for.
+          for (const key of pending) if (key.includes("/") && !pieces.projects.has(key.split("/")[0])) pending.delete(key);
           reported("projects");
         },
         failed("projects"),

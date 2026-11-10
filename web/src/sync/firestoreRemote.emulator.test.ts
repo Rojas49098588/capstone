@@ -124,6 +124,19 @@ describe("firestore remote against the emulator", () => {
     expect(a.uid).not.toBe(b1.uid);
   });
 
+  it("a project uploaded while this same client is listening doesn't stop the listener", async () => {
+    // The local snapshot shows the new project before the server has it; its task listeners must not be refused.
+    const { uid, remote } = await newUser();
+    const errors: Error[] = [];
+    const seen: StampedRecords[] = [];
+    const stop = remote.subscribe(uid, (r) => seen.push(r), (e) => errors.push(e));
+    await remote.write(uid, [up("user", user), up("project:p1", { project: project("p1"), decor: {} }), up("task:t1", task("t1", "p1"))], meta);
+    await vi_waitFor(() => seen.some((r) => r.tasks.t1));
+    await new Promise((r) => setTimeout(r, 1000));
+    stop();
+    expect(errors.map((e) => String(e))).toEqual([]);
+  });
+
   it("deleteAll leaves nothing", async () => {
     const { uid, remote } = await newUser();
     await remote.write(uid, [up("user", user), up("project:p1", { project: project("p1"), decor: {} }), up("task:t1", task("t1", "p1")), up("event:e1", { type: "purchase", at: T(1), itemId: "x" })], meta);
