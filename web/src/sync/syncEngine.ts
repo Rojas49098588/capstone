@@ -6,7 +6,7 @@ import { LEGACY_STARTING_TOKENS } from "../planner/tuning";
 import { localDateKey } from "../planner/time";
 import { DEFAULT_SETTINGS, PET_INVOLVEMENT_LEVELS, PET_ORDERS } from "../store/settings";
 import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
-import { decideLink } from "./linkDecision";
+import { decideLink, hasOwnProjects } from "./linkDecision";
 import { liveRecords, mergeRecords, type Stamped, type StampedRecords } from "./merge";
 import { fromRecords, recordHashes, toRecords, type RecordKey, type Records, type SyncedSettings, type UserRecord } from "./records";
 import type { RemoteChange, RemoteStore } from "./remote";
@@ -413,7 +413,7 @@ export function createSyncEngine(deps: EngineDeps) {
           return { kind: "synced" };
         }
         const local = deps.getLocal();
-        const decision = decideLink({ uid, state, localHasProjects: local.data.projects.length > 0, remoteHasProjects: hasProjects(remote) });
+        const decision = decideLink({ uid, state, localHasProjects: hasOwnProjects(local.data), remoteHasProjects: hasProjects(remote) });
         if (decision === "picker") {
           const saved = await deps.remote.savedInfo(uid);
           current(s);

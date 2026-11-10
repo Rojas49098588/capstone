@@ -7,7 +7,7 @@ import { tokenBalance } from "../planner/history";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
 import * as A from "../store/actions";
-import { emptyData } from "../store/seed";
+import { buildSeed, emptyData } from "../store/seed";
 import { DEFAULT_SETTINGS } from "../store/settings";
 import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { FakeRemote } from "../test/fakeRemote";
@@ -103,6 +103,15 @@ describe("sync engine: connecting", () => {
     expect(a.settings).toEqual(BEE);
     expect(backups(a.storage)).toEqual([]); // nothing of its own to keep
     expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1" });
+  });
+
+  it("take: a guest with only the untouched example data gets the account's data, no picker, and the example is backed up", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const a = device(remote, "Laptop", buildSeed(NOW));
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" });
+    expect(names(a.data)).toEqual(["Novel"]);
+    expect(backups(a.storage).map((d) => d.projects.length)).toEqual([buildSeed(NOW).projects.length]);
   });
 
   it("rejoin: changes made elsewhere are merged in", async () => {
