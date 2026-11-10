@@ -67,7 +67,7 @@ function startBrowserSignIn({ provider, hostedUrl, openExternal, timeoutMs = 300
     if (signal?.aborted) return finish(new Error('cancelled'));
     signal?.addEventListener('abort', onAbort);
     server.listen(0, '127.0.0.1', async () => {
-      if (settled) return;
+      if (settled) return server.close(); // cancelled before it was listening
       timer = setTimeout(() => finish(new Error('cancelled')), timeoutMs);
       const { port } = server.address();
       const query = new URLSearchParams({ provider, port: String(port), state });

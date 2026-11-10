@@ -1,3 +1,4 @@
+import http from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { startBrowserSignIn } from '../src/main/browserSignIn.js';
 
@@ -93,5 +94,30 @@ describe('startBrowserSignIn', () => {
     await vi.waitFor(() => expect(openExternal).toHaveBeenCalled());
     ctl.abort();
     await expect(result).rejects.toThrow('cancelled');
+  });
+
+  it('a matching state with no idToken is a 400 and keeps waiting', async () => {
+    let bad;
+    const openExternal = opener(async ({ port, state }) => {
+      bad = await call(`http://127.0.0.1:${port}/callback?state=${state}`);
+      await call(`http://127.0.0.1:${port}/callback?state=${state}&idToken=ID`);
+    });
+    const tokens = await startBrowserSignIn({ provider: 'google', hostedUrl: HOSTED, openExternal });
+    expect(bad.status).toBe(400);
+    expect(tokens).toEqual({ idToken: 'ID' });
+  });
+
+  it('stops listening when cancelled before the server was ready', async () => {
+    const spy = vi.spyOn(http.Server.prototype, 'close');
+    const ctl = new AbortController();
+    const openExternal = vi.fn();
+    const result = startBrowserSignIn({ provider: 'google', hostedUrl: HOSTED, openExternal, signal: ctl.signal });
+    ctl.abort(); // before the listen callback runs
+    await expect(result).rejects.toThrow('cancelled');
+    await new Promise((r) => setTimeout(r, 50));
+    const server = spy.mock.contexts[spy.mock.contexts.length - 1];
+    spy.mockRestore();
+    expect(openExternal).not.toHaveBeenCalled();
+    expect(server.listening).toBe(false);
   });
 });
