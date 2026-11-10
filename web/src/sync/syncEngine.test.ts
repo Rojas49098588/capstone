@@ -313,6 +313,19 @@ describe("sync engine: connecting", () => {
   });
 });
 
+describe("sync engine: forgetting a deleted account", () => {
+  it("forget() leaves the device a guest whose data can go to the next account", async () => {
+    const remote = new FakeRemote();
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    await a.engine.connect("u1");
+    a.engine.forget();
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: null, owner: null });
+    expect(await a.engine.connect("u2")).toEqual({ kind: "synced" });
+    expect(names(await accountData(remote, "u2"))).toEqual(["Essay"]);
+    expect(backups(a.storage)).toEqual([]);
+  });
+});
+
 describe("sync engine: while connected", () => {
   it("a local change is pushed with updatedAt = when it happened", async () => {
     const remote = new FakeRemote();

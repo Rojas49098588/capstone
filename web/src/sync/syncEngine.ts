@@ -39,7 +39,9 @@ const defaultUser = (now: Date): UserRecord => ({
   settings: DEFAULT_SYNCED,
 });
 const DEBOUNCE_MS = 1000;
-const NOT_APPLIED = "Couldn't show the account's data, so this device stays signed out.";
+/** Why a connect or choice failed when this device couldn't keep a backup or take the account's data. */
+export const NOT_APPLIED = "Couldn't show the account's data, so this device stays signed out.";
+export const BACKUP_FAILED = "Couldn't save a backup, so nothing was replaced.";
 const TABLES = { project: "projects", requirement: "requirements", task: "tasks" } as const;
 type Table = keyof typeof TABLES;
 
@@ -217,7 +219,7 @@ export function createSyncEngine(deps: EngineDeps) {
       if (!deps.storage) throw new Error("no storage");
       deps.storage.setItem(key, JSON.stringify(data));
     } catch {
-      throw new Error("Couldn't save a backup, so nothing was replaced.");
+      throw new Error(BACKUP_FAILED);
     }
   }
 
@@ -408,6 +410,14 @@ export function createSyncEngine(deps: EngineDeps) {
       endSession();
       pending = null;
       state = { ...state, uid: null };
+      save();
+    },
+
+    /** The account was deleted: stop, and this device's data is a guest's again, free to link to any account. */
+    forget(): void {
+      endSession();
+      pending = null;
+      state = { ...state, uid: null, owner: null, changedWhileSignedOut: false };
       save();
     },
 

@@ -16,6 +16,7 @@ import {
 } from "../ui/format";
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 import type { TourId } from "../ui/tourSteps";
+import AccountSection from "./AccountSection";
 
 
 /** The User Settings page: account details (once accounts exist) and preferences. */
@@ -74,11 +75,7 @@ export default function Settings({ onReplayTutorial }: Props) {
         <h2 id="settings-account" style={SERIF} className="text-xl">
           Account
         </h2>
-        <p className={`text-sm ${MUTED}`}>Your account details will show here once accounts are added.</p>
-        <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
-          <dt className={LABEL}>Email</dt>
-          <dd className={MUTED}>Not set yet</dd>
-        </dl>
+        <AccountSection />
         <div>
           <label htmlFor="settings-nickname" className={LABEL}>
             Nickname

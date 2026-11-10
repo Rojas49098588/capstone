@@ -248,7 +248,24 @@ export function useStudium(options: StudiumOptions = {}) {
 
   const dismissNotice = useCallback(() => setNotice(null), []);
 
-  return { data, now, notice, persistent, dismissNotice, settings, settingsSaved, updateSettings, replaceData, ...actions };
+  /** The latest data and settings, including changes made since the last render (for sync). */
+  const current = useCallback(() => ({ data: dataRef.current, settings: settingsRef.current }), []);
+
+  return {
+    data,
+    now,
+    notice,
+    persistent,
+    dismissNotice,
+    settings,
+    settingsSaved,
+    updateSettings,
+    replaceData,
+    current,
+    storage: env.storage,
+    clock: env.clock,
+    ...actions,
+  };
 }
 
 export type Studium = ReturnType<typeof useStudium>;

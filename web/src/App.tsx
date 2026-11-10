@@ -15,6 +15,7 @@ import Tour from "./components/Tour";
 import { isBlocked } from "./planner/blocking";
 import { tokenBalance } from "./planner/history";
 import { StudiumProvider, useStudiumContext } from "./store/useStudium";
+import { AccountProvider } from "./sync/AccountProvider";
 import { parseHashLink } from "./ui/hashLinks";
 import { SERIF } from "./ui/styles";
 import { type TourId, tourSteps } from "./ui/tourSteps";
@@ -326,7 +327,9 @@ export function StudiumApp() {
 export default function App() {
   return (
     <StudiumProvider>
-      <StudiumApp />
+      <AccountProvider>
+        <StudiumApp />
+      </AccountProvider>
     </StudiumProvider>
   );
 }
