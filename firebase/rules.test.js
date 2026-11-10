@@ -7,7 +7,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing'
-import { doc, getDoc, setDoc } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let env
@@ -38,6 +38,32 @@ describe('firestore rules', () => {
     await assertFails(setDoc(doc(bob, 'users/alice'), { savedBy: 'b' }))
     await assertFails(getDoc(doc(bob, 'users/alice/events/e1')))
     await assertFails(setDoc(doc(bob, 'users/alice/events/e1'), { event: {} }))
+  })
+
+  it('purchases under a user are read by that user only and written by nobody (server code only)', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice/purchases/p1'), { item: 'x' })
+    })
+    const alice = as('alice')
+    await assertSucceeds(getDoc(doc(alice, 'users/alice/purchases/p1')))
+    await assertFails(getDoc(doc(as('bob'), 'users/alice/purchases/p1')))
+    await assertFails(setDoc(doc(alice, 'users/alice/purchases/p2'), { item: 'free' }))
+    await assertFails(setDoc(doc(alice, 'users/alice/purchases/p1'), { item: 'changed' }))
+    await assertFails(deleteDoc(doc(alice, 'users/alice/purchases/p1')))
+  })
+
+  it('a user can write nothing under their user doc outside events', async () => {
+    const alice = as('alice')
+    await assertFails(setDoc(doc(alice, 'users/alice/other/x'), { a: 1 }))
+    await assertFails(setDoc(doc(alice, 'users/alice/events/e1/deeper/x'), { a: 1 }))
+  })
+
+  it('only a member deletes a project', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'projects/alice_p1'), { members: ['alice'], owner: 'alice' })
+    })
+    await assertFails(deleteDoc(doc(as('bob'), 'projects/alice_p1')))
+    await assertSucceeds(deleteDoc(doc(as('alice'), 'projects/alice_p1')))
   })
 
   it('a project is created only with yourself as owner and only member', async () => {
