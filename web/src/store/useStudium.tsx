@@ -232,9 +232,23 @@ export function useStudium(options: StudiumOptions = {}) {
     };
   }, [apply]);
 
+  /** Swaps in data from outside (an account's cloud copy). False, and nothing changes, if it isn't valid. */
+  const replaceData = useCallback(
+    (next: StudiumData): boolean => {
+      if (!isValidData(next)) return false;
+      const clean = normalizeData(next);
+      dataRef.current = clean;
+      setData(clean);
+      setNow(env.clock());
+      if (persistent && !saveData(env.storage, clean)) setNotice("save-failed");
+      return true;
+    },
+    [env, persistent],
+  );
+
   const dismissNotice = useCallback(() => setNotice(null), []);
 
-  return { data, now, notice, persistent, dismissNotice, settings, settingsSaved, updateSettings, ...actions };
+  return { data, now, notice, persistent, dismissNotice, settings, settingsSaved, updateSettings, replaceData, ...actions };
 }
 
 export type Studium = ReturnType<typeof useStudium>;

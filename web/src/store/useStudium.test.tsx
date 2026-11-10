@@ -287,3 +287,33 @@ describe("useStudium receiving focus sessions", () => {
     expect(answers).toEqual([]);
   });
 });
+
+describe("replaceData", () => {
+  it("saves valid data and returns true", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const next = buildSeed(NOW);
+    let ok = false;
+    act(() => {
+      ok = result.current.replaceData(next);
+    });
+    expect(ok).toBe(true);
+    expect(result.current.data.projects.length).toBe(next.projects.length);
+    expect(savedData(storage).projects.length).toBe(next.projects.length);
+    expect(result.current.notice).toBeNull();
+  });
+
+  it("refuses invalid data and changes nothing", () => {
+    const storage = seededStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const before = result.current.data;
+    const savedBefore = storage.getItem(STORAGE_KEY);
+    let ok = true;
+    act(() => {
+      ok = result.current.replaceData({ nonsense: true } as never);
+    });
+    expect(ok).toBe(false);
+    expect(result.current.data).toBe(before);
+    expect(storage.getItem(STORAGE_KEY)).toBe(savedBefore);
+  });
+});
