@@ -1,11 +1,12 @@
 // @vitest-environment jsdom
-import { screen, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
 import * as A from "../store/actions";
 import { buildSeed } from "../store/seed";
+import { STORAGE_KEY } from "../store/storage";
 import { liveRecords, type StampedRecords } from "../sync/merge";
 import { fromRecords } from "../sync/records";
 import { summarize } from "../sync/saveSummary";
@@ -103,6 +104,34 @@ describe("SavePicker", () => {
     within(section).getByText(/^Backup from /);
     within(section).getByRole("button", { name: "Download" });
     expect(shownNames()).not.toContain("Novel");
+  });
+
+  it("Not now (sign out) signs out and closes the picker, changing nothing here or in the account", async () => {
+    const user = userEvent.setup();
+    const { picker, auth, remote, storage } = await withPicker();
+    const write = vi.spyOn(remote, "write");
+    const replaceAll = vi.spyOn(remote, "replaceAll");
+    const before = storage.getItem(STORAGE_KEY);
+    await user.click(within(picker).getByRole("button", { name: "Not now (sign out)" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(auth.current()).toBeNull();
+    expect(storage.getItem(STORAGE_KEY)).toBe(before);
+    expect(shownNames()).not.toContain("Novel");
+    expect(write).not.toHaveBeenCalled();
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(backupKeys(storage)).toEqual([]);
+    screen.getByRole("button", { name: "Link account" });
+  });
+
+  it("Not now (sign out) still works while a choice hangs (offline)", async () => {
+    const user = userEvent.setup();
+    const { picker, auth, remote } = await withPicker();
+    vi.spyOn(remote, "replaceAll").mockImplementation(() => new Promise(() => {})); // never answers
+    await user.click(within(picker).getByRole("button", { name: "Keep this computer's" }));
+    await user.click(within(picker).getByRole("button", { name: "Not now (sign out)" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    expect(auth.current()).toBeNull();
+    screen.getByRole("button", { name: "Link account" });
   });
 
   it("if the backup can't be written, says so, changes nothing and leaves the device signed out", async () => {

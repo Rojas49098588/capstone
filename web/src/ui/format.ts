@@ -420,3 +420,29 @@ export function backupLabel(key: string): string {
 
 /** Stage names as the picker shows them. */
 export const PET_STAGE_NAMES: Record<PetStage, string> = { egg: "egg", juvenile: "baby", adult: "adult" };
+
+export const PICKER_NOT_NOW = "Not now (sign out)";
+export const PICKER_LOCAL_TAG = "On this computer";
+export const PICKER_ACCOUNT_TAG = "In your account";
+export const PICKER_UNKNOWN_LOCAL = "This device";
+export const PICKER_UNKNOWN_ACCOUNT = "Another device";
+export const PICKER_EGG = "An egg";
+export const SIGN_IN_TITLE = "Your Studium account";
+export const SIGN_IN_LABEL = "Sign in";
+export const CREATE_ACCOUNT_LABEL = "Create account";
+export const FORGOT_PASSWORD_LABEL = "Forgot password?";
+export const GOOGLE_SIGN_IN_LABEL = "Continue with Google";
+export const APPLE_SIGN_IN_LABEL = "Continue with Apple";
+export const SIGNED_IN_WITHOUT_EMAIL = "Signed in with Google or Apple";
+export const SIGN_OUT_LABEL = "Sign out";
+export const DELETE_ACCOUNT_LABEL = "Delete account";
+export const BACKUPS_HEADING = "Backups on this computer";
+export const BACKUP_DOWNLOAD_LABEL = "Download";
+
+/** The file a backup downloads as, named by its local date and time: "studium-backup-2026-11-09-1612.json". */
+export function backupFileName(key: string): string {
+  const at = backupTime(key);
+  if (!at) return "studium-backup.json";
+  const hhmm = `${String(at.getHours()).padStart(2, "0")}${String(at.getMinutes()).padStart(2, "0")}`;
+  return `studium-backup-${localDateKey(at)}-${hhmm}.json`;
+}

@@ -42,6 +42,8 @@ const DEBOUNCE_MS = 1000;
 /** Why a connect or choice failed when this device couldn't keep a backup or take the account's data. */
 export const NOT_APPLIED = "Couldn't show the account's data, so this device stays signed out.";
 export const BACKUP_FAILED = "Couldn't save a backup, so nothing was replaced.";
+/** A connect or choice given up because another connect, or a stop, came after it. */
+export const SUPERSEDED = "Another sign-in took over.";
 const TABLES = { project: "projects", requirement: "requirements", task: "tasks" } as const;
 type Table = keyof typeof TABLES;
 
@@ -256,13 +258,24 @@ export function createSyncEngine(deps: EngineDeps) {
     await write(session, uid, r.kept, r.push);
   }
 
-  /** Runs a connect or a choice; if it fails, this device is left signed out with its data as it was. */
-  async function signingIn<T>(work: () => Promise<T>): Promise<T> {
+  /** Throws if a newer connect or a stop has started since session `s` began. */
+  function current(s: number): void {
+    if (s !== session) throw new Error(SUPERSEDED);
+  }
+
+  /**
+   * Runs a connect or a choice for `uid`. If this device couldn't keep a backup or take the account's data, it is
+   * left signed out with its data as it was. Any other failure (the cloud unreachable) leaves it signed in as `uid`
+   * but not connected: edits are stamped when a later connect succeeds, never taken for edits made signed out.
+   */
+  async function signingIn<T>(s: number, uid: string, work: () => Promise<T>): Promise<T> {
     try {
       return await work();
     } catch (e) {
+      const message = e instanceof Error ? e.message : "";
+      if (message === SUPERSEDED || s !== session) throw e; // the newer work owns the state
       endSession();
-      state = { ...state, uid: null };
+      state = { ...state, uid: message === BACKUP_FAILED || message === NOT_APPLIED ? null : uid };
       save();
       throw e;
     }
@@ -318,16 +331,20 @@ export function createSyncEngine(deps: EngineDeps) {
     connect(uid: string): Promise<ConnectResult> {
       endSession();
       pending = null;
-      return signingIn(async (): Promise<ConnectResult> => {
+      const s = session;
+      return signingIn(s, uid, async (): Promise<ConnectResult> => {
         const remote = await deps.remote.load(uid);
+        current(s);
         const local = deps.getLocal();
         const decision = decideLink({ uid, state, localHasProjects: local.data.projects.length > 0, remoteHasProjects: hasProjects(remote) });
         if (decision === "picker") {
+          const saved = await deps.remote.savedInfo(uid);
+          current(s);
           pending = { uid, remote };
           return {
             kind: "picker",
             local: summarize(local.data, { savedAt: lastChange(local.data, state) ?? now(), savedBy: deps.device }),
-            account: summarize(accountData(remote) ?? emptyData(deps.clock()), await deps.remote.savedInfo(uid)),
+            account: summarize(accountData(remote) ?? emptyData(deps.clock()), saved),
           };
         }
         if (decision === "backup-and-take" || (decision === "take" && (local.data.projects.length > 0 || local.data.events.length > 0))) {
@@ -347,6 +364,7 @@ export function createSyncEngine(deps: EngineDeps) {
         } else {
           await mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
+        current(s);
         startSession(uid);
         return { kind: "synced" };
       });
@@ -355,7 +373,8 @@ export function createSyncEngine(deps: EngineDeps) {
     choose(uid: string, keep: "local" | "account"): Promise<void> {
       if (!pending || pending.uid !== uid) return Promise.reject(new Error("No two-saves choice is waiting for this account."));
       const { remote } = pending;
-      return signingIn(async () => {
+      const s = session;
+      return signingIn(s, uid, async () => {
         if (keep === "local") {
           const account = accountData(remote);
           if (account) backup(account);
@@ -366,6 +385,7 @@ export function createSyncEngine(deps: EngineDeps) {
           pending = null;
           if (remote) await mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
+        current(s);
         startSession(uid);
       });
     },

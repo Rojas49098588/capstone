@@ -6,9 +6,15 @@ import {
   ACCOUNT_BONUS_LINE,
   ACCOUNT_LINK_LABEL,
   ACCOUNTS_OFF_TEXT,
+  BACKUP_DOWNLOAD_LABEL,
+  BACKUPS_HEADING,
   DELETE_ACCOUNT_CONFIRM,
+  DELETE_ACCOUNT_LABEL,
+  SIGN_IN_LABEL,
+  SIGN_OUT_LABEL,
+  SIGNED_IN_WITHOUT_EMAIL,
+  backupFileName,
   backupLabel,
-  backupTime,
   lastSyncedLabel,
 } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, BUTTON_SMALL, LABEL, MUTED } from "../ui/styles";
@@ -30,11 +36,10 @@ function backupKeys(storage: Storage | null): string[] {
 function download(storage: Storage | null, key: string): void {
   const raw = storage?.getItem(key);
   if (!raw) return;
-  const at = backupTime(key) ?? new Date();
   const url = URL.createObjectURL(new Blob([raw], { type: "application/json" }));
   const link = document.createElement("a");
   link.href = url;
-  link.download = `studium-backup-${at.toISOString().slice(0, 16).replace(":", "-")}.json`;
+  link.download = backupFileName(key);
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
@@ -72,7 +77,7 @@ export default function AccountSection() {
         <>
           <dl className="grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
             <dt className={LABEL}>Email</dt>
-            <dd>{a.account.email ?? "Signed in with Google or Apple"}</dd>
+            <dd>{a.account.email ?? SIGNED_IN_WITHOUT_EMAIL}</dd>
           </dl>
           <p className={`text-sm ${MUTED}`}>{lastSyncedLabel(a.lastSyncedAt, s.now)}</p>
           {confirmDelete ? (
@@ -90,7 +95,7 @@ export default function AccountSection() {
                     })
                   }
                 >
-                  Delete account
+                  {DELETE_ACCOUNT_LABEL}
                 </button>
                 <button type="button" className={BUTTON_SECONDARY} onClick={() => setConfirmDelete(false)}>
                   Cancel
@@ -100,10 +105,10 @@ export default function AccountSection() {
           ) : (
             <div className="flex flex-wrap gap-2">
               <button type="button" disabled={busy} className={BUTTON_SECONDARY} onClick={() => void act(a.signOut)}>
-                Sign out
+                {SIGN_OUT_LABEL}
               </button>
               <button type="button" disabled={busy} className={BUTTON_SECONDARY} onClick={() => setConfirmDelete(true)}>
-                Delete account
+                {DELETE_ACCOUNT_LABEL}
               </button>
             </div>
           )}
@@ -112,11 +117,12 @@ export default function AccountSection() {
         <>
           <p className={`text-sm ${MUTED}`}>{ACCOUNT_BONUS_LINE}</p>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className={BUTTON_PRIMARY} onClick={() => a.openSignIn("link", "create")}>
+            {/* While Firebase loads, the buttons show but wait. */}
+            <button type="button" disabled={a.loading} className={BUTTON_PRIMARY} onClick={() => a.openSignIn("link", "create")}>
               {ACCOUNT_LINK_LABEL}
             </button>
-            <button type="button" className={BUTTON_SECONDARY} onClick={() => a.openSignIn("link", "signin")}>
-              Sign in
+            <button type="button" disabled={a.loading} className={`${BUTTON_SECONDARY} disabled:opacity-50`} onClick={() => a.openSignIn("link", "signin")}>
+              {SIGN_IN_LABEL}
             </button>
           </div>
         </>
@@ -128,13 +134,13 @@ export default function AccountSection() {
       )}
       {backups.length > 0 && (
         <div>
-          <p className={LABEL}>Backups on this computer</p>
+          <p className={LABEL}>{BACKUPS_HEADING}</p>
           <ul className="text-sm space-y-1 mt-1">
             {backups.map((key) => (
               <li key={key} className="flex items-center gap-3">
                 <span>{backupLabel(key)}</span>
                 <button type="button" className={BUTTON_SMALL} onClick={() => download(s.storage, key)}>
-                  Download
+                  {BACKUP_DOWNLOAD_LABEL}
                 </button>
               </li>
             ))}

@@ -15,7 +15,7 @@ import { memoryStorage, renderWithStudium } from "../test/render";
 import { liveRecords, type StampedRecords } from "./merge";
 import { fromRecords, type SyncedSettings } from "./records";
 import { loadSyncState } from "./syncState";
-import { createSyncEngine } from "./syncEngine";
+import { SUPERSEDED, createSyncEngine } from "./syncEngine";
 
 const ABBY: SyncedSettings = { nickname: "Abby", petInvolvement: "mild", petOrder: "project" };
 const BEE: SyncedSettings = { nickname: "Bee", petInvolvement: "moderate", petOrder: "dueDate" };
@@ -310,6 +310,49 @@ describe("sync engine: connecting", () => {
     a.engine.localChanged();
     await a.engine.flush();
     expect(write).not.toHaveBeenCalled();
+  });
+});
+
+describe("sync engine: connects that fail or overlap", () => {
+  it("a connect that can't reach the cloud leaves the device signed in, so edits meanwhile aren't taken for signed-out ones", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+    vi.spyOn(remote, "load").mockRejectedValueOnce(new Error("offline"));
+    await expect(a.engine.connect("u1")).rejects.toThrow("offline");
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1", changedWhileSignedOut: false });
+
+    a.advance(60_000);
+    a.edit((d) => A.createTask(d, { projectId: made.id, requirementId: null, title: "Outline", estimateMin: 30 }, a.now()).data);
+    a.engine.localChanged();
+    expect(loadSyncState(a.storage).changedWhileSignedOut).toBe(false);
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" }); // no picker between the person's own copies
+    expect((await accountData(remote, "u1")).tasks.map((t) => t.title)).toEqual(["Outline"]);
+  });
+
+  it("overlapping connects subscribe once; the earlier one gives way", async () => {
+    const remote = new FakeRemote();
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    const subscribe = vi.spyOn(remote, "subscribe");
+    const first = a.engine.connect("u1");
+    const second = a.engine.connect("u1");
+    await expect(first).rejects.toThrow(SUPERSEDED);
+    expect(await second).toEqual({ kind: "synced" });
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1" });
+  });
+
+  it("a stop while connecting leaves it signed out and never subscribes", async () => {
+    const remote = new FakeRemote();
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    const subscribe = vi.spyOn(remote, "subscribe");
+    const connecting = a.engine.connect("u1");
+    a.engine.stop();
+    await expect(connecting).rejects.toThrow(SUPERSEDED);
+    expect(subscribe).not.toHaveBeenCalled();
+    expect(loadSyncState(a.storage).uid).toBeNull();
   });
 });
 

@@ -2,12 +2,18 @@ import { useState } from "react";
 import { hasMoreProgress, type SaveSummary } from "../sync/saveSummary";
 import {
   PET_STAGE_NAMES,
+  PICKER_ACCOUNT_TAG,
+  PICKER_EGG,
   PICKER_FOOTER,
   PICKER_KEEP_ACCOUNT,
   PICKER_KEEP_LOCAL,
   PICKER_LEAD,
+  PICKER_LOCAL_TAG,
   PICKER_MORE_PROGRESS,
+  PICKER_NOT_NOW,
   PICKER_TITLE,
+  PICKER_UNKNOWN_ACCOUNT,
+  PICKER_UNKNOWN_LOCAL,
   savedAtLabel,
 } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, LABEL, MUTED, SERIF } from "../ui/styles";
@@ -21,13 +27,15 @@ type Props = {
   error: string | null;
   now: Date;
   onChoose: (keep: "local" | "account") => Promise<void>;
+  /** "Not now": sign out instead of choosing. Works even while a choice is still going. */
+  onNotNow: () => Promise<void>;
   onClose: () => void;
 };
 
 const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 
 /** "You have two saves": this computer's and the account's, side by side; the person keeps one. */
-export default function SavePicker({ local, account, error, now, onChoose, onClose }: Props) {
+export default function SavePicker({ local, account, error, now, onChoose, onNotNow, onClose }: Props) {
   useReturnFocus();
   const [busy, setBusy] = useState(false);
 
@@ -38,8 +46,8 @@ export default function SavePicker({ local, account, error, now, onChoose, onClo
   }
 
   function card(which: "local" | "account", s: Summary, more: boolean) {
-    const tag = which === "local" ? "On this computer" : "In your account";
-    const device = s.savedBy ?? (which === "local" ? "This device" : "Another device");
+    const tag = which === "local" ? PICKER_LOCAL_TAG : PICKER_ACCOUNT_TAG;
+    const device = s.savedBy ?? (which === "local" ? PICKER_UNKNOWN_LOCAL : PICKER_UNKNOWN_ACCOUNT);
     const stats: [number, string][] = [
       [s.projects, plural(s.projects, "project", "projects")],
       [s.tokens, "tokens"],
@@ -74,7 +82,7 @@ export default function SavePicker({ local, account, error, now, onChoose, onClo
           {s.pets.map((p, i) => (
             <li key={i}>
               {p.stage === "egg" ? (
-                <span className={MUTED}>An egg</span>
+                <span className={MUTED}>{PICKER_EGG}</span>
               ) : (
                 <>
                   <span>{p.name}</span> <span className={MUTED}>· {PET_STAGE_NAMES[p.stage]}</span>
@@ -119,7 +127,14 @@ export default function SavePicker({ local, account, error, now, onChoose, onClo
             </button>
           </div>
         ) : (
-          <p className={`text-xs ${MUTED}`}>{PICKER_FOOTER}</p>
+          <>
+            <div className="flex justify-center">
+              <button type="button" onClick={() => void onNotNow()} className={`text-sm underline ${MUTED} hover:text-[var(--color-foreground)]`}>
+                {PICKER_NOT_NOW}
+              </button>
+            </div>
+            <p className={`text-xs ${MUTED}`}>{PICKER_FOOTER}</p>
+          </>
         )}
       </div>
     </div>

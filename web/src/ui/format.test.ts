@@ -1,5 +1,5 @@
 import { PROJECT_TYPES } from "../planner/types";
-import { PROJECT_TYPE_HINTS, authErrorMessage, backupLabel, lastSyncedLabel, savedAtLabel } from "./format";
+import { PROJECT_TYPE_HINTS, authErrorMessage, backupFileName, backupLabel, lastSyncedLabel, savedAtLabel } from "./format";
 import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
@@ -197,6 +197,7 @@ describe("account wording", () => {
 
   it("names a backup by when it was made", () => {
     expect(backupLabel(`${"studium-data-backup-"}${at(16, 12).toISOString()}-2`)).toBe("Backup from Oct 14, 2026, 4:12 PM");
+    expect(backupFileName(`studium-data-backup-${at(16, 2).toISOString()}`)).toBe("studium-backup-2026-10-14-1602.json"); // local time, like the label
   });
 
   it("sign-in errors in plain words; a cancelled sign-in says nothing", () => {

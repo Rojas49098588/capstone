@@ -1,7 +1,19 @@
 import { useEffect, useState, type FormEvent } from "react";
 import type { Account, AuthClient } from "../sync/auth";
 import type { SignInReason } from "../sync/AccountProvider";
-import { ACCOUNT_BONUS_LINE, RESET_NEEDS_EMAIL, RESET_SENT, SIGN_IN_REASONS, authErrorMessage } from "../ui/format";
+import {
+  ACCOUNT_BONUS_LINE,
+  APPLE_SIGN_IN_LABEL,
+  CREATE_ACCOUNT_LABEL,
+  FORGOT_PASSWORD_LABEL,
+  GOOGLE_SIGN_IN_LABEL,
+  RESET_NEEDS_EMAIL,
+  RESET_SENT,
+  SIGN_IN_LABEL,
+  SIGN_IN_REASONS,
+  SIGN_IN_TITLE,
+  authErrorMessage,
+} from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 import { useReturnFocus } from "./useReturnFocus";
 
@@ -17,8 +29,8 @@ type Props = {
 };
 
 const MODES: { mode: SignInMode; label: string }[] = [
-  { mode: "signin", label: "Sign in" },
-  { mode: "create", label: "Create account" },
+  { mode: "signin", label: SIGN_IN_LABEL },
+  { mode: "create", label: CREATE_ACCOUNT_LABEL },
 ];
 const codeOf = (e: unknown) => (typeof e === "object" && e !== null ? (e as { code?: string }).code : undefined);
 
@@ -88,7 +100,7 @@ export default function SignInDialog({ auth, reason, initialMode, onSignedIn, on
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[var(--color-overlay)]">
       <div role="dialog" aria-modal="true" aria-labelledby="sign-in-title" className={`${CARD} w-full max-w-md mx-4 p-6 space-y-4`}>
         <h2 id="sign-in-title" style={SERIF} className="text-xl">
-          Your Studium account
+          {SIGN_IN_TITLE}
         </h2>
         {why && <p className="text-sm">{why}</p>}
         <p className={`text-sm ${MUTED}`}>{ACCOUNT_BONUS_LINE}</p>
@@ -159,7 +171,7 @@ export default function SignInDialog({ auth, reason, initialMode, onSignedIn, on
           <div className="flex items-center justify-between gap-2">
             {mode === "signin" ? (
               <button type="button" onClick={() => void forgot()} disabled={busy} className={`text-sm underline ${MUTED} hover:text-[var(--color-foreground)]`}>
-                Forgot password?
+                {FORGOT_PASSWORD_LABEL}
               </button>
             ) : (
               <span />
@@ -172,10 +184,10 @@ export default function SignInDialog({ auth, reason, initialMode, onSignedIn, on
 
         <div className="space-y-2 pt-2 border-t border-[var(--color-border)]">
           <button type="button" disabled={busy} onClick={() => void run(() => auth.signInGoogle())} className={`${BUTTON_SECONDARY} w-full`}>
-            Continue with Google
+            {GOOGLE_SIGN_IN_LABEL}
           </button>
           <button type="button" disabled={busy} onClick={() => void run(() => auth.signInApple())} className={`${BUTTON_SECONDARY} w-full`}>
-            Continue with Apple
+            {APPLE_SIGN_IN_LABEL}
           </button>
         </div>
 
