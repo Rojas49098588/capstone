@@ -84,12 +84,32 @@ function live<T>(table: Record<string, Stamped<T>>): Record<string, T> {
   return out;
 }
 
+/**
+ * A task's done and actualMin follow its latest completion or reopen, as completeTask and reopenTask set them.
+ * The task record alone can't be trusted for these: a later edit made on a stale copy carries the old values.
+ */
+export function withCompletionsApplied(tasks: Record<string, Task>, events: StudiumEvent[]): Record<string, Task> {
+  const latest = new Map<string, StudiumEvent>();
+  for (const e of [...events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at))) {
+    if (e.type === "task_completed" || e.type === "task_reopened") latest.set(e.taskId, e);
+  }
+  const out: Record<string, Task> = {};
+  for (const [id, t] of Object.entries(tasks)) {
+    const e = latest.get(t.id);
+    const [done, actualMin] = e?.type === "task_completed" ? [true, e.actualMin] : e?.type === "task_reopened" ? [false, null] : [t.done, t.actualMin];
+    out[id] = done === t.done && actualMin === t.actualMin ? t : { ...t, done, actualMin };
+  }
+  return out;
+}
+
 /** What the app sees: deleted records gone and double completions removed. The raw records stay as they are for syncing. */
 export function liveRecords(s: StampedRecords): Records {
   if (s.user.value === null) throw new Error("the user record has no value");
   const entries = Object.entries(s.events);
-  const kept = new Set(dedupeCompletions(entries.map(([, e]) => e)));
+  const deduped = dedupeCompletions(entries.map(([, e]) => e));
+  const kept = new Set(deduped);
   const events: Records["events"] = {};
   for (const [id, e] of entries) if (kept.has(e)) events[id] = e;
-  return { user: s.user.value, projects: live(s.projects), requirements: live(s.requirements), tasks: live(s.tasks), events };
+  const tasks = withCompletionsApplied(live(s.tasks), deduped);
+  return { user: s.user.value, projects: live(s.projects), requirements: live(s.requirements), tasks, events };
 }

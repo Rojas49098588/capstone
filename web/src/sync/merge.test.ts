@@ -124,4 +124,13 @@ describe("liveRecords", () => {
     expect(Object.keys(s.events)).toHaveLength(2);
     expect(live.user).toEqual(user);
   });
+
+  it("a task's done and actualMin follow its latest completion or reopen, not a stale record", () => {
+    const s = (...es: StudiumEvent[]): StampedRecords => ({ ...empty(), tasks: { t1: stamp(task("Renamed later"), "11:00") }, events: eventsOf(...es) });
+    expect(liveRecords(s(completed("10:00"))).tasks.t1).toMatchObject({ title: "Renamed later", done: true, actualMin: 5 });
+    expect(liveRecords(s(completed("10:00"), reopened("10:30"))).tasks.t1).toMatchObject({ done: false, actualMin: null });
+    const doneRecord: StampedRecords = { ...s(completed("10:00"), reopened("10:30")), tasks: { t1: stamp({ ...task("A"), done: true, actualMin: 5 }, "11:00") } };
+    expect(liveRecords(doneRecord).tasks.t1).toMatchObject({ done: false, actualMin: null });
+    expect(liveRecords(s()).tasks.t1).toMatchObject({ done: false, actualMin: null }); // no events: the record stands
+  });
 });

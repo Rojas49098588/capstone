@@ -497,3 +497,70 @@ describe("sync engine: while connected", () => {
     screen.getByText("-160");
   });
 });
+
+/** The same cloud, but its listener never reports: a device that only hears about others when it connects. */
+function quiet(remote: FakeRemote): FakeRemote {
+  return Object.assign(Object.create(remote) as FakeRemote, { subscribe: () => () => {} });
+}
+
+describe("sync engine: two devices, stale copies", () => {
+  it("a later edit on a stale copy of a task doesn't uncheck it where it was completed elsewhere", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const withTask = A.createTask(made.data, { projectId: made.id, requirementId: null, title: "Outline", estimateMin: 30 }, NOW);
+    const a = device(quiet(remote), "Laptop", withTask.data);
+    await a.engine.connect("u1");
+    const b = device(quiet(remote), "Desktop");
+    await b.engine.connect("u1");
+
+    a.advance(60_000);
+    a.edit((d) => A.completeTask(d, withTask.task.id, 25, a.now()).data);
+    a.engine.localChanged();
+    await a.engine.flush();
+    b.advance(120_000); // the desktop still holds the task as not done, and renames it later
+    b.edit((d) => A.updateTask(d, withTask.task.id, { title: "Outline v2" }, b.now()));
+    b.engine.localChanged();
+    await b.engine.flush();
+
+    a.advance(600_000);
+    await a.engine.connect("u1");
+    b.advance(600_000);
+    await b.engine.connect("u1");
+    for (const d of [a.data, b.data, await accountData(remote, "u1")]) {
+      expect(d.tasks[0]).toMatchObject({ title: "Outline v2", done: true, actualMin: 25 });
+      expect(d.events.filter((e) => e.type === "task_completed")).toHaveLength(1);
+    }
+    // Deriving "done" from the events is not a local edit: nothing is sent back for it.
+    const write = vi.spyOn(remote, "write");
+    a.advance(60_000);
+    a.engine.localChanged();
+    await a.engine.flush();
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it("a reopen on one device after a completion elsewhere leaves the task open everywhere", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const withTask = A.createTask(made.data, { projectId: made.id, requirementId: null, title: "Outline", estimateMin: 30 }, NOW);
+    const done = A.completeTask(withTask.data, withTask.task.id, 25, NOW).data;
+    const a = device(quiet(remote), "Laptop", done);
+    await a.engine.connect("u1");
+    const b = device(quiet(remote), "Desktop");
+    await b.engine.connect("u1");
+
+    b.advance(60_000);
+    b.edit((d) => A.reopenTask(d, withTask.task.id, b.now()));
+    b.engine.localChanged();
+    await b.engine.flush();
+    a.advance(120_000); // the laptop renames its stale, still-done copy later
+    a.edit((d) => A.updateTask(d, withTask.task.id, { title: "Outline v2" }, a.now()));
+    a.engine.localChanged();
+    await a.engine.flush();
+
+    b.advance(600_000);
+    await b.engine.connect("u1");
+    a.advance(600_000);
+    await a.engine.connect("u1");
+    for (const d of [a.data, b.data]) expect(d.tasks[0]).toMatchObject({ title: "Outline v2", done: false, actualMin: null });
+  });
+});
