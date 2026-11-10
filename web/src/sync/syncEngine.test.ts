@@ -15,7 +15,7 @@ import { memoryStorage, renderWithStudium } from "../test/render";
 import { liveRecords, type StampedRecords } from "./merge";
 import { fromRecords, type SyncedSettings } from "./records";
 import { loadSyncState } from "./syncState";
-import { SUPERSEDED, createSyncEngine } from "./syncEngine";
+import { SUPERSEDED, createSyncEngine, type EngineDeps } from "./syncEngine";
 
 const ABBY: SyncedSettings = { nickname: "Abby", petInvolvement: "mild", petOrder: "project" };
 const BEE: SyncedSettings = { nickname: "Bee", petInvolvement: "moderate", petOrder: "dueDate" };
@@ -26,10 +26,18 @@ function withProject(name: string, data: StudiumData = emptyData(NOW)): { data: 
 }
 
 /** One device: its own storage, its own data, and a clock the test moves. */
-function device(remote: FakeRemote, name: string, data: StudiumData = emptyData(NOW), settings: SyncedSettings = ABBY, storage = memoryStorage()) {
+function device(
+  remote: FakeRemote,
+  name: string,
+  data: StudiumData = emptyData(NOW),
+  settings: SyncedSettings = ABBY,
+  storage = memoryStorage(),
+  extra: Pick<EngineDeps, "onConnectionLost"> = {},
+) {
   let local = { data, settings };
   let now = NOW;
   const engine = createSyncEngine({
+    ...extra,
     remote,
     storage,
     clock: () => now,
@@ -709,5 +717,47 @@ describe("sync engine: keeping this computer's save while another device is link
     expect(names(account)).toEqual(["Essay"]);
     expect(purchases(account)).toEqual([]);
     expect(tokenBalance(a.data)).toBe(balance);
+  });
+});
+
+describe("sync engine: when the cloud's listener stops", () => {
+  it("the session ends and says so, the device stays signed in, and the next connect catches up", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const lost = vi.fn();
+    const a = device(remote, "Laptop", made.data, ABBY, memoryStorage(), { onConnectionLost: lost });
+    await a.engine.connect("u1");
+    const subscribe = vi.spyOn(remote, "subscribe");
+    const error = new Error("permission-denied");
+    remote.failListeners("u1", error);
+    expect(lost).toHaveBeenCalledWith(error);
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1" });
+
+    a.advance(60_000);
+    const editedAt = a.now().toISOString();
+    a.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
+    a.engine.localChanged(); // not connected: stamped, sent by the next connect
+    await a.engine.flush();
+    expect(names(await accountData(remote, "u1"))).toEqual(["Essay"]);
+    a.advance(60_000);
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" });
+    await a.engine.flush();
+    expect(subscribe).toHaveBeenCalledTimes(1);
+    expect((await remote.load("u1"))?.projects[made.id]).toMatchObject({ updatedAt: editedAt, value: { project: { name: "Thesis" } } });
+  });
+
+  it("a write the cloud refuses is reported the same way", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const lost = vi.fn();
+    const a = device(remote, "Laptop", made.data, ABBY, memoryStorage(), { onConnectionLost: lost });
+    await a.engine.connect("u1");
+    const error = new Error("permission-denied");
+    vi.spyOn(remote, "write").mockRejectedValueOnce(error);
+    a.advance(1_000);
+    a.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
+    a.engine.localChanged();
+    await a.engine.flush();
+    expect(lost).toHaveBeenCalledWith(error);
   });
 });

@@ -90,6 +90,8 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
   // The engine reads and writes through this, so it always sees the latest data, even before React re-renders.
   const studiumRef = useRef(studium);
   studiumRef.current = studium;
+  // Set below, once retrying is defined: what to do when syncing stops by itself.
+  const connectionLostRef = useRef<() => void>(() => {});
 
   function withEngine(s: Services): Loaded {
     const st = studiumRef.current;
@@ -107,6 +109,7 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
         studiumRef.current.updateSettings(settings);
         return true;
       },
+      onConnectionLost: () => connectionLostRef.current(),
     });
     return { ...s, engine };
   }
@@ -210,6 +213,13 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
     [engine, services, stopRetrying, retryLater],
   );
   connectRef.current = connect;
+  // A listener died or a write was refused: still signed in, so say so and connect again like after an offline launch.
+  connectionLostRef.current = () => {
+    const uid = connectedUid.current;
+    if (!uid) return;
+    setError(NETWORK_MESSAGE);
+    retryLater(uid);
+  };
 
   useEffect(() => {
     if (!services || !engine) return;

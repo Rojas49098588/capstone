@@ -124,6 +124,21 @@ describe("Settings → Account", () => {
     expect(await remote.load("u1")).not.toBeNull();
   });
 
+  it("a sync listener that stops says so, and connects again once back online", async () => {
+    const remote = new FakeRemote();
+    const { auth } = renderWithAccount(<Settings />, { signedIn: ABBY, remote });
+    await screen.findByText("Last synced just now");
+    const subscribe = vi.spyOn(remote, "subscribe");
+    act(() => remote.failListeners("u1", new Error("permission-denied")));
+    await screen.findByText("Couldn't reach Studium's servers. Check your connection.");
+    expect(auth.current()).toEqual(ABBY);
+    act(() => {
+      window.dispatchEvent(new Event("online"));
+    });
+    await waitFor(() => expect(screen.queryByText("Couldn't reach Studium's servers. Check your connection.")).toBeNull());
+    expect(subscribe).toHaveBeenCalledTimes(1);
+  });
+
   it("while Firebase is loading, the account buttons wait", async () => {
     let finish: (s: { auth: FakeAuth; remote: FakeRemote }) => void = () => {};
     const load = () => new Promise<{ auth: FakeAuth; remote: FakeRemote }>((resolve) => (finish = resolve));

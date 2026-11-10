@@ -69,4 +69,16 @@ describe("FakeRemote", () => {
     expect(await remote.load("u1")).toBeNull();
     expect(await remote.savedInfo("u1")).toBeNull();
   });
+
+  it("failListeners stops the account's listeners with the error; nothing more arrives", () => {
+    const remote = new FakeRemote();
+    const seen = vi.fn();
+    const failed = vi.fn();
+    remote.subscribe("u1", seen, failed);
+    const error = new Error("permission-denied");
+    remote.failListeners("u1", error);
+    expect(failed).toHaveBeenCalledWith(error);
+    remote.push("u1", empty());
+    expect(seen).not.toHaveBeenCalled();
+  });
 });

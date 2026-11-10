@@ -20,6 +20,8 @@ export type EngineDeps = {
   device: string;
   getLocal: () => { data: StudiumData; settings: SyncedSettings };
   applyLocal: (data: StudiumData, settings: SyncedSettings) => boolean; // replaceData + updateSettings
+  /** Syncing stopped by itself (a cloud listener died, or the cloud refused a write); still signed in. Connect again to resume. */
+  onConnectionLost?: (e: Error) => void;
 };
 export type ConnectResult =
   | { kind: "synced" }
@@ -228,7 +230,7 @@ export function createSyncEngine(deps: EngineDeps) {
       () => {
         if (s === session) synced = now();
       },
-      () => undefined, // left for the next change or snapshot to send again
+      (e: unknown) => lost(s, e), // a refused write: the next connect merges and sends it again
     );
     sending.add(sent);
     void sent.finally(() => sending.delete(sent));
@@ -303,6 +305,14 @@ export function createSyncEngine(deps: EngineDeps) {
     state = { ...state, saveId: remote.saveId ?? null };
   }
 
+  /** Session `s` stopped by itself: no more syncing until a connect, but still signed in, and the provider is told. */
+  function lost(s: number, e: unknown): void {
+    if (s !== session) return;
+    endSession();
+    save();
+    deps.onConnectionLost?.(e instanceof Error ? e : new Error(String(e)));
+  }
+
   /** Throws if a newer connect or a stop has started since session `s` began. */
   function current(s: number): void {
     if (s !== session) throw new Error(SUPERSEDED);
@@ -351,9 +361,13 @@ export function createSyncEngine(deps: EngineDeps) {
     state = { ...state, uid, owner: uid, changedWhileSignedOut: false };
     save();
     const s = session;
-    unsubscribe = deps.remote.subscribe(uid, (remote) => {
-      if (s === session) enqueue(() => onSnapshot(s, uid, remote));
-    });
+    unsubscribe = deps.remote.subscribe(
+      uid,
+      (remote) => {
+        if (s === session) enqueue(() => onSnapshot(s, uid, remote));
+      },
+      (e) => lost(s, e), // a listener stopped: no more changes would arrive
+    );
   }
 
   function endSession(): void {
@@ -372,10 +386,10 @@ export function createSyncEngine(deps: EngineDeps) {
     if (replacedElsewhere(remote)) {
       try {
         takeReplacedSave(remote);
-      } catch {
-        endSession(); // nothing is synced until a connect has taken the new save
+        save();
+      } catch (e) {
+        lost(s, e); // nothing is synced until a connect has taken the new save
       }
-      save();
       return;
     }
     if (remote.saveId !== undefined && state.saveId === null) state = { ...state, saveId: remote.saveId };

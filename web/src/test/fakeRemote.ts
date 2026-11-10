@@ -22,6 +22,7 @@ export class FakeRemote implements RemoteStore {
   private data = new Map<string, StampedRecords>();
   private info = new Map<string, SavedInfo>();
   private listeners = new Map<string, Set<(r: StampedRecords) => void>>();
+  private errorListeners = new Map<string, Set<(e: Error) => void>>();
 
   private notify(uid: string): void {
     const r = this.data.get(uid);
@@ -54,12 +55,24 @@ export class FakeRemote implements RemoteStore {
     this.notify(uid);
   }
 
-  subscribe(uid: string, onRemote: (r: StampedRecords) => void): () => void {
+  /** The listeners for `uid` stop with `error`, as Firestore's do when access is refused: no more changes arrive. */
+  failListeners(uid: string, error: Error): void {
+    const failed = [...(this.errorListeners.get(uid) ?? [])];
+    this.listeners.get(uid)?.clear();
+    this.errorListeners.get(uid)?.clear();
+    for (const cb of failed) cb(error);
+  }
+
+  subscribe(uid: string, onRemote: (r: StampedRecords) => void, onError?: (e: Error) => void): () => void {
     const set = this.listeners.get(uid) ?? new Set();
     set.add(onRemote);
     this.listeners.set(uid, set);
+    const errors = this.errorListeners.get(uid) ?? new Set();
+    if (onError) errors.add(onError);
+    this.errorListeners.set(uid, errors);
     return () => {
       set.delete(onRemote);
+      if (onError) errors.delete(onError);
     };
   }
 
