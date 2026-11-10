@@ -172,6 +172,23 @@ function reconcile(local: StampedRecords, remote: StampedRecords, fallbackUser: 
   return { ...result, kept: unflatten(kept), push: pushToRemote };
 }
 
+const BACKUPS_KEPT = 5;
+
+/** Keeps the newest BACKUPS_KEPT backups (by the time in their key), always including `written`, the one just made. */
+function pruneBackups(storage: Storage, written: string): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i);
+      if (k?.startsWith(BACKUP_PREFIX) && k !== written) keys.push(k);
+    }
+    keys.sort().reverse(); // ISO times: newest first
+    for (const k of keys.slice(BACKUPS_KEPT - 1)) storage.removeItem(k);
+  } catch {
+    // storage blocked: the extra backups stay, which loses nothing
+  }
+}
+
 function hasProjects(r: StampedRecords | null): boolean {
   return r !== null && Object.values(r.projects).some((p) => !p.deleted && p.value !== null);
 }
@@ -247,6 +264,7 @@ export function createSyncEngine(deps: EngineDeps) {
     } catch {
       throw new Error(BACKUP_FAILED);
     }
+    pruneBackups(deps.storage, key);
   }
 
   /** Stamps local edits not yet stamped with the time now; returns the keys that changed. */

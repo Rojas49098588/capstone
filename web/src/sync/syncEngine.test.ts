@@ -761,3 +761,41 @@ describe("sync engine: when the cloud's listener stops", () => {
     expect(lost).toHaveBeenCalledWith(error);
   });
 });
+
+describe("sync engine: backups", () => {
+  const keys = (storage: Storage) => {
+    const out: string[] = [];
+    for (let i = 0; i < storage.length; i++) {
+      const k = storage.key(i) as string;
+      if (k.startsWith(BACKUP_PREFIX)) out.push(k);
+    }
+    return out.sort();
+  };
+  const at = (minutes: number) => `${BACKUP_PREFIX}${new Date(NOW.getTime() + minutes * 60_000).toISOString()}`;
+
+  it("only the 5 newest are kept, the one just written always among them", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const storage = memoryStorage();
+    for (const m of [-60, -50, -40, -30, -20, -10]) storage.setItem(at(m), "{}");
+    const a = device(remote, "Laptop", withProject("Essay").data, ABBY, storage);
+    await a.engine.connect("u2"); // a guest's data linked to u2...
+    a.engine.stop();
+    a.advance(60_000);
+    await a.engine.connect("u1"); // ...then another account signs in here: backed up and replaced
+    expect(keys(storage)).toEqual([at(-40), at(-30), at(-20), at(-10), at(1)]);
+  });
+
+  it("a backup written while the clock is behind older ones still stays", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const storage = memoryStorage();
+    for (const m of [10, 20, 30, 40, 50, 60]) storage.setItem(at(m), "{}");
+    const a = device(remote, "Laptop", withProject("Essay").data, ABBY, storage);
+    await a.engine.connect("u2");
+    a.engine.stop();
+    await a.engine.connect("u1");
+    expect(keys(storage)).toEqual([at(0), at(30), at(40), at(50), at(60)]);
+    expect(JSON.parse(storage.getItem(at(0)) as string).projects[0].name).toBe("Essay");
+  });
+});
