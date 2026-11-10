@@ -35,7 +35,7 @@ npm install
 npm run dev
 ```
 
-It runs at http://localhost:5173 (the port is fixed because the extension opens that URL).
+The hosted web app is at https://studium-9a00e.web.app/ (Firebase Hosting); the browser extension's toolbar icon opens it. For development, `npm run dev` runs it at http://localhost:5173 (the port is fixed; the extension also recognises that address as Studium).
 
 ## Desktop app
 
@@ -133,7 +133,7 @@ After editing extension files, click the reload icon on the extension's card, th
 | Each pet's speed, size, sound, naps, hops, flying | `KINDS` in `extension/content/pet.js` |
 | Shared physics (gravity, throwing, bounce) | constants at the top of `extension/content/pet.js` |
 | Pet art | `extension/assets/pets/` (cleaned-up copies of the originals in `assets/`) |
-| Studium's address (the icon opens it; pets read it) | `HOMEPAGE_URL` in `extension/content/logic.js` |
+| Studium's address (the icon opens it; pets read it; `https://studium-9a00e.web.app/`, plus localhost for development) | `HOMEPAGE_URL` and `STUDIUM_ORIGINS` in `extension/content/logic.js` |
 | Studium screens | `web/src/components/` (one file per piece; `App.tsx` is just the shell) |
 | Wording shown in Studium (labels, token messages) | `web/src/ui/format.ts` |
 | Egg looks and descriptions | `web/src/pets/eggs.ts` |

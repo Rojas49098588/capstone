@@ -2,8 +2,15 @@
 // tests in web/src/extension/. No chrome.*, window or document here. Wrapped in a function so it can
 // be injected into a tab more than once.
 (() => {
-  // Where Studium runs. Change this when Studium is deployed somewhere else.
-  const HOMEPAGE_URL = 'http://localhost:5173/';
+  // Where Studium runs (Firebase Hosting, project studium-9a00e). The toolbar icon opens this.
+  const HOMEPAGE_URL = 'https://studium-9a00e.web.app/';
+  // Every address that counts as Studium's page when no homepage is given: the hosted app, the same
+  // site on Firebase's other domain, and the local dev server.
+  const STUDIUM_ORIGINS = [
+    'https://studium-9a00e.web.app',
+    'https://studium-9a00e.firebaseapp.com',
+    'http://localhost:5173',
+  ];
   const PET_STATUS_KEY = 'studium-pets-v1';
   const PET_STATUS_EVENT = 'studium:pets-updated';
   // User settings (Studium's web/src/store/settings.ts uses the same names).
@@ -58,9 +65,10 @@
     Sick: { speed: 0.3, sound: ['Achoo!', '*sniffle*', '*cough*'], soundMs: [30000, 60000], noNap: true, noFly: true, tint: true },
   };
 
-  function isStudiumUrl(href, homepage = HOMEPAGE_URL) {
+  function isStudiumUrl(href, homepage) {
     try {
-      return new URL(href).origin === new URL(homepage).origin;
+      const origin = new URL(href).origin;
+      return homepage === undefined ? STUDIUM_ORIGINS.includes(origin) : origin === new URL(homepage).origin;
     } catch {
       return false;
     }
