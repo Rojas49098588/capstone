@@ -114,7 +114,8 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     let signInAttempt = null;
     ipcMain.handle('auth:browser', (event, provider) => {
       if (from(event) !== 'studium') throw new Error('not allowed');
-      if (provider !== 'google' && provider !== 'apple') throw new Error('unsupported provider');
+      // Google only for now: Apple's id token needs a raw nonce the hosted page cannot read reliably (see task-12 nonce note).
+      if (provider !== 'google') throw new Error('unsupported provider');
       signInAttempt?.abort();
       const attempt = new AbortController();
       signInAttempt = attempt;

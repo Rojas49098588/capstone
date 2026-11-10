@@ -1,6 +1,9 @@
 // The Firebase web config. It is public by design: access is controlled by the Firestore rules, not by hiding this.
 import type { FirebaseOptions } from "firebase/app";
 
+/** Shows "Continue with Apple". Flip to true after the Apple Developer and Firebase console steps and a manual check. */
+export const APPLE_SIGN_IN_ENABLED = false;
+
 export const FIREBASE_CONFIG: FirebaseOptions | null = {
   apiKey: "AIzaSyDJYSW1RVEHa4Mo7IksM12AL21g41zFlzI",
   authDomain: "studium-9a00e.firebaseapp.com",

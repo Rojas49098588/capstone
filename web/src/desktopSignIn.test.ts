@@ -28,6 +28,7 @@ describe("desktop sign-in page", () => {
     ["?provider=google&port=80&state=" + STATE],
     ["?provider=google&port=99999&state=" + STATE],
     ["?provider=google&port=51234&state=zz"],
+    ["?provider=apple&port=51234&state=" + STATE],
     ["?provider=github&port=51234&state=" + STATE],
   ])("shows an error and no button for an invalid link %s", (search) => {
     const { root, signIn, button } = setup(search);

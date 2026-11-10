@@ -15,6 +15,7 @@ import {
   authErrorMessage,
 } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
+import { APPLE_SIGN_IN_ENABLED } from "../sync/config";
 import { useReturnFocus } from "./useReturnFocus";
 
 export type SignInMode = "signin" | "create";
@@ -189,7 +190,7 @@ export default function SignInDialog({ auth, reason, initialMode, onSignedIn, on
           <button type="button" disabled={busy} onClick={() => void run(() => auth.signInGoogle())} className={`${BUTTON_SECONDARY} w-full`}>
             {GOOGLE_SIGN_IN_LABEL}
           </button>
-          {!onDesktop() && (
+          {APPLE_SIGN_IN_ENABLED && !onDesktop() && (
             <button type="button" disabled={busy} onClick={() => void run(() => auth.signInApple())} className={`${BUTTON_SECONDARY} w-full`}>
               {APPLE_SIGN_IN_LABEL}
             </button>

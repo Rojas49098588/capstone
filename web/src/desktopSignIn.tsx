@@ -24,7 +24,8 @@ export function mountSignIn({ root, search, signIn, redirect, pause = () => new 
   const port = params.get("port") ?? "";
   const state = params.get("state") ?? "";
   const portNumber = Number(port);
-  if ((provider !== "google" && provider !== "apple") || !/^\d+$/.test(port) || portNumber < 1024 || portNumber > 65535 || !/^[0-9a-f]{64}$/.test(state)) {
+  // Apple is not offered from the desktop app yet: see the nonce note in task-12-report.md.
+  if (provider !== "google" || !/^\d+$/.test(port) || portNumber < 1024 || portNumber > 65535 || !/^[0-9a-f]{64}$/.test(state)) {
     root.textContent = "This sign-in link is not valid. Go back to Studium and try again.";
     return;
   }

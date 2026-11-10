@@ -8,6 +8,15 @@ import { SYNC_KEY } from "../sync/syncState";
 import { AskToSignIn, ProjectNames, renderWithAccount, storageWithoutBackups, submitSignIn } from "../test/account";
 import Settings from "./Settings";
 
+// The real flag is off until Apple is set up in the consoles; these tests turn it on or off.
+const flags = vi.hoisted(() => ({ apple: true }));
+vi.mock("../sync/config", async (orig) => ({
+  ...(await orig<typeof import("../sync/config")>()),
+  get APPLE_SIGN_IN_ENABLED() {
+    return flags.apple;
+  },
+}));
+
 const BONUS = "Link an account to save your progress and get a bonus later.";
 
 describe("SignInDialog", () => {
@@ -73,6 +82,20 @@ describe("SignInDialog", () => {
     await screen.findByText("Last synced just now");
     expect(auth.current()).not.toBeNull();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("the web does not offer Apple while it is switched off", async () => {
+    flags.apple = false;
+    try {
+      const user = userEvent.setup();
+      renderWithAccount(<Settings />);
+      await user.click(screen.getByRole("button", { name: "Link account" }));
+      const dialog = screen.getByRole("dialog");
+      within(dialog).getByRole("button", { name: "Continue with Google" });
+      expect(within(dialog).queryByRole("button", { name: "Continue with Apple" })).toBeNull();
+    } finally {
+      flags.apple = true;
+    }
   });
 
   it("the desktop app does not offer Apple (its browser hand-off has no verified nonce)", async () => {
