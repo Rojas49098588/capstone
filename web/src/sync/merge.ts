@@ -9,6 +9,8 @@ export type StampedRecords = {
   requirements: Record<string, Stamped<Requirement>>;
   tasks: Record<string, Stamped<Task>>;
   events: Record<string, StudiumEvent>; // events are never edited, only added
+  /** The account's save generation: replaced whenever a whole save replaces the account's (replaceAll). Only the cloud's copy has one. */
+  saveId?: string;
 };
 
 const time = (s: Stamped<unknown>) => Date.parse(s.updatedAt);

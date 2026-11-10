@@ -86,6 +86,21 @@ describe("firestore remote against the emulator", () => {
     expect(r?.events).toEqual({});
   });
 
+  it("replaceAll sets the save generation; load and snapshots report it, and later writes keep it", async () => {
+    const { uid, remote } = await newUser();
+    await remote.replaceAll(uid, { ...records({ projects: { p1: live({ project: project("p1"), decor: {} }) } }), saveId: "gen-1" }, meta);
+    expect((await remote.load(uid))?.saveId).toBe("gen-1");
+    await remote.write(uid, [up("user", { ...user, startingTokens: 9 }, 2), up("project:p1", { project: project("p1", { name: "renamed" }), decor: {} }, 2)], meta);
+    expect((await remote.load(uid))?.saveId).toBe("gen-1");
+    await remote.replaceAll(uid, { ...records({}), saveId: "gen-2" }, meta);
+    expect((await remote.load(uid))?.saveId).toBe("gen-2");
+    const seen: StampedRecords[] = [];
+    const stop = remote.subscribe(uid, (r) => seen.push(r));
+    await vi_waitFor(() => seen.length > 0);
+    stop();
+    expect(seen[seen.length - 1].saveId).toBe("gen-2");
+  });
+
   it("replaceAll with a deleted user record leaves the user doc exactly as r says", async () => {
     const { uid, remote } = await newUser();
     await remote.write(uid, [up("user", user)], meta);

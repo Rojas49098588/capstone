@@ -56,9 +56,15 @@ describe("syncState", () => {
   it("saving and loading round-trips", () => {
     const s = memoryStorage();
     const state: SyncState = {
-      uid: "u1", owner: "u2", stamps: { user: "a" }, hashes: { user: "h" }, tombstones: { "task:x": "b" }, changedWhileSignedOut: true,
+      uid: "u1", owner: "u2", stamps: { user: "a" }, hashes: { user: "h" }, tombstones: { "task:x": "b" }, changedWhileSignedOut: true, saveId: "s1",
     };
     saveSyncState(s, state);
     expect(loadSyncState(s)).toEqual(state);
+  });
+
+  it("a state saved before save generations loads with none", () => {
+    const s = memoryStorage();
+    s.setItem(SYNC_KEY, JSON.stringify({ uid: "u1", owner: "u1", stamps: {}, hashes: {}, tombstones: {}, changedWhileSignedOut: false }));
+    expect(loadSyncState(s)).toEqual({ ...EMPTY_SYNC_STATE, uid: "u1", owner: "u1" });
   });
 });

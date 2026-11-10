@@ -10,12 +10,13 @@ export type SyncState = {
   hashes: Record<RecordKey, string>; // recordHashes at the last sync
   tombstones: Record<RecordKey, string>; // deleted here, at
   changedWhileSignedOut: boolean;
+  saveId: string | null; // the account's save generation this device's data belongs to (null: none yet)
 };
 
-export const EMPTY_SYNC_STATE: SyncState = { uid: null, owner: null, stamps: {}, hashes: {}, tombstones: {}, changedWhileSignedOut: false };
+export const EMPTY_SYNC_STATE: SyncState = { uid: null, owner: null, stamps: {}, hashes: {}, tombstones: {}, changedWhileSignedOut: false, saveId: null };
 
 /** A new empty state each time, so callers can't share and mutate one. */
-const emptyState = (): SyncState => ({ uid: null, owner: null, stamps: {}, hashes: {}, tombstones: {}, changedWhileSignedOut: false });
+const emptyState = (): SyncState => ({ uid: null, owner: null, stamps: {}, hashes: {}, tombstones: {}, changedWhileSignedOut: false, saveId: null });
 
 const isStringOrNull = (v: unknown): v is string | null => v === null || typeof v === "string";
 
@@ -40,10 +41,11 @@ export function loadSyncState(storage: Storage | null): SyncState {
     const stamps = stringMap(o.stamps);
     const hashes = stringMap(o.hashes);
     const tombstones = stringMap(o.tombstones);
-    if (!isStringOrNull(o.uid) || !isStringOrNull(o.owner) || !stamps || !hashes || !tombstones || typeof o.changedWhileSignedOut !== "boolean") {
+    const saveId = o.saveId ?? null; // missing in states saved before save generations
+    if (!isStringOrNull(o.uid) || !isStringOrNull(o.owner) || !stamps || !hashes || !tombstones || typeof o.changedWhileSignedOut !== "boolean" || !isStringOrNull(saveId)) {
       return emptyState();
     }
-    return { uid: o.uid, owner: o.owner, stamps, hashes, tombstones, changedWhileSignedOut: o.changedWhileSignedOut };
+    return { uid: o.uid, owner: o.owner, stamps, hashes, tombstones, changedWhileSignedOut: o.changedWhileSignedOut, saveId };
   } catch {
     return emptyState(); // storage blocked or not JSON
   }

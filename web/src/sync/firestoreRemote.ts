@@ -117,6 +117,7 @@ type Pieces = {
 function build(p: Pieces, index: ProjectIndex): StampedRecords | null {
   if (!p.user && p.userEvents.size === 0 && p.projects.size === 0) return null;
   const out: StampedRecords = { user: parseUser(p.user), projects: {}, requirements: {}, tasks: {}, events: {} };
+  if (typeof p.user?.saveId === "string") out.saveId = p.user.saveId;
   for (const [id, d] of p.userEvents) if (d.event) out.events[id] = d.event as StudiumEvent;
   for (const [id, d] of p.projects) {
     const s = stampedDoc<{ project: never; decor: never }>(d, "project");
@@ -293,10 +294,15 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       const docs = [...wanted.values()];
       const projectDocs = docs.filter((d) => isProjectPath(d.path));
       const rest = docs.filter((d) => !isProjectPath(d.path));
-      // With no user record in r the user doc is replaced by just the save info and the record stamp, so it reads back as deleted.
+      // With no user record in r the user doc is replaced by just the save info, the record stamp and the save generation, so it reads back as deleted.
+      const generation = r.saveId === undefined ? {} : { saveId: r.saveId };
       const userDoc: Op = userLive
-        ? metaOp(uid, meta, r.user.updatedAt)
-        : setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt } });
+        ? setOp({
+            path: `users/${uid}`,
+            data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt, ...generation },
+            fields: ["savedAt", "savedBy", "updatedAt", ...Object.keys(generation)],
+          })
+        : setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt, ...generation } });
       for (const [id, p] of idx.tasks) index.tasks.set(id, p);
       for (const [id, p] of idx.requirements) index.requirements.set(id, p);
       // Queued in this order: projects first, then what goes under them, and project deletes last, since a project's members are what lets the rules reach its subdocuments.

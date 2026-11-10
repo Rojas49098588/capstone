@@ -650,3 +650,55 @@ describe("sync engine: edits are stamped when they happen", () => {
     expect(await within(b.engine.connect("u2"))).toEqual({ kind: "synced" }); // rejoin sends the edit
   });
 });
+
+describe("sync engine: keeping this computer's save while another device is linked", () => {
+  /** The desktop linked "u1" with a Novel project and a purchase; the laptop then links with an Essay and keeps its own. */
+  async function laptopKeepsItsOwn(remote: FakeRemote, desktopStaysConnected: boolean) {
+    const novel = withProject("Novel");
+    const bought = A.purchase({ ...novel.data, startingTokens: 5000 }, "rainy-day-coat", NOW).data;
+    const b = device(remote, "Desktop", bought, BEE);
+    await b.engine.connect("u1");
+    if (!desktopStaysConnected) b.engine.stop();
+
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    const balance = tokenBalance(a.data);
+    expect((await a.engine.connect("u1")).kind).toBe("picker");
+    await a.engine.choose("u1", "local");
+    await a.engine.flush();
+    return { a, b, balance };
+  }
+
+  const purchases = (d: StudiumData) => d.events.filter((e) => e.type === "purchase");
+
+  it("a device that rejoins later backs up its copy and takes the kept save, bringing nothing of the other back", async () => {
+    const remote = new FakeRemote();
+    const { a, b, balance } = await laptopKeepsItsOwn(remote, false);
+
+    b.advance(60_000);
+    await b.engine.connect("u1");
+    await b.engine.flush();
+    expect(names(b.data)).toEqual(["Essay"]);
+    expect(purchases(b.data)).toEqual([]);
+    expect(backups(b.storage).map(names)).toEqual([["Novel"]]);
+    const account = await accountData(remote, "u1");
+    expect(names(account)).toEqual(["Essay"]);
+    expect(purchases(account)).toEqual([]);
+
+    a.advance(120_000);
+    await a.engine.connect("u1");
+    expect(tokenBalance(a.data)).toBe(balance);
+  });
+
+  it("a device still connected takes the kept save from its next snapshot, and sends nothing of its own", async () => {
+    const remote = new FakeRemote();
+    const { a, b, balance } = await laptopKeepsItsOwn(remote, true);
+    await b.engine.flush();
+    expect(names(b.data)).toEqual(["Essay"]);
+    expect(purchases(b.data)).toEqual([]);
+    expect(backups(b.storage).map(names)).toEqual([["Novel"]]);
+    const account = await accountData(remote, "u1");
+    expect(names(account)).toEqual(["Essay"]);
+    expect(purchases(account)).toEqual([]);
+    expect(tokenBalance(a.data)).toBe(balance);
+  });
+});

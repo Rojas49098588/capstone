@@ -39,6 +39,11 @@ const defaultUser = (now: Date): UserRecord => ({
   settings: DEFAULT_SYNCED,
 });
 const DEBOUNCE_MS = 1000;
+/** A random id for a new save generation. randomUUID needs a secure context, so there is a fallback. */
+const newSaveId = (): string =>
+  typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}${Math.random().toString(36).slice(2)}`;
 /** Why a connect or choice failed when this device couldn't keep a backup or take the account's data. */
 export const NOT_APPLIED = "Couldn't show the account's data, so this device stays signed out.";
 export const BACKUP_FAILED = "Couldn't save a backup, so nothing was replaced.";
@@ -192,6 +197,7 @@ export function createSyncEngine(deps: EngineDeps) {
   const sending = new Set<Promise<void>>(); // writes the cloud hasn't acknowledged yet
   let synced: string | null = null;
   let pending: { uid: string; remote: StampedRecords | null } | null = null; // waiting for the picker
+  let awaitingSave: string | null = null; // this device's replaceAll, until the cloud acknowledges it
 
   const save = () => saveSyncState(deps.storage, state);
   const now = () => deps.clock().toISOString();
@@ -275,6 +281,28 @@ export function createSyncEngine(deps: EngineDeps) {
     write(session, uid, r.kept, r.push);
   }
 
+  /** The account's save was replaced, by another device, since this device last synced. */
+  const replacedElsewhere = (remote: StampedRecords | null) =>
+    remote?.saveId !== undefined && state.saveId !== null && remote.saveId !== state.saveId;
+
+  /**
+   * This device's copy belongs to a save the account no longer has: it is backed up and the account's taken
+   * as it is. Nothing is sent, so nothing of the replaced save comes back. Throws, changing nothing, if it can't.
+   */
+  function takeReplacedSave(remote: StampedRecords): void {
+    const r = reconcile(nothingHere(), remote, defaultUser(deps.clock()));
+    if (!r) throw new Error(NOT_APPLIED);
+    backup(deps.getLocal().data);
+    const before = state;
+    state = { ...state, stamps: {}, tombstones: {}, hashes: {} };
+    if (!settle(r)) {
+      state = before;
+      throw new Error(NOT_APPLIED);
+    }
+    unsent.clear();
+    state = { ...state, saveId: remote.saveId ?? null };
+  }
+
   /** Throws if a newer connect or a stop has started since session `s` began. */
   function current(s: number): void {
     if (s !== session) throw new Error(SUPERSEDED);
@@ -306,10 +334,17 @@ export function createSyncEngine(deps: EngineDeps) {
     // A chosen save is stamped now throughout, so it beats any older copy still on other devices.
     const f = flatten(stampedLocal(records, replacing ? { ...state, stamps: {} } : state, at));
     if (replacing) for (const key of flatten(replacing).keys()) if (!f.has(key) && !isEvent(key)) f.set(key, { updatedAt: at, deleted: true, value: null });
-    const all = unflatten(f);
+    // A new save generation: devices still holding the account's earlier save take this one rather than merge with it.
+    const saveId = newSaveId();
+    const all = { ...unflatten(f), saveId };
     const m = meta();
-    send(session, () => deps.remote.replaceAll(uid, all, m));
-    state = { ...state, ...stampsOf(f), hashes: recordHashes(records) };
+    awaitingSave = saveId;
+    send(session, () =>
+      deps.remote.replaceAll(uid, all, m).finally(() => {
+        if (awaitingSave === saveId) awaitingSave = null;
+      }),
+    );
+    state = { ...state, ...stampsOf(f), hashes: recordHashes(records), saveId };
   }
 
   function startSession(uid: string): void {
@@ -326,11 +361,24 @@ export function createSyncEngine(deps: EngineDeps) {
     timer = null;
     unsubscribe?.();
     unsubscribe = null;
+    awaitingSave = null;
     session++;
   }
 
   async function onSnapshot(s: number, uid: string, remote: StampedRecords): Promise<void> {
     if (s !== session) return;
+    // A snapshot from before this device's own replaceAll took effect holds the save it is replacing.
+    if (awaitingSave !== null && remote.saveId !== awaitingSave) return;
+    if (replacedElsewhere(remote)) {
+      try {
+        takeReplacedSave(remote);
+      } catch {
+        endSession(); // nothing is synced until a connect has taken the new save
+      }
+      save();
+      return;
+    }
+    if (remote.saveId !== undefined && state.saveId === null) state = { ...state, saveId: remote.saveId };
     stampChanges(); // edits not yet stamped are stamped first, so the snapshot can't overwrite them
     const r = reconcile(stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
     if (r) settle(r);
@@ -359,6 +407,11 @@ export function createSyncEngine(deps: EngineDeps) {
       return signingIn(s, uid, async (): Promise<ConnectResult> => {
         const remote = await deps.remote.load(uid);
         current(s);
+        if (state.owner === uid && remote && replacedElsewhere(remote)) {
+          takeReplacedSave(remote);
+          startSession(uid);
+          return { kind: "synced" };
+        }
         const local = deps.getLocal();
         const decision = decideLink({ uid, state, localHasProjects: local.data.projects.length > 0, remoteHasProjects: hasProjects(remote) });
         if (decision === "picker") {
@@ -385,8 +438,10 @@ export function createSyncEngine(deps: EngineDeps) {
           // Edits made here since the last sync (signed out, or closed before they were sent) are stamped first, so they win.
           stampChanges();
           mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
+          state = { ...state, saveId: remote.saveId ?? null };
         } else {
           mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+          state = { ...state, saveId: remote.saveId ?? null };
         }
         current(s);
         startSession(uid);
@@ -408,6 +463,7 @@ export function createSyncEngine(deps: EngineDeps) {
           backup(deps.getLocal().data);
           pending = null;
           if (remote) mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+          state = { ...state, saveId: remote?.saveId ?? null };
         }
         current(s);
         startSession(uid);
@@ -467,7 +523,7 @@ export function createSyncEngine(deps: EngineDeps) {
     forget(): void {
       endSession();
       pending = null;
-      state = { ...state, uid: null, owner: null, changedWhileSignedOut: false };
+      state = { ...state, uid: null, owner: null, changedWhileSignedOut: false, saveId: null };
       save();
     },
 
