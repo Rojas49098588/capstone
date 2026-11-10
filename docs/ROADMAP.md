@@ -5,7 +5,7 @@ What's planned, in order. Each big item gets its own design (`docs/superpowers/s
 ## Before the final due date (December 3, 2026)
 
 1. **Signed Mac installer, by Monday 11/16.** Sign and notarize the Mac `.dmg` with the Apple Developer account, so testers don't need System Settings → Privacy & Security → Open Anyway.
-2. **Accounts and sync.** Guest first, link an account later, and sync across the web and desktop apps. Design: `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`.
+2. **Accounts and sync: built; publishing and two-device checks pending.** Guest first, link an account later, and sync across the web and desktop apps. Design: `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`.
 
 ## After December 3
 

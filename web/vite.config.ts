@@ -9,7 +9,7 @@ export default defineConfig({
   resolve: {
     alias: { '@': path.resolve(import.meta.dirname, './src') },
   },
-  // The extension opens http://localhost:5173/, so keep the port fixed.
+  // Keep the dev port fixed: the extension and the desktop app's dev mode both expect http://localhost:5173/.
   server: { port: 5173, strictPort: true },
   // Firestore alone is ~550 kB; it is loaded lazily in its own chunk (sync/services.ts), never in the main bundle (~410 kB).
   // desktop-sign-in.html is a second page, opened by the desktop app in the person's browser (not a route of the app).

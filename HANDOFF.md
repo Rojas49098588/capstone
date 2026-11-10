@@ -62,7 +62,7 @@ After the MVP presentation, Studium is moving to a desktop app (Electron, in `de
 ## Before the desktop app: Plans 1–3, pet interactions, the pet lifecycle and setup/project types are done
 
 All three plans from the planner spec are built, and so is the pet interactions round (spec `docs/superpowers/specs/2026-10-19-pet-interactions-design.md`, plan `docs/superpowers/plans/2026-10-19-pet-interactions.md`, branch `feature/pet-interactions`). Its planned next round is **work limiters**, built on the focus sessions it records. Ask the user to choose the next step, for example:
-- **Deploy Studium** somewhere other than `localhost` (Vercel, Netlify), so testers don't need Node. Then change `HOMEPAGE_URL` in `extension/content/logic.js`; the toolbar icon and the pets' Studium detection both use it.
+- **Deploy Studium** somewhere other than `localhost`, so testers don't need Node. Done for Firebase Hosting: `HOMEPAGE_URL` in `extension/content/logic.js` is now `https://studium-9a00e.web.app/` (localhost stays in `STUDIUM_ORIGINS` for development); the toolbar icon and the pets' Studium detection both use it. Publishing is still to do (see "Accounts and sync").
 - **Deferred ideas** (spec "Out of scope"): growing juveniles into adults and juvenile art (the lifecycle's next round), using food, clothes and toys, and sprite animation frames.
 - **The deck's other "Next" items** (spec `2026-10-28-setup-and-project-types-design.md`, Non-goals): optional deadlines and time estimates, mood based on consistency, a pause button, progress photos, and more mischief for Moderate pets (with the desktop app).
 - **Deferred minors** listed under "Known small issues" below.
@@ -71,11 +71,50 @@ New work still goes through `superpowers:brainstorming` / `superpowers:writing-p
 
 **Branches:** Plans 1 and 2 are merged into `main` (Plan 2 locally; check whether `main` has been pushed). Plan 3 was built on `feature/extension-link`; check `git log main` / `git branch` for whether it has been merged or pushed. Don't work on `main`.
 
+## Accounts and sync: built, not yet published
+
+Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs/superpowers/plans/2026-11-09-accounts-and-sync.md`, branch `docs/accounts-design`. Guest first; linking an account syncs the web and desktop apps through Firebase (project `studium-9a00e`, Auth + Firestore + Hosting, free plan).
+
+**Sync layer (`web/src/sync/`)**
+- `config.ts`: the public Firebase web config and `APPLE_SIGN_IN_ENABLED`.
+- `auth.ts`: the `AuthClient` interface and `Account`/`AuthError` types; `firebaseAuth.ts` is the real one (email/password, Google, Apple).
+- `remote.ts`: the `RemoteStore` interface; `firestoreRemote.ts` is the real one (layout below).
+- `services.ts`: the one place Firebase starts, lazily in its own chunk; null config means sync is off.
+- `records.ts`: splits the `StudiumData` bundle into syncing records (and back) and hashes them.
+- `merge.ts`: merges local and cloud records: last edit wins, a delete beats an edit, a duplicate completion counts once.
+- `syncState.ts`: per-device memory (`studium-sync-v1`): which account the data came from, what changed since the last sync.
+- `linkDecision.ts`: what to do when an account connects: `upload`, `take`, `rejoin`, `picker` or `backup-and-take`.
+- `saveSummary.ts`: what the two-saves picker shows per save, and which has more progress.
+- `syncEngine.ts`: connects, pushes local edits, takes in other devices' edits, runs the picker choice.
+- `AccountProvider.tsx`: React context for who is signed in, the engine, and the sign-in and picker dialogs.
+- UI: `components/AccountSection.tsx` (Settings → Account, backups with Download), `SignInDialog.tsx`, `SavePicker.tsx`; setup has "Already use Studium? Sign in". Tests (fakes for auth and remote) sit next to each file.
+
+**Firestore layout** (`firebase/firestore.rules` enforces it)
+- `users/{uid}`: `{ updatedAt: string, savedAt: string, savedBy: string, startingTokens: number, defaultBeds: boolean, today: {date, taskIds}, settings: {nickname, petInvolvement, petOrder} }`
+- `users/{uid}/events/{eventId}`: `{ event: StudiumEvent }` (personal events: `purchase`).
+- `projects/{projectId}`: `{ members: string[], owner: string, updatedAt: string, deleted: boolean, project: Project | null, decor: Record<habitatId, HabitatDecor> }`
+- `projects/{projectId}/requirements/{id}` and `.../tasks/{id}`: `{ updatedAt: string, deleted: boolean, data: Requirement | Task | null }`
+- `projects/{projectId}/events/{eventId}`: `{ event: StudiumEvent, by: string }`
+
+**Rules and tests.** Users reach only their own `users/{uid}` tree. A project is created with yourself as owner and only member; only members read or write it and its subcollections; an update can't change `members` or `owner` (collab's job later). Rules tests: `cd firebase && npm test` (starts the emulator; needs Java). The real Firestore adapter against the emulators: `cd web && npm run test:emulator`. Both passed on 2026-11-09. `npx vitest run` in `web/` skips the emulator test.
+
+**Desktop sign-in.** Studium's window can't run Google's popup, so `desktop/src/main/browserSignIn.js` (IPC `auth:browser`, main.js) opens `https://studium-9a00e.web.app/desktop-sign-in.html?provider=…&port=…&state=…` in the person's browser. That hosted page (`web/desktop-sign-in.html`, needs a click, keeps nothing in the browser) signs in and posts the tokens to a one-shot server on `127.0.0.1:<port>/callback`, which checks the random `state`, then closes. The window then signs in with those tokens. It times out after 5 minutes and cancels cleanly. This is why the hosted site must be published before desktop Google sign-in works.
+
+**Apple.** `APPLE_SIGN_IN_ENABLED` (`web/src/sync/config.ts`) is `false`, so the button is hidden. Flip it after the Apple console steps and a manual check. Even then, Apple stays off in the desktop app (`auth:browser` accepts only `google`): Apple's id token needs the raw nonce, which the hosted page can't hand back reliably, so desktop users sign in with email or Google.
+
+**Not done yet / needs the user**
+- `firebase login` (the CLI isn't signed in on this PC).
+- Build and publish: `cd web && npm run build`, then from the repo root `firebase deploy --only firestore:rules,hosting`.
+- Add `studium-9a00e.web.app` to Firebase Auth → Settings → Authorized domains if missing.
+- Apple: Apple Developer Services ID, key and return URL, then enable the Apple provider in Firebase; then set `APPLE_SIGN_IN_ENABLED = true`.
+- Two-device checks (plan Task 13 Step 2), web app plus Windows app: link on one and see the projects on the other; complete the same task on both while offline, reconnect, and it's paid once; delete a task on one and edit it on the other, it stays deleted; sign out, change something, sign in, the picker appears; a second account on the same computer gets no data from the first.
+- Version bump (`desktop/package.json` and the lockfile root) and installer (`npm run dist`, then `STUDIUM_PACKAGED=1 npx playwright test e2e/packaged.spec.js`). The signed Mac installer (ROADMAP item 1) comes first.
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):
 
-- **`extension/`**: Chrome extension (Manifest V3, plain JS, no build step). One pet per project walks on every web page (cat, dog, frog, pigeon, turtle; art in `extension/assets/pets/`). Pets can be dragged and thrown, and each kind has its own behavior (naps, hops, flying). Clicking the toolbar icon opens Studium at `http://localhost:5173/`. Pets come from Studium (Plan 3):
+- **`extension/`**: Chrome extension (Manifest V3, plain JS, no build step). One pet per project walks on every web page (cat, dog, frog, pigeon, turtle; art in `extension/assets/pets/`). Pets can be dragged and thrown, and each kind has its own behavior (naps, hops, flying). Clicking the toolbar icon opens Studium at `https://studium-9a00e.web.app/` (`HOMEPAGE_URL`; `http://localhost:5173/` is also recognised for development). Pets come from Studium (Plan 3):
   - Studium writes `studium-pets-v1` to its localStorage.
   - The content script on the Studium page copies it to `chrome.storage.local.petStatuses`.
   - Every tab rebuilds its pets from that.
@@ -263,7 +302,7 @@ Known small issues, deferred on purpose:
 cd web
 npm test          # vitest run (all tests)
 npm run build     # tsc --noEmit + vite build
-npm run dev       # http://localhost:5173 (port fixed; the extension opens it)
+npm run dev       # http://localhost:5173 (port fixed; the extension and desktop dev mode expect it)
 ```
 
 Commits end with `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Commit or push only as the plan's steps say, or when the user asks.

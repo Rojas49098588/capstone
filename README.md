@@ -20,6 +20,19 @@ Studium isn't signed with a paid certificate, so your computer warns you the fir
 
 To update, install the new version over the old one. Your projects and pets stay.
 
+## Accounts and sync
+
+An account is optional. Without one you are a guest: everything works and is saved on your computer. With one, your projects and pets follow you between the desktop app and the web app at https://studium-9a00e.web.app/ (it goes live once published).
+
+- **Link an account:** Settings → **Account** → **Link account**. Your projects and pets stay and start syncing. If you already have an account, choose **Already use Studium? Sign in** during first-run setup instead.
+- **Ways to sign in:** email and password, or Google. Apple is coming later; its button stays hidden until it is set up.
+- **What syncs:** projects, requirements, tasks, history and Today, habitat decor, tokens and Shop purchases, your nickname, how much pets interact, and the pets-on-screen order.
+- **What stays on each device:** the theme, Pet sounds, volume and sound bubbles, how many pets show, Start with computer and Start quietly, and the tutorial.
+- **Two saves:** if this computer and your account already have different projects, Studium shows **You have two saves**. Pick one to keep; the other is saved as a backup file on this computer. **Not now (sign out)** leaves things as they were.
+- **Sign out** keeps everything on the computer; you carry on as a guest. Changes made while signed out aren't sent to the account. Signing in again offers the two-saves choice if something changed.
+- **Delete account** (Settings → Account) removes the account and its cloud data. Your computer keeps its copy.
+- **Backups:** Settings → **Account** lists the backups on this computer, each with a **Download** button.
+
 ## The code
 
 Two parts:
