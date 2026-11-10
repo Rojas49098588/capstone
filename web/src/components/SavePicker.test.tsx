@@ -19,6 +19,7 @@ import {
   backupKeys,
   renderWithAccount,
   storageWithoutBackups,
+  workedOnExample,
 } from "../test/account";
 import { FakeRemote } from "../test/fakeRemote";
 import { savedAtLabel } from "../ui/format";
@@ -45,7 +46,7 @@ async function withPicker(o: { storage?: Storage } = {}) {
       <Settings />
       <ProjectNames />
     </>,
-    { remote, signedIn: ABBY, storage: o.storage },
+    { remote, signedIn: ABBY, storage: o.storage, data: workedOnExample() },
   );
   const picker = await screen.findByRole("dialog", { name: "You have two saves" });
   return { ...r, picker };
@@ -60,7 +61,7 @@ describe("SavePicker", () => {
     within(picker).getByText("The one you don't keep is saved as a backup file on this computer, just in case.");
     const local = within(picker).getByRole("region", { name: "On this computer" });
     const account = within(picker).getByRole("region", { name: "In your account" });
-    const mine = summarize(buildSeed(NOW), null);
+    const mine = summarize(workedOnExample(), null);
     // As the account holds it (records come back in their own order).
     const theirs = summarize(fromRecords(liveRecords((await remote.load(ABBY.uid)) as StampedRecords)).data, null);
 

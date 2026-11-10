@@ -4,6 +4,8 @@ import type { UserEvent } from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
+import * as A from "../store/actions";
+import { buildSeed } from "../store/seed";
 import type { Settings } from "../store/settings";
 import { BACKUP_PREFIX } from "../store/storage";
 import { useStudiumContext } from "../store/useStudium";
@@ -49,6 +51,12 @@ export async function accountHas(remote: FakeRemote, uid: string, data: StudiumD
   });
   await engine.connect(uid);
   engine.stop();
+}
+
+/** The example data with some work of the person's own (a task added), so it is a save to keep, not untouched example data. */
+export function workedOnExample(): StudiumData {
+  const seed = buildSeed(NOW);
+  return A.createTask(seed, { projectId: seed.projects[0].id, requirementId: null, title: "My own task", estimateMin: 30 }, NOW).data;
 }
 
 /** Storage that can't take backups (full), but saves everything else. */

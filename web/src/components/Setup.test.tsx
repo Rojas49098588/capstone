@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { NOW } from "../planner/testData";
 import { buildSeed, emptyData } from "../store/seed";
 import { SETTINGS_KEY } from "../store/settings";
-import { ABBY, accountHas, renderWithAccount, submitSignIn } from "../test/account";
+import { ABBY, accountHas, renderWithAccount, submitSignIn, workedOnExample } from "../test/account";
 import { FakeRemote } from "../test/fakeRemote";
 import { renderWithStudium, withEgg } from "../test/render";
 import Setup from "./Setup";
@@ -127,7 +127,7 @@ describe("Setup", () => {
       const remote = new FakeRemote();
       await accountHas(remote, "u-abby@example.com", withEgg(1).data);
       const onFinish = vi.fn();
-      const { storage } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { remote, settings: { setupDone: false } });
+      const { storage } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { remote, data: workedOnExample(), settings: { setupDone: false } });
       await signInFromSetup(user);
       const picker = await screen.findByRole("dialog", { name: "You have two saves" });
       expect(onFinish).not.toHaveBeenCalled();
