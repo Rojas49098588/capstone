@@ -12,5 +12,5 @@ export default defineConfig({
   // The extension opens http://localhost:5173/, so keep the port fixed.
   server: { port: 5173, strictPort: true },
   // A few user-event tests take 1-2 s alone but pass 5 s when the whole suite runs at once.
-  test: { testTimeout: 15000 },
+  test: { testTimeout: 15000, exclude: ["**/node_modules/**", "**/*.emulator.test.ts"] },
 });

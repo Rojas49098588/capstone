@@ -2,7 +2,9 @@
 import type { FirebaseApp } from "firebase/app";
 import {
   collection,
+  connectFirestoreEmulator,
   doc,
+  memoryLocalCache,
   getDoc,
   getDocs,
   initializeFirestore,
@@ -67,7 +69,8 @@ export function docPath(uid: string, key: RecordKey, data: unknown, index: Proje
   return null;
 }
 
-type Doc = { path: string; data: DocumentData; merge: boolean };
+/** `fields`: write only these fields, each replaced whole (a plain merge would deep-merge maps, so removed keys would survive). Missing: replace the document. */
+type Doc = { path: string; data: DocumentData; fields?: string[] };
 
 function remember(index: ProjectIndex, key: RecordKey, path: string | null) {
   if (path === null) return;
@@ -81,19 +84,19 @@ function docFor(uid: string, change: RemoteChange, path: string): Doc {
   const { key, updatedAt } = change;
   const value = change.kind === "upsert" ? change.value : null;
   const deleted = change.kind === "delete";
-  if (key === "user") return { path, data: { ...(value as UserRecord), updatedAt }, merge: true };
+  if (key === "user") return { path, data: { ...(value as UserRecord), updatedAt }, fields: [...Object.keys(value as UserRecord), "updatedAt"] };
   if (key.startsWith("project:")) {
     const v = value as { project: unknown; decor: unknown } | null;
-    return { path, data: { updatedAt, deleted, project: v?.project ?? null, decor: v?.decor ?? {} }, merge: true };
+    return { path, data: { updatedAt, deleted, project: v?.project ?? null, decor: v?.decor ?? {} }, fields: ["updatedAt", "deleted", "project", "decor"] };
   }
   if (key.startsWith("event:")) {
-    return { path, data: path.startsWith("users/") ? { event: value } : { event: value, by: uid }, merge: false };
+    return { path, data: path.startsWith("users/") ? { event: value } : { event: value, by: uid } };
   }
-  return { path, data: { updatedAt, deleted, data: value }, merge: false };
+  return { path, data: { updatedAt, deleted, data: value } };
 }
 
 function parseUser(d: DocumentData | undefined): Stamped<UserRecord> {
-  if (!d || d.startingTokens === undefined) return { updatedAt: EPOCH, deleted: true, value: null };
+  if (!d || d.startingTokens === undefined) return { updatedAt: d?.updatedAt ?? EPOCH, deleted: true, value: null };
   const { startingTokens, defaultBeds, today, settings } = d;
   return { updatedAt: d.updatedAt ?? EPOCH, deleted: false, value: { startingTokens, defaultBeds, today, settings } };
 }
@@ -134,11 +137,13 @@ function build(p: Pieces, index: ProjectIndex): StampedRecords | null {
 
 const byId = (s: QuerySnapshot) => new Map(s.docs.map((d) => [d.id, d.data()]));
 
-export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
+/** `emulator` is for the integration tests: it points at a local Firestore emulator and skips the browser cache. */
+export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { host: string; port: number } } = {}): RemoteStore {
   const db: Firestore = initializeFirestore(app, {
-    localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+    localCache: opts.emulator ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
     ignoreUndefinedProperties: true,
   });
+  if (opts.emulator) connectFirestoreEmulator(db, opts.emulator.host, opts.emulator.port);
   const index = newIndex();
   const known = new Set<string>(); // projects seen to exist, so a write knows to update rather than create
   const warned = new Set<string>();
@@ -170,24 +175,36 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
     }
   }
 
-  const setOp = (d: Doc): Op => (b) => (d.merge ? b.set(doc(db, d.path), d.data, { merge: true }) : b.set(doc(db, d.path), d.data));
+  const setOp = (d: Doc): Op => (b) => (d.fields ? b.set(doc(db, d.path), d.data, { mergeFields: d.fields }) : b.set(doc(db, d.path), d.data));
   const deleteOp = (path: string): Op => (b) => b.delete(doc(db, path));
 
-  /** The members and owner fields only go on a project's first write; the rules never let them change. */
-  async function projectOps(uid: string, docs: Doc[]): Promise<Op[]> {
-    const ops: Op[] = [];
-    for (const d of docs) {
+  /** The members and owner fields go on a project's first write (one never seen by load or subscribe); the rules never let them change. Never read first: a missing project is unreadable. */
+  function projectOps(uid: string, docs: Doc[]): { ops: Op[]; created: string[] } {
+    const created: string[] = [];
+    const ops = docs.map((d) => {
       const id = d.path.split("/")[1];
-      if (!known.has(id) && !(await getDoc(doc(db, d.path))).exists()) d.data = { ...d.data, members: [uid], owner: uid };
-      known.add(id);
-      ops.push(setOp(d));
-    }
-    return ops;
+      if (!known.has(id)) {
+        d = { ...d, data: { ...d.data, members: [uid], owner: uid }, fields: d.fields && [...d.fields, "members", "owner"] };
+        created.push(id);
+      }
+      return setOp(d);
+    });
+    return { ops, created };
+  }
+  /** A project counts as existing only once the write that made it has gone through, so a failed batch is retried as a create. */
+  async function commitProjects(uid: string, docs: Doc[]) {
+    const { ops, created } = projectOps(uid, docs);
+    await commit(ops);
+    for (const id of created) known.add(id);
   }
 
   /** savedAt and savedBy go with every write. The user doc's updatedAt is the user record's own stamp, so it only moves with that record. */
   const metaOp = (uid: string, meta: SavedInfo, userStamp?: string): Op =>
-    setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, ...(userStamp ? { updatedAt: userStamp } : {}) }, merge: true });
+    setOp({
+      path: `users/${uid}`,
+      data: { savedAt: meta.savedAt, savedBy: meta.savedBy, ...(userStamp ? { updatedAt: userStamp } : {}) },
+      fields: ["savedAt", "savedBy", ...(userStamp ? ["updatedAt"] : [])],
+    });
 
   function warnSkipped(key: RecordKey) {
     if (warned.has(key)) return;
@@ -225,14 +242,32 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
         (c.key.startsWith("project:") ? projects : rest).push(docFor(uid, c, path));
       }
       // A project must exist before anything is written under it: the rules read its members.
-      await commit(await projectOps(uid, projects));
+      await commitProjects(uid, projects);
       await commit([...rest.map(setOp), metaOp(uid, meta, userStamp)]);
     },
 
     async replaceAll(uid, r, meta) {
-      const idx = newIndex();
+      // What this account holds now. Projects shared with others are left alone.
+      const existing: string[] = [];
+      const projectPaths: string[] = [];
+      for (const p of (await memberProjects(uid)).docs) {
+        known.add(p.id);
+        if ((p.data().members as string[]).length !== 1) continue;
+        projectPaths.push(`projects/${p.id}`);
+        for (const sub of SUBS) for (const d of (await getDocs(collection(db, "projects", p.id, sub))).docs) existing.push(d.ref.path);
+      }
+      for (const d of (await getDocs(collection(db, "users", uid, "events"))).docs) existing.push(d.ref.path);
+
+      // A tombstone has no value to say which project it belongs to, so that comes from the session or from where it is stored now.
+      const idx: ProjectIndex = { tasks: new Map(index.tasks), requirements: new Map(index.requirements) };
+      for (const path of existing) {
+        const [, project, sub, id] = path.split("/");
+        if (sub === "tasks") idx.tasks.set(id, project);
+        else if (sub === "requirements") idx.requirements.set(id, project);
+      }
       for (const [id, t] of Object.entries(r.tasks)) if (t.value) idx.tasks.set(id, t.value.projectId);
       for (const [id, q] of Object.entries(r.requirements)) if (q.value) idx.requirements.set(id, q.value.projectId);
+
       const wanted = new Map<string, Doc>();
       const add = (change: RemoteChange) => {
         const path = docPath(uid, change.key, change.kind === "upsert" ? change.value : null, idx);
@@ -245,26 +280,20 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
       for (const [id, s] of Object.entries(r.requirements)) stamped(`requirement:${id}`, s);
       for (const [id, s] of Object.entries(r.tasks)) stamped(`task:${id}`, s);
       for (const [id, e] of Object.entries(r.events)) add({ kind: "upsert", key: `event:${id}`, updatedAt: e.at, value: e });
-      if (!r.user.deleted && r.user.value) add({ kind: "upsert", key: "user", updatedAt: r.user.updatedAt, value: r.user.value });
+      const userLive = !r.user.deleted && r.user.value !== null;
+      if (userLive) add({ kind: "upsert", key: "user", updatedAt: r.user.updatedAt, value: r.user.value });
 
-      // Whatever this account holds that r does not mention goes. Projects shared with others are left alone.
-      const subDeletes: string[] = [];
-      const projectDeletes: string[] = [];
-      for (const p of (await memberProjects(uid)).docs) {
-        if ((p.data().members as string[]).length !== 1) continue;
-        for (const sub of SUBS) {
-          for (const d of (await getDocs(collection(db, "projects", p.id, sub))).docs) if (!wanted.has(d.ref.path)) subDeletes.push(d.ref.path);
-        }
-        if (!wanted.has(`projects/${p.id}`)) projectDeletes.push(`projects/${p.id}`);
-      }
-      for (const d of (await getDocs(collection(db, "users", uid, "events"))).docs) if (!wanted.has(d.ref.path)) subDeletes.push(d.ref.path);
-
+      const subDeletes = existing.filter((p) => !wanted.has(p));
+      const projectDeletes = projectPaths.filter((p) => !wanted.has(p));
       const docs = [...wanted.values()];
       const projectDocs = docs.filter((d) => isProjectPath(d.path));
       const rest = docs.filter((d) => !isProjectPath(d.path));
-      const userStamp = r.user.deleted ? undefined : r.user.updatedAt;
-      await commit(await projectOps(uid, projectDocs));
-      await commit([...subDeletes.map(deleteOp), ...rest.map(setOp), metaOp(uid, meta, userStamp)]);
+      await commitProjects(uid, projectDocs);
+      // With no user record in r the user doc is replaced by just the save info and the record stamp, so it reads back as deleted.
+      const userDoc: Op = userLive
+        ? metaOp(uid, meta, r.user.updatedAt)
+        : setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt } });
+      await commit([...subDeletes.map(deleteOp), ...rest.map(setOp), userDoc]);
       // Last: a project's members are what lets the rules reach its subdocuments.
       await commit(projectDeletes.map(deleteOp));
       for (const p of projectDeletes) known.delete(p.split("/")[1]);
@@ -286,7 +315,7 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
       await commit([deleteOp(`users/${uid}`)]);
     },
 
-    subscribe(uid, onRemote) {
+    subscribe(uid, onRemote, onError) {
       const pieces: Pieces = { user: undefined, userEvents: new Map(), projects: new Map(), subs: new Map() };
       const pending = new Set<string>(["user", "events", "projects"]); // listeners that have not reported yet
       const subUnsubs = new Map<string, () => void>();
@@ -305,7 +334,10 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
         pending.delete(id);
         fire();
       };
-      const onError = (id: string) => (e: Error) => console.warn(`sync: listener ${id} stopped`, e);
+      const failed = (id: string) => (e: Error) => {
+        if (onError) onError(e);
+        else console.warn(`sync: listener ${id} stopped`, e);
+      };
 
       const stopUser = onSnapshot(
         doc(db, "users", uid),
@@ -313,7 +345,7 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
           pieces.user = s.data();
           reported("user");
         },
-        onError("user"),
+        failed("user"),
       );
       const stopEvents = onSnapshot(
         collection(db, "users", uid, "events"),
@@ -321,7 +353,7 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
           pieces.userEvents = byId(s);
           reported("events");
         },
-        onError("events"),
+        failed("events"),
       );
       const stopProjects = onSnapshot(
         query(collection(db, "projects"), where("members", "array-contains", uid)),
@@ -341,7 +373,7 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
                     pieces.subs.set(key, byId(d));
                     reported(key);
                   },
-                  onError(key),
+                  failed(key),
                 ),
               );
             }
@@ -355,7 +387,7 @@ export function createFirestoreRemote(app: FirebaseApp): RemoteStore {
           }
           reported("projects");
         },
-        onError("projects"),
+        failed("projects"),
       );
       return () => {
         closed = true;

@@ -64,7 +64,11 @@ export function createFirebaseAuth(app: FirebaseApp, opts: { browserSignIn?: Bro
       provider.addScope("name");
     }
     if (opts.browserSignIn) {
-      const t = await opts.browserSignIn(name);
+      // The browser flow rejects with no code when the person backs out.
+      const t = await opts.browserSignIn(name).catch((e: unknown) => {
+        if (typeof e === "object" && e !== null && typeof (e as { code?: unknown }).code === "string") throw e;
+        throw { code: "auth/cancelled-popup-request" };
+      });
       const credential =
         provider instanceof GoogleAuthProvider
           ? GoogleAuthProvider.credential(t.idToken, t.accessToken)

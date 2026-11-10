@@ -11,7 +11,7 @@ export type SavedInfo = { savedAt: string; savedBy: string };
 export interface RemoteStore {
   load(uid: string): Promise<StampedRecords | null>; // null = account has nothing yet
   write(uid: string, changes: RemoteChange[], meta: SavedInfo): Promise<void>;
-  subscribe(uid: string, onRemote: (r: StampedRecords) => void): () => void;
+  subscribe(uid: string, onRemote: (r: StampedRecords) => void, onError?: (e: Error) => void): () => void; // onError: a listener stopped, so no more changes will arrive
   replaceAll(uid: string, r: StampedRecords, meta: SavedInfo): Promise<void>; // the picker chose this device: remote becomes exactly r
   deleteAll(uid: string): Promise<void>;
   savedInfo(uid: string): Promise<SavedInfo | null>;
