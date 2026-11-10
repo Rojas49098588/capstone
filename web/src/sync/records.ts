@@ -71,6 +71,13 @@ export function eventProject(e: StudiumEvent, data: Pick<StudiumData, "tasks" | 
   }
 }
 
+const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+
+/** Oldest first, then by id: these only ever grow, so creation order is the app's order. */
+function inCreationOrder<T extends { id: string; createdAt: string }>(items: T[]): T[] {
+  return [...items].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || cmp(a.id, b.id));
+}
+
 function byId<T extends { id: string }>(items: T[]): Record<string, T> {
   const out: Record<string, T> = {};
   for (const i of items) out[i.id] = i;
@@ -110,9 +117,9 @@ export function fromRecords(r: Records): { data: StudiumData; settings: SyncedSe
     .map(([, e]) => e);
   const data: StudiumData = {
     version: 1,
-    projects: entries.map((p) => p.project),
-    requirements: Object.values(r.requirements),
-    tasks: Object.values(r.tasks),
+    projects: inCreationOrder(entries.map((p) => p.project)),
+    requirements: inCreationOrder(Object.values(r.requirements)),
+    tasks: inCreationOrder(Object.values(r.tasks)),
     events,
     today: r.user.today,
   };

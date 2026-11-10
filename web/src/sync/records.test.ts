@@ -23,6 +23,11 @@ describe("records", () => {
     const d = buildSeed(NOW);
     const expected = normalizeData(d);
     expected.events = [...expected.events].sort((a, b) => Date.parse(a.at) - Date.parse(b.at) || (eventId(a) < eventId(b) ? -1 : 1));
+    const order = <T extends { id: string; createdAt: string }>(xs: T[]) =>
+      [...xs].sort((a, b) => Date.parse(a.createdAt) - Date.parse(b.createdAt) || (a.id < b.id ? -1 : 1));
+    expected.projects = order(expected.projects);
+    expected.requirements = order(expected.requirements);
+    expected.tasks = order(expected.tasks);
     expect(fromRecords(toRecords(d, settings))).toEqual({ data: expected, settings });
   });
 
@@ -62,5 +67,21 @@ describe("records", () => {
     expect(after["task:t1"]).not.toBe(before["task:t1"]);
     expect(after["project:p1"]).toBe(before["project:p1"]);
     expect(after.user).toBe(before.user);
+  });
+
+  it("fromRecords puts projects, requirements and tasks back in creation order", () => {
+    const d = small();
+    const p2 = { ...d.projects[0], id: "p0", createdAt: "2026-10-05T00:00:00.000Z", pets: undefined };
+    const t2 = { ...d.tasks[0], id: "t0", createdAt: "2026-10-05T00:00:00.000Z" };
+    const r = toRecords({ ...d, projects: [p2, d.projects[0]], tasks: [t2, d.tasks[0]] }, settings);
+    const rev = { ...r, projects: Object.fromEntries(Object.entries(r.projects).reverse()), tasks: Object.fromEntries(Object.entries(r.tasks).reverse()) };
+    const out = fromRecords(rev).data;
+    expect(out.projects.map((p) => p.id)).toEqual(["p1", "p0"]);
+    expect(out.tasks.map((t) => t.id)).toEqual(["t1", "t0"]);
+  });
+
+  it("round-trips non-default startingTokens, defaultBeds and decor on project and extra-pet habitats", () => {
+    const d: StudiumData = { ...small(), startingTokens: 900, defaultBeds: true, decor: { p1: { wallpaper: "a" }, x1: { flooring: "b" } } };
+    expect(fromRecords(toRecords(d, settings))).toEqual({ data: d, settings });
   });
 });
