@@ -22,3 +22,6 @@ playwright-report/
 # Firebase
 firebase/node_modules/
 *-debug.log
+
+# Firebase deploy cache
+.firebase/
