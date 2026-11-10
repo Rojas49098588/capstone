@@ -4,6 +4,7 @@ import type { UserEvent } from "@testing-library/user-event";
 import type { ReactElement } from "react";
 import { NOW } from "../planner/testData";
 import type { StudiumData } from "../planner/types";
+import type { Settings } from "../store/settings";
 import { BACKUP_PREFIX } from "../store/storage";
 import { useStudiumContext } from "../store/useStudium";
 import { AccountProvider, useAccount } from "../sync/AccountProvider";
@@ -22,7 +23,7 @@ export const ACCOUNT_SAVED_AT = new Date(NOW.getTime() - 2 * 86_400_000);
 /** Renders `ui` with Studium and accounts. `auth: null` and `remote: null` turn accounts off. */
 export function renderWithAccount(
   ui: ReactElement,
-  o: { data?: StudiumData; storage?: Storage; auth?: FakeAuth | null; remote?: FakeRemote | null; signedIn?: Account } = {},
+  o: { data?: StudiumData; storage?: Storage; auth?: FakeAuth | null; remote?: FakeRemote | null; signedIn?: Account; settings?: Partial<Settings> } = {},
 ) {
   const auth = o.auth === undefined ? new FakeAuth() : o.auth;
   const remote = o.remote === undefined ? new FakeRemote() : o.remote;
@@ -31,7 +32,7 @@ export function renderWithAccount(
     <AccountProvider auth={auth} remote={remote}>
       {ui}
     </AccountProvider>,
-    { data: o.data, storage: o.storage },
+    { data: o.data, storage: o.storage, settings: o.settings },
   );
   return { ...result, auth: auth as FakeAuth, remote: remote as FakeRemote, storage: result.storage as Storage };
 }

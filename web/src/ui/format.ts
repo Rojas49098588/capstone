@@ -308,6 +308,7 @@ export const SETUP_COPY = {
   progressLegend: "How should Total Progress look?",
   themeLegend: "Light or dark?",
   changeLater: "You can change all of this later in Settings.",
+  haveAccount: "Already use Studium? Sign in",
 } as const;
 
 /** Made-up projects for setup's progress previews. */
