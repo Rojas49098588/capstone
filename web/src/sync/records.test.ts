@@ -71,13 +71,17 @@ describe("records", () => {
 
   it("fromRecords puts projects, requirements and tasks back in creation order", () => {
     const d = small();
-    const p2 = { ...d.projects[0], id: "p0", createdAt: "2026-10-05T00:00:00.000Z", pets: undefined };
-    const t2 = { ...d.tasks[0], id: "t0", createdAt: "2026-10-05T00:00:00.000Z" };
-    const r = toRecords({ ...d, projects: [p2, d.projects[0]], tasks: [t2, d.tasks[0]] }, settings);
-    const rev = { ...r, projects: Object.fromEntries(Object.entries(r.projects).reverse()), tasks: Object.fromEntries(Object.entries(r.tasks).reverse()) };
-    const out = fromRecords(rev).data;
+    const newer = "2026-10-05T00:00:00.000Z";
+    const req = (id: string, createdAt: string) => ({ id, projectId: "p1", title: id, weight: 1, startDate: null, dueDate: null, createdAt });
+    const p0 = { ...d.projects[0], id: "p0", createdAt: newer, pets: undefined };
+    const t0 = { ...d.tasks[0], id: "t0", createdAt: newer };
+    // Inserted newest-first, so key order is NOT creation order.
+    const r = toRecords({ ...d, projects: [p0, d.projects[0]], tasks: [t0, d.tasks[0]], requirements: [req("r0", newer), req("r1", "2026-10-01T00:00:00.000Z")] }, settings);
+    expect(Object.keys(r.projects)).toEqual(["p0", "p1"]);
+    const out = fromRecords(r).data;
     expect(out.projects.map((p) => p.id)).toEqual(["p1", "p0"]);
     expect(out.tasks.map((t) => t.id)).toEqual(["t1", "t0"]);
+    expect(out.requirements.map((x) => x.id)).toEqual(["r1", "r0"]);
   });
 
   it("round-trips non-default startingTokens, defaultBeds and decor on project and extra-pet habitats", () => {
