@@ -12,6 +12,7 @@ import type { RemoteStore } from "./remote";
 import type { SaveSummary } from "./saveSummary";
 import { createFirebaseServices, type Services } from "./services";
 import { BACKUP_FAILED, NOT_APPLIED, SUPERSEDED, createSyncEngine } from "./syncEngine";
+import { loadSyncState } from "./syncState";
 
 export type SignInReason = "link" | "companion" | "purchase" | "collab";
 type Summary = SaveSummary & { more: number };
@@ -19,7 +20,7 @@ export type Picker = { local: Summary; account: Summary };
 
 export type AccountContext = {
   enabled: boolean;
-  /** Accounts are on but Firebase is still loading: entry points show, disabled. */
+  /** Accounts are on but Firebase is still loading: entry points show, disabled. (Before any account use it isn't loaded at all, and they show enabled.) */
   loading: boolean;
   account: Account | null;
   lastSyncedAt: string | null;
@@ -82,8 +83,10 @@ type Props = {
 type Loaded = Services & { engine: ReturnType<typeof createSyncEngine> };
 
 /**
- * Defaults to the real Firebase, loaded in its own chunk after the app starts. A build with no Firebase config
- * (or `auth`/`remote` null) has accounts off.
+ * Defaults to the real Firebase, loaded in its own chunk: at startup only on a device that has linked an account
+ * (its sync state names one), otherwise only once the person uses an account entry point, so a guest never
+ * downloads Firebase or gets its browser databases. A build with no Firebase config (or `auth`/`remote` null)
+ * has accounts off.
  */
 export function AccountProvider({ children, auth: authProp, remote: remoteProp, load }: Props) {
   const studium = useStudiumContext();
@@ -114,12 +117,16 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
     return { ...s, engine };
   }
 
-  const [status, setStatus] = useState<Loaded | null | "loading">(() => {
+  // "idle": accounts are on but Firebase isn't loaded (a guest who hasn't used an account entry point).
+  const [status, setStatus] = useState<Loaded | null | "idle" | "loading">(() => {
     if (authProp !== undefined || remoteProp !== undefined) return authProp && remoteProp ? withEngine({ auth: authProp, remote: remoteProp }) : null;
-    return load || FIREBASE_CONFIG !== null ? "loading" : null;
+    if (!load && FIREBASE_CONFIG === null) return null;
+    const sync = loadSyncState(studium.storage);
+    return sync.uid !== null || sync.owner !== null ? "loading" : "idle";
   });
+  const idle = status === "idle";
   const loading = status === "loading";
-  const services = status === "loading" ? null : status;
+  const services = status === "loading" || status === "idle" ? null : status;
   const engine = services?.engine ?? null;
 
   // Loads once, with the loader given at first render.
@@ -131,10 +138,16 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
     const browserSignIn = typeof window !== "undefined" ? window.studiumDesktop?.signInWithBrowser : undefined;
     (loadRef.current ?? (() => createFirebaseServices({ browserSignIn })))().then(
       (s) => {
-        if (live) setStatus(s ? withEngine(s) : null);
+        if (!live) return;
+        setStatus(s ? withEngine(s) : null);
+        setError((m) => (m === NETWORK_MESSAGE ? null : m)); // from an earlier load that failed
       },
       () => {
-        if (live) setStatus(null); // Firebase couldn't load (offline on a first visit): accounts stay off this time
+        if (!live) return;
+        // Firebase couldn't load (offline on a first visit): nothing opens, and the next account entry point tries again.
+        setStatus("idle");
+        setSignIn(null);
+        setError(NETWORK_MESSAGE);
       },
     );
     return () => {
@@ -334,19 +347,25 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
     [connect],
   );
 
-  const openSignIn = useCallback((reason: SignInReason = "link", mode: SignInMode = "create") => setSignIn({ reason, mode }), []);
+  /** Opens the sign-in dialog; Firebase loads first if it hasn't yet, and the dialog shows once it has. */
+  const openSignIn = useCallback((reason: SignInReason = "link", mode: SignInMode = "create") => {
+    setSignIn({ reason, mode });
+    setStatus((st) => (st === "idle" ? "loading" : st));
+  }, []);
   const closeSignIn = useCallback(() => setSignIn(null), []);
   const closePicker = useCallback(() => setChoice(null), []);
 
   const lastSyncedAt = account && !choice ? (engine?.lastSyncedAt() ?? null) : null;
   const value = useMemo<AccountContext>(
     () =>
-      loading
+      idle
+        ? { ...OFF, enabled: true, error, openSignIn }
+        : loading
         ? { ...OFF, enabled: true, loading: true }
         : services
           ? { enabled: true, loading: false, account, lastSyncedAt, picker, signInOpen: signIn !== null, error, openSignIn, choose, dismissPicker, signOut, deleteAccount }
           : OFF,
-    [loading, services, account, lastSyncedAt, picker, signIn, error, openSignIn, choose, dismissPicker, signOut, deleteAccount],
+    [idle, loading, services, account, lastSyncedAt, picker, signIn, error, openSignIn, choose, dismissPicker, signOut, deleteAccount],
   );
 
   return (

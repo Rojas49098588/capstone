@@ -4,11 +4,11 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { buildSeed } from "../store/seed";
 import { NOW } from "../planner/testData";
-import { loadSyncState } from "../sync/syncState";
+import { EMPTY_SYNC_STATE, SYNC_KEY, loadSyncState } from "../sync/syncState";
 import { ABBY, ProjectNames, renderWithAccount, submitSignIn } from "../test/account";
 import { FakeAuth } from "../test/fakeAuth";
 import { FakeRemote } from "../test/fakeRemote";
-import { renderWithStudium, savedData } from "../test/render";
+import { memoryStorage, renderWithStudium, savedData } from "../test/render";
 import { AccountProvider } from "../sync/AccountProvider";
 import { liveRecords, type StampedRecords } from "../sync/merge";
 import { fromRecords } from "../sync/records";
@@ -139,14 +139,56 @@ describe("Settings → Account", () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
   });
 
-  it("while Firebase is loading, the account buttons wait", async () => {
+  it("a guest never loads Firebase until using an account entry point; Link account loads it once, then opens the dialog", async () => {
+    const user = userEvent.setup();
     let finish: (s: { auth: FakeAuth; remote: FakeRemote }) => void = () => {};
-    const load = () => new Promise<{ auth: FakeAuth; remote: FakeRemote }>((resolve) => (finish = resolve));
+    const load = vi.fn(() => new Promise<{ auth: FakeAuth; remote: FakeRemote }>((resolve) => (finish = resolve)));
     renderWithStudium(
       <AccountProvider load={load}>
         <Settings />
       </AccountProvider>,
     );
+    screen.getByText(BONUS);
+    const link = screen.getByRole("button", { name: "Link account" }) as HTMLButtonElement;
+    expect(link.disabled).toBe(false);
+    await act(async () => {}); // effects have run
+    expect(load).not.toHaveBeenCalled();
+    await user.click(link);
+    expect(load).toHaveBeenCalledTimes(1);
+    await act(async () => finish({ auth: new FakeAuth(), remote: new FakeRemote() }));
+    await screen.findByRole("dialog");
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("if Firebase can't load when Link account is pressed, says so and tries again on the next press", async () => {
+    const user = userEvent.setup();
+    const load = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue({ auth: new FakeAuth(), remote: new FakeRemote() });
+    renderWithStudium(
+      <AccountProvider load={load}>
+        <Settings />
+      </AccountProvider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Link account" }));
+    await screen.findByText("Couldn't reach Studium's servers. Check your connection.");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Link account" }));
+    await screen.findByRole("dialog");
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText("Couldn't reach Studium's servers. Check your connection.")).toBeNull();
+  });
+
+  it("on a device that has linked an account, Firebase loads at startup and the account buttons wait for it", async () => {
+    let finish: (s: { auth: FakeAuth; remote: FakeRemote }) => void = () => {};
+    const load = vi.fn(() => new Promise<{ auth: FakeAuth; remote: FakeRemote }>((resolve) => (finish = resolve)));
+    const storage = memoryStorage();
+    storage.setItem(SYNC_KEY, JSON.stringify({ ...EMPTY_SYNC_STATE, owner: "u1" }));
+    renderWithStudium(
+      <AccountProvider load={load}>
+        <Settings />
+      </AccountProvider>,
+      { storage },
+    );
+    expect(load).toHaveBeenCalledTimes(1);
     expect((screen.getByRole("button", { name: "Link account" }) as HTMLButtonElement).disabled).toBe(true);
     await act(async () => finish({ auth: new FakeAuth(), remote: new FakeRemote() }));
     expect((screen.getByRole("button", { name: "Link account" }) as HTMLButtonElement).disabled).toBe(false);
