@@ -73,7 +73,7 @@ New work still goes through `superpowers:brainstorming` / `superpowers:writing-p
 
 ## Accounts and sync: built, not yet published
 
-Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs/superpowers/plans/2026-11-09-accounts-and-sync.md`, branch `docs/accounts-design`. Guest first; linking an account syncs the web and desktop apps through Firebase (project `studium-9a00e`, Auth + Firestore + Hosting, free plan).
+Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs/superpowers/plans/2026-11-09-accounts-and-sync.md`. Guest first; linking an account syncs the web and desktop apps through Firebase (project `studium-9a00e`, Auth + Firestore + Hosting, free plan).
 
 **Sync layer (`web/src/sync/`)**
 - `config.ts`: the public Firebase web config and `APPLE_SIGN_IN_ENABLED`.
@@ -86,8 +86,8 @@ Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs
 - `linkDecision.ts`: what to do when an account connects: `upload`, `take`, `rejoin`, `picker` or `backup-and-take`.
 - `saveSummary.ts`: what the two-saves picker shows per save, and which has more progress.
 - `syncEngine.ts`: connects, pushes local edits, takes in other devices' edits, runs the picker choice.
-- `AccountProvider.tsx`: React context for who is signed in, the engine, and the sign-in and picker dialogs.
-- UI: `components/AccountSection.tsx` (Settings → Account, backups with Download), `SignInDialog.tsx`, `SavePicker.tsx`; setup has "Already use Studium? Sign in". Tests (fakes for auth and remote) sit next to each file.
+- `AccountProvider.tsx`: React context for who is signed in, the engine, and the sign-in and picker dialogs. It loads Firebase at startup only when this device's sync state names an account; a guest's loads on the first press of an account button.
+- UI: `components/AccountSection.tsx` (Settings → Account, backups with Download; the engine keeps the 5 newest backups), `SignInDialog.tsx`, `SavePicker.tsx`; setup has "Already use Studium? Sign in". Tests (fakes for auth and remote) sit next to each file.
 
 **Firestore layout** (`firebase/firestore.rules` enforces it)
 - `users/{uid}`: `{ updatedAt: string, savedAt: string, savedBy: string, saveId: string, startingTokens: number, defaultBeds: boolean, today: {date, taskIds}, settings: {nickname, petInvolvement, petOrder} }`. `saveId` is the save generation: every `replaceAll` (first upload, "Keep this computer's") writes a new one, and a device whose remembered `saveId` differs backs up its data and takes the account's instead of merging.
@@ -103,8 +103,8 @@ Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs
 **Apple.** `APPLE_SIGN_IN_ENABLED` (`web/src/sync/config.ts`) is `false`, so the button is hidden. Flip it after the Apple console steps and a manual check. Even then, Apple stays off in the desktop app (`auth:browser` accepts only `google`): Apple's id token needs the raw nonce, which the hosted page can't hand back reliably, so desktop users sign in with email or Google.
 
 **Not done yet / needs the user**
-- `firebase login` (the CLI isn't signed in on this PC).
-- Build and publish: `cd web && npm run build`, then from the repo root `firebase deploy --only firestore:rules,hosting`.
+- Sign the Firebase CLI in (it isn't on this PC; the CLI is installed in `firebase/`, not globally): `cd firebase && npx firebase login`.
+- Build and publish: `cd web && npm run build`, then `cd ../firebase && npx firebase deploy --only firestore:rules,hosting`. Run from `firebase/`, the CLI finds the repo root's `firebase.json` (it looks in parent folders) and `.firebaserc` names the project.
 - Add `studium-9a00e.web.app` to Firebase Auth → Settings → Authorized domains if missing.
 - Apple: Apple Developer Services ID, key and return URL, then enable the Apple provider in Firebase; then set `APPLE_SIGN_IN_ENABLED = true`.
 - Two-device checks (plan Task 13 Step 2), web app plus Windows app: link on one and see the projects on the other; complete the same task on both while offline, reconnect, and it's paid once; delete a task on one and edit it on the other, it stays deleted; sign out, change something, sign in, the picker appears; a second account on the same computer gets no data from the first.
