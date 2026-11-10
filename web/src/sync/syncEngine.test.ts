@@ -1,0 +1,313 @@
+// @vitest-environment jsdom
+import { screen } from "@testing-library/react";
+import { createElement } from "react";
+import { describe, expect, it } from "vitest";
+import Shop from "../components/Shop";
+import { tokenBalance } from "../planner/history";
+import { NOW } from "../planner/testData";
+import type { StudiumData } from "../planner/types";
+import * as A from "../store/actions";
+import { emptyData } from "../store/seed";
+import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
+import { FakeRemote } from "../test/fakeRemote";
+import { memoryStorage, renderWithStudium } from "../test/render";
+import { liveRecords, type StampedRecords } from "./merge";
+import { fromRecords, type SyncedSettings } from "./records";
+import { loadSyncState } from "./syncState";
+import { createSyncEngine } from "./syncEngine";
+
+const ABBY: SyncedSettings = { nickname: "Abby", petInvolvement: "mild", petOrder: "project" };
+const BEE: SyncedSettings = { nickname: "Bee", petInvolvement: "moderate", petOrder: "dueDate" };
+
+function withProject(name: string, data: StudiumData = emptyData(NOW)): { data: StudiumData; id: string } {
+  const made = A.createProject(data, { name, shortName: name, color: "#123456", deadline: "2026-12-20", description: "", petKind: "cat" }, NOW);
+  return { data: made.data, id: made.project.id };
+}
+
+/** One device: its own storage, its own data, and a clock the test moves. */
+function device(remote: FakeRemote, name: string, data: StudiumData = emptyData(NOW), settings: SyncedSettings = ABBY) {
+  let local = { data, settings };
+  let now = NOW;
+  const storage = memoryStorage();
+  const engine = createSyncEngine({
+    remote,
+    storage,
+    clock: () => now,
+    device: name,
+    getLocal: () => local,
+    applyLocal: (d, s) => {
+      if (!isValidData(d)) return false;
+      local = { data: normalizeData(d), settings: s };
+      return true;
+    },
+  });
+  return {
+    engine,
+    storage,
+    get data() {
+      return local.data;
+    },
+    get settings() {
+      return local.settings;
+    },
+    /** A local save, as the app makes one. */
+    edit(f: (d: StudiumData) => StudiumData) {
+      local = { ...local, data: f(local.data) };
+    },
+    advance(ms: number) {
+      now = new Date(now.getTime() + ms);
+    },
+    now: () => now,
+  };
+}
+
+async function accountData(remote: FakeRemote, uid: string): Promise<StudiumData> {
+  return fromRecords(liveRecords((await remote.load(uid)) as StampedRecords)).data;
+}
+
+const names = (d: StudiumData) => d.projects.map((p) => p.name);
+const backups = (storage: Storage): StudiumData[] => {
+  const out: StudiumData[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const k = storage.key(i) as string;
+    if (k.startsWith(BACKUP_PREFIX)) out.push(JSON.parse(storage.getItem(k) as string) as StudiumData);
+  }
+  return out;
+};
+
+/** Device B has linked "u1" with a "Novel" project and gone away. */
+async function accountWithNovel(remote: FakeRemote) {
+  const b = device(remote, "Desktop", withProject("Novel").data, BEE);
+  await b.engine.connect("u1");
+  b.engine.stop();
+  return b;
+}
+
+describe("sync engine: connecting", () => {
+  it("upload: a guest's data goes up on first link and owner becomes the account", async () => {
+    const remote = new FakeRemote();
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" });
+    expect(names(await accountData(remote, "u1"))).toEqual(["Essay"]);
+    expect(await remote.savedInfo("u1")).toEqual({ savedAt: NOW.toISOString(), savedBy: "Laptop" });
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1", changedWhileSignedOut: false });
+    expect(a.engine.lastSyncedAt()).toBe(NOW.toISOString());
+  });
+
+  it("take: a fresh device gets the account's data", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const a = device(remote, "Laptop");
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" });
+    expect(names(a.data)).toEqual(["Novel"]);
+    expect(a.settings).toEqual(BEE);
+    expect(backups(a.storage)).toEqual([]); // nothing of its own to keep
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1" });
+  });
+
+  it("rejoin: changes made elsewhere are merged in", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+
+    const b = device(remote, "Desktop");
+    await b.engine.connect("u1");
+    b.advance(60_000);
+    b.edit((d) => A.createTask(d, { projectId: made.id, requirementId: null, title: "Outline", estimateMin: 30 }, b.now()).data);
+    b.engine.localChanged();
+    await b.engine.flush();
+
+    expect(await a.engine.connect("u1")).toEqual({ kind: "synced" });
+    expect(a.data.tasks.map((t) => t.title)).toEqual(["Outline"]);
+    expect(names(a.data)).toEqual(["Essay"]);
+  });
+
+  it("picker: both have projects → returns both summaries and changes nothing yet", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    const before = a.data;
+    const r = await a.engine.connect("u1");
+    if (r.kind !== "picker") throw new Error("expected the picker");
+    expect(r.local).toMatchObject({ projects: 1, savedBy: "Laptop" });
+    expect(r.account).toMatchObject({ projects: 1, savedBy: "Desktop", savedAt: NOW.toISOString() });
+    expect(r.account.pets[0].name).toBe("Novel");
+    expect(a.data).toBe(before);
+    expect(names(await accountData(remote, "u1"))).toEqual(["Novel"]);
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: null, owner: null });
+    expect(backups(a.storage)).toEqual([]);
+  });
+
+  it("choose local: remote becomes this device's data; a backup of the account's data is written", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    await a.engine.connect("u1");
+    await a.engine.choose("u1", "local");
+    expect(names(await accountData(remote, "u1"))).toEqual(["Essay"]);
+    expect(names(a.data)).toEqual(["Essay"]);
+    expect(backups(a.storage).map(names)).toEqual([["Novel"]]);
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1", changedWhileSignedOut: false });
+  });
+
+  it("choose account: local becomes the account's; a backup of local is written under BACKUP_PREFIX", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    await a.engine.connect("u1");
+    await a.engine.choose("u1", "account");
+    expect(names(a.data)).toEqual(["Novel"]);
+    expect(a.settings).toEqual(BEE);
+    expect(a.storage.getItem(`${BACKUP_PREFIX}${NOW.toISOString()}`)).not.toBeNull();
+    expect(backups(a.storage).map(names)).toEqual([["Essay"]]);
+    expect(names(await accountData(remote, "u1"))).toEqual(["Novel"]);
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u1", owner: "u1" });
+  });
+
+  it("backup-and-take: another account's data is backed up and replaced", async () => {
+    const remote = new FakeRemote();
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+    const b = device(remote, "Desktop", withProject("Novel").data, BEE);
+    await b.engine.connect("u2");
+    b.engine.stop();
+
+    expect(await a.engine.connect("u2")).toEqual({ kind: "synced" });
+    expect(names(a.data)).toEqual(["Novel"]);
+    expect(backups(a.storage).map(names)).toEqual([["Essay"]]);
+    expect(names(await accountData(remote, "u2"))).toEqual(["Novel"]); // never uploaded to u2
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: "u2", owner: "u2" });
+  });
+});
+
+describe("sync engine: while connected", () => {
+  it("a local change is pushed with updatedAt = when it happened", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+
+    a.advance(60_000);
+    const editedAt = a.now().toISOString();
+    a.edit((d) => A.updateProject(d, made.id, { name: "Thesis" }));
+    a.engine.localChanged();
+    a.advance(5_000); // the debounce waits; the stamp is still when the edit happened
+    await Promise.resolve();
+    expect(names(await accountData(remote, "u1"))).toEqual(["Essay"]); // not yet: debounced
+    await a.engine.flush();
+
+    const r = (await remote.load("u1")) as StampedRecords;
+    expect(r.projects[made.id].updatedAt).toBe(editedAt);
+    expect(r.projects[made.id].value?.project.name).toBe("Thesis");
+  });
+
+  it("a deleted task is pushed as a delete and stays deleted after a remote snapshot", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const withTask = A.createTask(made.data, { projectId: made.id, requirementId: null, title: "Outline", estimateMin: 30 }, NOW);
+    const a = device(remote, "Laptop", withTask.data);
+    await a.engine.connect("u1");
+    const stale = (await remote.load("u1")) as StampedRecords; // another device that never saw the delete
+
+    a.advance(60_000);
+    a.edit((d) => A.deleteTask(d, withTask.task.id, a.now()));
+    a.engine.localChanged();
+    await a.engine.flush();
+    expect((await remote.load("u1"))?.tasks[withTask.task.id].deleted).toBe(true);
+
+    remote.push("u1", stale);
+    await a.engine.flush();
+    expect(a.data.tasks).toEqual([]);
+    expect((await remote.load("u1"))?.tasks[withTask.task.id].deleted).toBe(true);
+  });
+
+  it("an invalid remote task is ignored and local data stays", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const withTask = A.createTask(made.data, { projectId: made.id, requirementId: null, title: "Outline", estimateMin: 30 }, NOW);
+    const a = device(remote, "Laptop", withTask.data);
+    await a.engine.connect("u1");
+
+    const later = new Date(NOW.getTime() + 60_000).toISOString();
+    const r = (await remote.load("u1")) as StampedRecords;
+    const t = r.tasks[withTask.task.id].value!;
+    r.tasks[t.id] = { updatedAt: later, deleted: false, value: { ...t, title: "Broken", projectId: "nowhere" } };
+    r.tasks.t2 = { updatedAt: later, deleted: false, value: { ...t, id: "t2", title: "Draft" } };
+    remote.push("u1", r);
+    await a.engine.flush();
+
+    expect(a.data.tasks.map((x) => x.title).sort()).toEqual(["Draft", "Outline"]);
+  });
+
+  it("after stop(), late remote snapshots are ignored", async () => {
+    const remote = new FakeRemote();
+    const listeners: ((r: StampedRecords) => void)[] = [];
+    remote.subscribe = (_uid, cb) => {
+      listeners.push(cb); // a store that keeps calling back after unsubscribing
+      return () => {};
+    };
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+
+    const r = (await remote.load("u1")) as StampedRecords;
+    const novel = withProject("Novel").data.projects[0];
+    r.projects[novel.id] = { updatedAt: new Date(NOW.getTime() + 60_000).toISOString(), deleted: false, value: { project: novel, decor: {} } };
+    for (const cb of listeners) cb(r);
+    await a.engine.flush();
+
+    expect(names(a.data)).toEqual(["Essay"]);
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: null, owner: "u1" });
+  });
+
+  it("changes while signed out set changedWhileSignedOut", async () => {
+    const remote = new FakeRemote();
+    const made = withProject("Essay");
+    const guest = device(remote, "Laptop", made.data);
+    guest.edit((d) => A.updateProject(d, made.id, { name: "Guest edit" }));
+    guest.engine.localChanged();
+    await guest.engine.flush();
+    expect(loadSyncState(guest.storage).changedWhileSignedOut).toBe(false); // guest data has no account to differ from
+
+    const a = device(remote, "Laptop", made.data);
+    await a.engine.connect("u1");
+    a.engine.stop();
+    a.edit((d) => A.updateProject(d, made.id, { name: "Offline edit" }));
+    a.engine.localChanged();
+    await a.engine.flush();
+    expect(loadSyncState(a.storage)).toMatchObject({ uid: null, owner: "u1", changedWhileSignedOut: true });
+    expect(names(await accountData(remote, "u1"))).toEqual(["Essay"]); // saved only on the device
+  });
+
+  it("two offline purchases that overspend keep both, the balance shows negative, and the next purchase is refused", async () => {
+    const remote = new FakeRemote();
+    const start = { ...withProject("Essay").data, startingTokens: 200 };
+    const a = device(remote, "Laptop", start);
+    await a.engine.connect("u1");
+    const b = device(remote, "Desktop");
+    await b.engine.connect("u1");
+
+    // Each spends 180 of the 200 before hearing about the other's purchase.
+    a.advance(60_000);
+    a.edit((d) => A.purchase(d, "rainy-day-coat", a.now()).data);
+    b.advance(120_000);
+    b.edit((d) => A.purchase(d, "rainy-day-coat", b.now()).data);
+    b.engine.localChanged();
+    await b.engine.flush();
+    a.engine.localChanged();
+    await a.engine.flush();
+    await b.engine.flush();
+
+    for (const d of [a.data, b.data]) {
+      expect(d.events.filter((e) => e.type === "purchase")).toHaveLength(2);
+      expect(tokenBalance(d)).toBe(-160);
+      expect(A.purchase(d, "berry-bites", NOW).ok).toBe(false);
+    }
+
+    renderWithStudium(createElement(Shop), { data: a.data });
+    screen.getByText("-160");
+  });
+});
