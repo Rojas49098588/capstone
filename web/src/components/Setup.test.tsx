@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NOW } from "../planner/testData";
 import { buildSeed, emptyData } from "../store/seed";
 import { SETTINGS_KEY } from "../store/settings";
-import { accountHas, renderWithAccount, submitSignIn } from "../test/account";
+import { ABBY, accountHas, renderWithAccount, submitSignIn } from "../test/account";
 import { FakeRemote } from "../test/fakeRemote";
 import { renderWithStudium, withEgg } from "../test/render";
 import Setup from "./Setup";
@@ -158,6 +158,36 @@ describe("Setup", () => {
       await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
       screen.getByText("Step 1 of 3");
       expect(onFinish).not.toHaveBeenCalled();
+    });
+
+    it("a retry after an offline connect doesn't finish setup by itself, or discard what was typed since", async () => {
+      const user = userEvent.setup();
+      const remote = new FakeRemote();
+      vi.spyOn(remote, "load").mockRejectedValueOnce(new Error("offline"));
+      const onFinish = vi.fn();
+      renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { remote, settings: { setupDone: false } });
+      await signInFromSetup(user);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await user.type(screen.getByRole("textbox", { name: "Nickname" }), "Typed");
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(async () => expect(await remote.load("u-abby@example.com")).not.toBeNull()); // the retry went through
+      expect(onFinish).not.toHaveBeenCalled();
+      expect((screen.getByRole("textbox", { name: "Nickname" }) as HTMLInputElement).value).toBe("Typed");
+    });
+
+    it("a sync from before the link was clicked doesn't finish setup", async () => {
+      const user = userEvent.setup();
+      const onFinish = vi.fn();
+      const { auth } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { signedIn: ABBY, settings: { setupDone: false } });
+      await waitFor(() => expect(auth.current()).toEqual(ABBY));
+      await new Promise((r) => setTimeout(r, 50)); // its connect has settled
+      await user.click(screen.getByRole("button", { name: LINK }));
+      await screen.findByRole("dialog");
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(onFinish).not.toHaveBeenCalled();
+      screen.getByText("Step 1 of 3");
     });
   });
 

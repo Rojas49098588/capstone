@@ -24,6 +24,8 @@ export type AccountContext = {
   account: Account | null;
   lastSyncedAt: string | null;
   picker: Picker | null;
+  /** The sign-in dialog is showing. */
+  signInOpen: boolean;
   /** A problem to show in Settings → Account (a failed connect, sign-out or delete). */
   error: string | null;
   openSignIn(reason?: SignInReason, mode?: SignInMode): void;
@@ -40,6 +42,7 @@ const OFF: AccountContext = {
   account: null,
   lastSyncedAt: null,
   picker: null,
+  signInOpen: false,
   error: null,
   openSignIn: () => {},
   choose: async () => {},
@@ -329,9 +332,9 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
       loading
         ? { ...OFF, enabled: true, loading: true }
         : services
-          ? { enabled: true, loading: false, account, lastSyncedAt, picker, error, openSignIn, choose, dismissPicker, signOut, deleteAccount }
+          ? { enabled: true, loading: false, account, lastSyncedAt, picker, signInOpen: signIn !== null, error, openSignIn, choose, dismissPicker, signOut, deleteAccount }
           : OFF,
-    [loading, services, account, lastSyncedAt, picker, error, openSignIn, choose, dismissPicker, signOut, deleteAccount],
+    [loading, services, account, lastSyncedAt, picker, signIn, error, openSignIn, choose, dismissPicker, signOut, deleteAccount],
   );
 
   return (

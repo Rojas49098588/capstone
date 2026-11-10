@@ -31,9 +31,18 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
   // After "Already use Studium? Sign in": once the account is connected and settled (synced, or the
   // two-saves choice answered), its settings are on this device, so setup and the tutorials are done.
   // Closing the dialog, a failed connect or an unanswered picker all leave setup where it was.
-  const { enabled, loading, account, lastSyncedAt, picker, openSignIn } = useAccount();
-  const [signingIn, setSigningIn] = useState(false);
-  const settled = signingIn && account !== null && lastSyncedAt !== null && picker === null;
+  // Only the attempt the person is in finishes setup: it ends when the dialog closes without the
+  // account settling (cancelled, or offline), so a later background retry can't jump past setup.
+  // A sync time from before the link was clicked doesn't count.
+  const { enabled, loading, account, lastSyncedAt, picker, signInOpen, openSignIn } = useAccount();
+  const [attempt, setAttempt] = useState<{ before: string | null; seenDialog: boolean } | null>(null);
+  const settled = attempt !== null && account !== null && lastSyncedAt !== null && lastSyncedAt !== attempt.before && picker === null;
+  useEffect(() => {
+    if (attempt === null) return;
+    if (signInOpen) {
+      if (!attempt.seenDialog) setAttempt({ ...attempt, seenDialog: true });
+    } else if (attempt.seenDialog && !settled && picker === null) setAttempt(null);
+  }, [attempt, signInOpen, settled, picker]);
   useEffect(() => {
     if (!settled) return;
     s.updateSettings({ setupDone: true, tutorialDone: true, shopTutorialDone: true });
@@ -124,7 +133,7 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
               type="button"
               disabled={loading}
               onClick={() => {
-                setSigningIn(true);
+                setAttempt({ before: lastSyncedAt, seenDialog: false });
                 openSignIn("link", "signin");
               }}
               className={`text-sm underline ${MUTED} hover:text-[var(--color-foreground)]`}

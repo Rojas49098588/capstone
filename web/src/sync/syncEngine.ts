@@ -429,6 +429,7 @@ export function createSyncEngine(deps: EngineDeps) {
       if (state.uid !== null) stampChanges();
       endSession();
       pending = null;
+      synced = null; // a previous session's time must not look like this one's
       state = { ...state, uid: null };
       save();
     },
