@@ -65,6 +65,13 @@ test("the packaged build's Quit Studium (--quit) ends it", async () => {
   const app = await _electron.launch({ executablePath: exe(), args: [`--user-data=${userData}`], env: electronEnv() });
   await studiumPage(app);
   const exited = new Promise((resolve) => app.process().on('exit', () => resolve('exited')));
-  spawn(exe(), [`--user-data=${userData}`, '--quit'], { env: electronEnv() });
-  await expect(Promise.race([exited, new Promise((r) => setTimeout(() => r('still running'), 10000))])).resolves.toBe('exited');
+  const second = spawn(exe(), [`--user-data=${userData}`, '--quit'], { env: electronEnv() });
+  // What the second copy said and how it ended, for the failure message.
+  let said = '';
+  second.stdout.on('data', (d) => (said += d));
+  second.stderr.on('data', (d) => (said += d));
+  let ended = 'still running';
+  second.on('exit', (code, signal) => (ended = `exited with ${code ?? signal}`));
+  const result = await Promise.race([exited, new Promise((r) => setTimeout(() => r('still running'), 10000))]);
+  expect(result, `The second copy ${ended}. It said:\n${said}`).toBe('exited');
 });
