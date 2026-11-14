@@ -9,7 +9,8 @@ import type { RemoteChange, RemoteStore } from "./remote";
 const apps: FirebaseApp[] = [];
 let counter = 0;
 const unique = (p: string) => `${p}${Date.now()}${counter++}`;
-const meta = { savedAt: "2026-01-01T00:00:00.000Z", savedBy: "test device" };
+const info = { savedAt: "2026-01-01T00:00:00.000Z", savedBy: "test device" };
+const meta = { ...info, saveId: null as string | null }; // a device on no save yet, as a new account is
 const T = (n: number) => new Date(Date.UTC(2026, 0, 1, 0, 0, n)).toISOString();
 
 /** A client: its own app, signed in as the given email (created on first use), with its own remote. */
@@ -55,7 +56,7 @@ describe("firestore remote against the emulator", () => {
     expect(r?.projects.p1.value).toEqual({ project: project("p1"), decor: { h1: { floor: "a" } } });
     expect(r?.tasks.t1.value).toEqual(task("t1", "p1"));
     expect(r?.events).toEqual({ e1: purchase, e2: fed });
-    expect(await remote.savedInfo(uid)).toEqual(meta);
+    expect(await remote.savedInfo(uid)).toEqual(info);
   });
 
   it("a removed decor key and a dropped project field are gone after the next write", async () => {
@@ -90,7 +91,7 @@ describe("firestore remote against the emulator", () => {
     const { uid, remote } = await newUser();
     await remote.replaceAll(uid, { ...records({ projects: { p1: live({ project: project("p1"), decor: {} }) } }), saveId: "gen-1" }, meta);
     expect((await remote.load(uid))?.saveId).toBe("gen-1");
-    await remote.write(uid, [up("user", { ...user, startingTokens: 9 }, 2), up("project:p1", { project: project("p1", { name: "renamed" }), decor: {} }, 2)], meta);
+    await remote.write(uid, [up("user", { ...user, startingTokens: 9 }, 2), up("project:p1", { project: project("p1", { name: "renamed" }), decor: {} }, 2)], { ...meta, saveId: "gen-1" });
     expect((await remote.load(uid))?.saveId).toBe("gen-1");
     await remote.replaceAll(uid, { ...records({}), saveId: "gen-2" }, meta);
     expect((await remote.load(uid))?.saveId).toBe("gen-2");
@@ -99,6 +100,39 @@ describe("firestore remote against the emulator", () => {
     await vi_waitFor(() => seen.length > 0);
     stop();
     expect(seen[seen.length - 1].saveId).toBe("gen-2");
+  });
+
+  it("a write still labelled with a save another device replaced is refused and changes nothing", async () => {
+    const { uid, remote } = await newUser();
+    await remote.replaceAll(uid, { ...records({ projects: { p1: live({ project: project("p1"), decor: {} }) } }), saveId: "gen-1" }, meta);
+    // Another device picks "Keep this computer's": the account now holds only its save.
+    await remote.replaceAll(uid, { ...records({ projects: { p2: live({ project: project("p2"), decor: {} }, 2) } }), saveId: "gen-2" }, meta);
+    const stale = { ...meta, saveId: "gen-1" };
+    await expect(remote.write(uid, [up("project:p1", { project: project("p1", { name: "offline edit" }), decor: {} }, 3)], stale)).rejects.toThrow();
+    await expect(remote.write(uid, [up("task:t1", task("t1", "p2"), 3)], stale)).rejects.toThrow();
+    await expect(remote.write(uid, [up("event:e9", { type: "purchase", at: T(3), itemId: "x" }, 3)], stale)).rejects.toThrow();
+    await expect(remote.write(uid, [up("user", { ...user, startingTokens: 99 }, 3)], stale)).rejects.toThrow();
+    const r = await remote.load(uid);
+    expect(Object.keys(r?.projects ?? {})).toEqual(["p2"]);
+    expect(r?.tasks).toEqual({});
+    expect(r?.events).toEqual({});
+    expect(r?.user.value?.startingTokens).toBe(5);
+    await remote.write(uid, [up("task:t1", task("t1", "p2"), 3)], { ...meta, saveId: "gen-2" });
+    expect((await remote.load(uid))?.tasks.t1.value).toEqual(task("t1", "p2"));
+  });
+
+  it("replaceAll of a save with many projects, each with tasks, goes through", async () => {
+    const { uid, remote } = await newUser();
+    const projects: StampedRecords["projects"] = {};
+    const tasks: StampedRecords["tasks"] = {};
+    for (let i = 0; i < 30; i++) {
+      projects[`p${i}`] = live({ project: project(`p${i}`), decor: {} });
+      tasks[`t${i}`] = live(task(`t${i}`, `p${i}`));
+    }
+    await remote.replaceAll(uid, { ...records({ projects, tasks }), saveId: "big" }, meta);
+    const r = await remote.load(uid);
+    expect(Object.keys(r?.projects ?? {})).toHaveLength(30);
+    expect(Object.keys(r?.tasks ?? {})).toHaveLength(30);
   });
 
   it("replaceAll with a deleted user record leaves the user doc exactly as r says", async () => {

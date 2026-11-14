@@ -706,6 +706,43 @@ describe("sync engine: keeping this computer's save while another device is link
     expect(tokenBalance(a.data)).toBe(balance);
   });
 
+  it("a purchase still on its way up from the other device when the save is replaced is refused, not added to the kept save", async () => {
+    const remote = new FakeRemote();
+    const novel = withProject("Novel");
+    const b = device(remote, "Desktop", { ...novel.data, startingTokens: 5000 }, BEE);
+    await b.engine.connect("u1");
+    // The desktop's next write is held up, as an offline device's queued writes are, until after the laptop's choice.
+    const send = remote.write.bind(remote);
+    let reconnect = () => {};
+    const back = new Promise<void>((r) => (reconnect = r));
+    vi.spyOn(remote, "write").mockImplementationOnce(async (...args) => {
+      await back;
+      return send(...args);
+    });
+    b.edit((d) => A.purchase(d, "rainy-day-coat", NOW).data);
+    b.engine.localChanged();
+    const sending = b.engine.flush(); // sent now, but it won't arrive until later
+
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    const balance = tokenBalance(a.data);
+    expect((await a.engine.connect("u1")).kind).toBe("picker");
+    await a.engine.choose("u1", "local");
+    await a.engine.flush();
+    reconnect();
+    await sending.catch(() => undefined);
+    await b.engine.flush().catch(() => undefined);
+
+    const account = await accountData(remote, "u1");
+    expect(names(account)).toEqual(["Essay"]);
+    expect(purchases(account)).toEqual([]);
+    expect(purchases(b.data)).toEqual([]);
+    expect(backups(b.storage).map(purchases).map((p) => p.length)).toEqual([1]);
+    a.advance(60_000);
+    await a.engine.connect("u1");
+    expect(tokenBalance(a.data)).toBe(balance);
+    expect(remote.refused).toBe(1);
+  });
+
   it("a device still connected takes the kept save from its next snapshot, and sends nothing of its own", async () => {
     const remote = new FakeRemote();
     const { a, b, balance } = await laptopKeepsItsOwn(remote, true);

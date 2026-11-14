@@ -290,7 +290,8 @@ export function createSyncEngine(deps: EngineDeps) {
 
   function write(s: number, uid: string, kept: StampedRecords, keys: RecordKey[]): void {
     const changes = changesFor(flatten(kept), keys);
-    const m = meta();
+    // Labelled with the save this device is on now, so the account refuses it if that save is replaced first.
+    const m = { ...meta(), saveId: state.saveId };
     send(s, async () => {
       if (changes.length > 0) await deps.remote.write(uid, changes, m);
     });
@@ -472,11 +473,12 @@ export function createSyncEngine(deps: EngineDeps) {
         } else if (decision === "rejoin") {
           // Edits made here since the last sync (signed out, or closed before they were sent) are stamped first, so they win.
           stampChanges();
+          // On the account's save before merging, so what the merge sends is labelled with it.
+          state = { ...state, saveId: remote.saveId ?? null };
           mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
-          state = { ...state, saveId: remote.saveId ?? null };
         } else {
-          mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
           state = { ...state, saveId: remote.saveId ?? null };
+          mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
         current(s);
         startSession(uid);
@@ -497,8 +499,8 @@ export function createSyncEngine(deps: EngineDeps) {
         } else {
           backup(deps.getLocal().data);
           pending = null;
-          if (remote) mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
           state = { ...state, saveId: remote?.saveId ?? null };
+          if (remote) mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
         current(s);
         startSession(uid);

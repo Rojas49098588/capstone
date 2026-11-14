@@ -7,7 +7,7 @@ import {
   assertFails,
   assertSucceeds,
 } from '@firebase/rules-unit-testing'
-import { deleteDoc, doc, getDoc, setDoc } from 'firebase/firestore'
+import { deleteDoc, doc, getDoc, setDoc, writeBatch } from 'firebase/firestore'
 
 const here = dirname(fileURLToPath(import.meta.url))
 let env
@@ -104,6 +104,44 @@ describe('firestore rules', () => {
     const alice = as('alice')
     await assertFails(setDoc(doc(alice, 'projects/alice_p1'), { members: ['alice', 'bob'], owner: 'alice' }))
     await assertFails(setDoc(doc(alice, 'projects/alice_p1'), { members: ['alice'], owner: 'bob' }))
+  })
+
+  it("after the save is replaced, writes labelled with the old save are refused and the current save's go through", async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const db = ctx.firestore()
+      await setDoc(doc(db, 'users/alice'), { saveId: 'new', gen: 'new' })
+      await setDoc(doc(db, 'projects/alice_p1'), { members: ['alice'], owner: 'alice', gen: 'new' })
+    })
+    const alice = as('alice')
+    const old = { gen: 'old' }
+    await assertFails(setDoc(doc(alice, 'users/alice'), { savedBy: 'offline laptop', ...old }, { merge: true }))
+    await assertFails(setDoc(doc(alice, 'users/alice/events/e1'), { event: {}, ...old }))
+    await assertFails(setDoc(doc(alice, 'projects/alice_p1'), { members: ['alice'], owner: 'alice', x: 1, ...old }))
+    await assertFails(setDoc(doc(alice, 'projects/alice_p2'), { members: ['alice'], owner: 'alice', ...old }))
+    await assertFails(setDoc(doc(alice, 'projects/alice_p1/tasks/t1'), { data: {}, ...old }))
+    await assertFails(setDoc(doc(alice, 'projects/alice_p1/tasks/t1'), { data: {} }))
+    const cur = { gen: 'new' }
+    await assertSucceeds(setDoc(doc(alice, 'users/alice'), { savedBy: 'desktop', ...cur }, { merge: true }))
+    await assertSucceeds(setDoc(doc(alice, 'users/alice/events/e1'), { event: {}, ...cur }))
+    await assertSucceeds(setDoc(doc(alice, 'projects/alice_p1'), { members: ['alice'], owner: 'alice', x: 1, ...cur }))
+    await assertSucceeds(setDoc(doc(alice, 'projects/alice_p2'), { members: ['alice'], owner: 'alice', ...cur }))
+    await assertSucceeds(setDoc(doc(alice, 'projects/alice_p1/tasks/t1'), { data: {}, ...cur }))
+    // Deletes carry no label: only replacing a save or deleting the account deletes documents.
+    await assertSucceeds(deleteDoc(doc(alice, 'projects/alice_p1/tasks/t1')))
+  })
+
+  it('a new save replaces the old in one batch: the user doc and its documents all carry the new label', async () => {
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'users/alice'), { saveId: 'old', gen: 'old' })
+      await setDoc(doc(ctx.firestore(), 'projects/alice_p1'), { members: ['alice'], owner: 'alice', gen: 'old' })
+    })
+    const alice = as('alice')
+    const good = writeBatch(alice)
+    good.set(doc(alice, 'users/alice'), { saveId: 'next', gen: 'next' }, { merge: true })
+    good.set(doc(alice, 'projects/alice_p1/tasks/t1'), { data: {}, gen: 'next' })
+    await assertSucceeds(good.commit())
+    // The user doc's own label must match the save it sets.
+    await assertFails(setDoc(doc(alice, 'users/alice'), { saveId: 'other', gen: 'next' }, { merge: true }))
   })
 
   it('signed-out requests are denied everywhere', async () => {
