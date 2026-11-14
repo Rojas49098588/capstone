@@ -5,7 +5,7 @@ What's planned, in order. Each big item gets its own design (`docs/superpowers/s
 ## Before the final due date (December 3, 2026)
 
 1. **Signed Mac installer, by Monday 11/16.** Sign and notarize the Mac `.dmg` with the Apple Developer account, so testers don't need System Settings → Privacy & Security → Open Anyway.
-2. **Linux installer, after the Mac one.** An AppImage and a `.deb` from the same build workflow. Needs a tester on a real Linux machine: the see-through pet overlay may act differently there, especially under Wayland.
+2. **Linux installer: built (a `.deb`); tester check pending.** The build installs it and checks the app opens. A person still needs to check the see-through pet overlay on a real Linux desktop, which may act differently there, especially under Wayland. No AppImage: on Ubuntu 24.04+ it would only start with Electron's sandbox off.
 3. **Accounts and sync: built; publishing and two-device checks pending.** Guest first, link an account later, and sync across the web and desktop apps. Design: `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`.
 
 ## After December 3

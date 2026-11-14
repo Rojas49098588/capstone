@@ -1,5 +1,5 @@
-# Builds the installers: npm run dist (builds web/ first) makes the Windows .exe on Windows and the
-# universal Mac .dmg on a Mac; the "Build installers" GitHub workflow runs it on both. scripts/dist.js sets the output
+# Builds the installers: npm run dist (builds web/ first) makes the Windows .exe on Windows, the
+# universal Mac .dmg on a Mac, and the .deb on Linux; the "Build installers" GitHub workflow runs it on all three. scripts/dist.js sets the output
 # folder outside OneDrive (~/StudiumBuilds); `release` is only the fallback for a direct electron-builder run.
 # The paths under extraResources are where src/main/paths.js looks in a packaged build.
 appId: edu.smu.studium
@@ -36,6 +36,17 @@ mac:
   artifactName: Studium-${version}-mac.${ext}
 dmg:
   title: Studium ${version}
+linux:
+  # .deb only: its installer sets up the sandbox newer Ubuntu needs (an AppArmor profile). An AppImage
+  # can't, so on Ubuntu 24.04+ it would only start with the sandbox turned off.
+  target: deb
+  category: Education
+  executableName: studium
+  synopsis: Studium and its project pets
+  # Shown to anyone who installs the .deb: the GitHub no-reply address, not a personal one.
+  maintainer: Studium <167337265+Rojas49098588@users.noreply.github.com>
+deb:
+  artifactName: Studium-${version}-amd64.${ext}
 nsis:
   artifactName: Studium-Setup-${version}.${ext}
   oneClick: false

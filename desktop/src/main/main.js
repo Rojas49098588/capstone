@@ -12,7 +12,7 @@ const { createStore } = require('./store');
 const { createAwayRunner } = require('./away');
 const { CHANNELS, handleStudium } = require('./bridge');
 const { createTray } = require('./tray');
-const { loginItemSettings, startHidden } = require('./loginItem');
+const { linuxAutostart, loginItemSettings, startHidden } = require('./loginItem');
 const { quitTask } = require('./taskbar');
 const { REBUILD_AFTER_WAKE_MS, createOverlayWindow, createRebuildTimer, setOverlayMouse } = require('./overlayWindow');
 const { createHabitatTracker } = require('./habitat');
@@ -28,6 +28,19 @@ if (args.userData) app.setPath('userData', args.userData);
 globalThis.studiumTest = {};
 
 registerStudiumScheme();
+
+/** Writes or removes Linux's autostart entry (see linuxAutostart). A failure only means no start with the computer. */
+function writeAutostart({ file, content }) {
+  try {
+    if (content === null) fs.rmSync(file, { force: true });
+    else {
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, content);
+    }
+  } catch (e) {
+    console.warn('Could not update the autostart entry', e);
+  }
+}
 
 const quitApp = () => {
   app.isQuitting = true;
@@ -76,7 +89,9 @@ if (!app.requestSingleInstanceLock() || args.quit) {
     const applyLoginItem = (on, quiet) => {
       // macOS login items can't pass --hidden, so the next login reads the choice from the store.
       if (process.platform === 'darwin') store.set({ loginQuiet: quiet === true });
-      if (app.isPackaged && !args.userData) app.setLoginItemSettings(loginItemSettings(on, process.execPath, quiet));
+      if (!app.isPackaged || args.userData) return;
+      if (process.platform === 'linux') writeAutostart(linuxAutostart(on, process.execPath, quiet));
+      else app.setLoginItemSettings(loginItemSettings(on, process.execPath, quiet));
     };
     const deps = { store, runner, L, sendSessions, applyLoginItem };
     for (const channel of CHANNELS) {
