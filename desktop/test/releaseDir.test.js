@@ -18,6 +18,10 @@ describe('unpackedExe', () => {
     expect(unpackedExe('r', 'win32')).toBe(path.join('r', 'win-unpacked', 'Studium.exe'));
   });
 
+  it('finds the Linux build', () => {
+    expect(unpackedExe('r', 'linux')).toBe(path.join('r', 'linux-unpacked', 'studium'));
+  });
+
   it('finds the universal Mac build', () => {
     expect(unpackedExe('r', 'darwin')).toBe(path.join('r', 'mac-universal', 'Studium.app', 'Contents', 'MacOS', 'Studium'));
   });
@@ -34,5 +38,9 @@ describe('distArgs', () => {
     expect(args).toContain('nsis');
     expect(args).toContain('never');
     expect(args).not.toContain('--universal');
+  });
+
+  it('builds the Linux AppImage and .deb', () => {
+    expect(distArgs('linux', '/o')).toEqual(['electron-builder', '--linux', 'AppImage', 'deb', '--publish', 'never', '--config.directories.output=/o']);
   });
 });

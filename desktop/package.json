@@ -3,6 +3,7 @@
   "productName": "Studium",
   "version": "0.11.0",
   "description": "Studium and its project pets as a desktop app",
+  "homepage": "https://studium-9a00e.web.app",
   "private": true,
   "main": "src/main/main.js",
   "scripts": {

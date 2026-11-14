@@ -1,7 +1,7 @@
-# Builds the Studium installers: the Windows .exe and the universal (Apple chip + Intel) Mac .dmg,
-# signed and notarized with the Apple secrets (see HANDOFF.md, "Mac signing").
+# Builds the Studium installers: the Windows .exe, the universal (Apple chip + Intel) Mac .dmg,
+# signed and notarized with the Apple secrets (see HANDOFF.md, "Mac signing"), and the Linux AppImage and .deb.
 # Run it from the Actions tab → "Build installers" → Run workflow. It runs the tests, builds both
-# installers, checks each packaged app starts, and puts both files on a draft Release v<version>
+# installers, checks each packaged app starts, and puts the files on a draft Release v<version>
 # (version from desktop/package.json) for you to publish. Running it again for the same version
 # replaces the files while the release is still a draft; a published release is never changed (bump
 # the version). Only a run on main makes a release; other branches just build.
@@ -19,7 +19,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest]
+        os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -52,8 +52,8 @@ jobs:
         working-directory: desktop
         run: npm test
 
-      - name: Build the installer (Windows)
-        if: runner.os == 'Windows'
+      - name: Build the installer (Windows, Linux)
+        if: runner.os != 'macOS'
         working-directory: desktop
         run: npm run dist
 
@@ -74,7 +74,9 @@ jobs:
         working-directory: desktop
         env:
           STUDIUM_PACKAGED: '1'
-        run: npx playwright test packaged
+        # Linux runners have no screen: xvfb-run gives the app a virtual one.
+        run: |
+          if [ "$RUNNER_OS" = Linux ]; then xvfb-run -a npx playwright test packaged; else npx playwright test packaged; fi
 
       - name: Check the Mac app is signed, notarized and universal
         if: runner.os == 'macOS'
@@ -102,6 +104,16 @@ jobs:
         with:
           name: studium-mac
           path: ${{ runner.temp }}/release/*.dmg
+          if-no-files-found: error
+
+      - name: Upload the Linux installers
+        if: runner.os == 'Linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: studium-linux
+          path: |
+            ${{ runner.temp }}/release/*.AppImage
+            ${{ runner.temp }}/release/*.deb
           if-no-files-found: error
 
   release:

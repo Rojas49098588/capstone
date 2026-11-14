@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { loginItemSettings, startHidden, startQuietlyFrom, startWithComputerFrom } from '../src/main/loginItem.js';
+import { linuxAutostart, loginItemSettings, startHidden, startQuietlyFrom, startWithComputerFrom } from '../src/main/loginItem.js';
 
 describe('loginItemSettings', () => {
   it('opens Studium at login, with its window showing (Windows)', () => {
@@ -63,5 +63,32 @@ describe('startHidden', () => {
 
   it('on a Mac, opening it by hand always shows the window', () => {
     expect(startHidden({ platform: 'darwin', argvHidden: false, openedAtLogin: false, quietSaved: true })).toBe(false);
+  });
+});
+
+describe('linuxAutostart', () => {
+  const env = { HOME: '/home/sam' };
+
+  it('writes an autostart entry that opens Studium, or starts it quietly with --hidden', () => {
+    const on = linuxAutostart(true, '/opt/Studium/studium', false, env);
+    expect(on.file).toBe('/home/sam/.config/autostart/studium.desktop');
+    expect(on.content).toContain('[Desktop Entry]');
+    expect(on.content).toContain('Type=Application');
+    expect(on.content).toContain('Name=Studium');
+    expect(on.content).toContain('Exec="/opt/Studium/studium"\n');
+    expect(linuxAutostart(true, '/opt/Studium/studium', true, env).content).toContain('Exec="/opt/Studium/studium" --hidden\n');
+  });
+
+  it('turning it off removes the entry', () => {
+    expect(linuxAutostart(false, '/opt/Studium/studium', false, env)).toEqual({ file: '/home/sam/.config/autostart/studium.desktop', content: null });
+  });
+
+  it('an AppImage starts from the AppImage file, not from where it is unpacked while running', () => {
+    const entry = linuxAutostart(true, '/tmp/.mount_Stu123/studium', false, { ...env, APPIMAGE: '/home/sam/Apps/Studium.AppImage' });
+    expect(entry.content).toContain('Exec="/home/sam/Apps/Studium.AppImage"\n');
+  });
+
+  it('uses XDG_CONFIG_HOME when it is set', () => {
+    expect(linuxAutostart(true, '/s', false, { ...env, XDG_CONFIG_HOME: '/home/sam/cfg' }).file).toBe('/home/sam/cfg/autostart/studium.desktop');
   });
 });
