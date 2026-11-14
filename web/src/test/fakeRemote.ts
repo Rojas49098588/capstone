@@ -1,6 +1,6 @@
 // An in-memory RemoteStore for tests. push() plays another device saving.
 import type { StampedRecords } from "../sync/merge";
-import type { RemoteChange, RemoteStore, SavedInfo } from "../sync/remote";
+import type { RemoteChange, RemoteStore, SavedInfo, WriteMeta } from "../sync/remote";
 
 const copy = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
@@ -41,7 +41,15 @@ export class FakeRemote implements RemoteStore {
     return r ? copy(r) : null;
   }
 
-  async write(uid: string, changes: RemoteChange[], meta: SavedInfo): Promise<void> {
+  /** Writes refused because they were for a save the account no longer has, as the security rules refuse them. */
+  refused = 0;
+
+  async write(uid: string, changes: RemoteChange[], meta: WriteMeta): Promise<void> {
+    if ((this.data.get(uid)?.saveId ?? null) !== meta.saveId) {
+      this.refused++;
+      throw Object.assign(new Error("Missing or insufficient permissions."), { code: "permission-denied" });
+    }
+    const { saveId: _label, ...info } = meta;
     const r = this.data.get(uid) ?? {
       user: { updatedAt: new Date(0).toISOString(), deleted: false, value: null },
       projects: {},
@@ -51,7 +59,7 @@ export class FakeRemote implements RemoteStore {
     };
     for (const c of changes) applyChange(r, c);
     this.data.set(uid, r);
-    this.info.set(uid, { ...meta });
+    this.info.set(uid, info);
     this.notify(uid);
   }
 

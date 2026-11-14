@@ -5,7 +5,7 @@ import { emptyData } from "../store/seed";
 import { LEGACY_STARTING_TOKENS } from "../planner/tuning";
 import { localDateKey } from "../planner/time";
 import { DEFAULT_SETTINGS, PET_INVOLVEMENT_LEVELS, PET_ORDERS } from "../store/settings";
-import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
+import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { decideLink, hasOwnProjects } from "./linkDecision";
 import { liveRecords, mergeRecords, type Stamped, type StampedRecords } from "./merge";
 import { fromRecords, recordHashes, toRecords, type RecordKey, type Records, type SyncedSettings, type UserRecord } from "./records";
@@ -174,13 +174,16 @@ function reconcile(local: StampedRecords, remote: StampedRecords, fallbackUser: 
 
 const BACKUPS_KEPT = 5;
 
-/** Keeps the newest BACKUPS_KEPT backups (by the time in their key), always including `written`, the one just made. */
+/**
+ * Keeps the newest BACKUPS_KEPT backups (by the time in their key), always including `written`, the one just made.
+ * Backups of damaged data aren't counted or removed: they may be the only copy of it.
+ */
 function pruneBackups(storage: Storage, written: string): void {
   try {
     const keys: string[] = [];
     for (let i = 0; i < storage.length; i++) {
       const k = storage.key(i);
-      if (k?.startsWith(BACKUP_PREFIX) && k !== written) keys.push(k);
+      if (k?.startsWith(BACKUP_PREFIX) && !k.startsWith(DAMAGED_BACKUP_PREFIX) && k !== written) keys.push(k);
     }
     keys.sort().reverse(); // ISO times: newest first
     for (const k of keys.slice(BACKUPS_KEPT - 1)) storage.removeItem(k);
@@ -287,7 +290,8 @@ export function createSyncEngine(deps: EngineDeps) {
 
   function write(s: number, uid: string, kept: StampedRecords, keys: RecordKey[]): void {
     const changes = changesFor(flatten(kept), keys);
-    const m = meta();
+    // Labelled with the save this device is on now, so the account refuses it if that save is replaced first.
+    const m = { ...meta(), saveId: state.saveId };
     send(s, async () => {
       if (changes.length > 0) await deps.remote.write(uid, changes, m);
     });
@@ -469,11 +473,12 @@ export function createSyncEngine(deps: EngineDeps) {
         } else if (decision === "rejoin") {
           // Edits made here since the last sync (signed out, or closed before they were sent) are stamped first, so they win.
           stampChanges();
+          // On the account's save before merging, so what the merge sends is labelled with it.
+          state = { ...state, saveId: remote.saveId ?? null };
           mergeIn(uid, stampedLocal(localRecords(), state, EPOCH), remote, localRecords().user);
-          state = { ...state, saveId: remote.saveId ?? null };
         } else {
-          mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
           state = { ...state, saveId: remote.saveId ?? null };
+          mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
         current(s);
         startSession(uid);
@@ -494,8 +499,8 @@ export function createSyncEngine(deps: EngineDeps) {
         } else {
           backup(deps.getLocal().data);
           pending = null;
-          if (remote) mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
           state = { ...state, saveId: remote?.saveId ?? null };
+          if (remote) mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
         }
         current(s);
         startSession(uid);

@@ -22,7 +22,7 @@ import {
 import type { Requirement, StudiumData, StudiumEvent, Task } from "../planner/types";
 import type { Stamped, StampedRecords } from "./merge";
 import { eventProject, type RecordKey, type UserRecord } from "./records";
-import type { RemoteChange, RemoteStore, SavedInfo } from "./remote";
+import type { RemoteChange, RemoteStore, SavedInfo, WriteMeta } from "./remote";
 
 const EPOCH = new Date(0).toISOString();
 const SUBS = ["requirements", "tasks", "events"] as const;
@@ -94,20 +94,23 @@ function remember(index: ProjectIndex, key: RecordKey, project: string | null) {
   else if (key.startsWith("requirement:")) index.requirements.set(idOf(key), project);
 }
 
-/** The stored form of one change. */
-function docFor(uid: string, change: RemoteChange, path: string): Doc {
+/**
+ * The stored form of one change. `gen` labels it with the save the writing device is on: the rules refuse a label
+ * that isn't the account's current save, so an offline device's writes for a replaced save never land.
+ */
+function docFor(uid: string, change: RemoteChange, path: string, gen: string | null): Doc {
   const { key, updatedAt } = change;
   const value = change.kind === "upsert" ? change.value : null;
   const deleted = change.kind === "delete";
-  if (key === "user") return { path, data: { ...(value as UserRecord), updatedAt }, fields: [...Object.keys(value as UserRecord), "updatedAt"] };
+  if (key === "user") return { path, data: { ...(value as UserRecord), updatedAt, gen }, fields: [...Object.keys(value as UserRecord), "updatedAt", "gen"] };
   if (key.startsWith("project:")) {
     const v = value as { project: unknown; decor: unknown } | null;
-    return { path, data: { updatedAt, deleted, project: v?.project ?? null, decor: v?.decor ?? {} }, fields: ["updatedAt", "deleted", "project", "decor"] };
+    return { path, data: { updatedAt, deleted, project: v?.project ?? null, decor: v?.decor ?? {}, gen }, fields: ["updatedAt", "deleted", "project", "decor", "gen"] };
   }
   if (key.startsWith("event:")) {
-    return { path, data: path.startsWith("users/") ? { event: value } : { event: value, by: uid } };
+    return { path, data: path.startsWith("users/") ? { event: value, gen } : { event: value, by: uid, gen } };
   }
-  return { path, data: { updatedAt, deleted, data: value } };
+  return { path, data: { updatedAt, deleted, data: value, gen } };
 }
 
 function parseUser(d: DocumentData | undefined): Stamped<UserRecord> {
@@ -222,11 +225,11 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
   }
 
   /** savedAt and savedBy go with every write. The user doc's updatedAt is the user record's own stamp, so it only moves with that record. */
-  const metaOp = (uid: string, meta: SavedInfo, userStamp?: string): Op =>
+  const metaOp = (uid: string, meta: WriteMeta, userStamp?: string): Op =>
     setOp({
       path: `users/${uid}`,
-      data: { savedAt: meta.savedAt, savedBy: meta.savedBy, ...(userStamp ? { updatedAt: userStamp } : {}) },
-      fields: ["savedAt", "savedBy", ...(userStamp ? ["updatedAt"] : [])],
+      data: { savedAt: meta.savedAt, savedBy: meta.savedBy, gen: meta.saveId, ...(userStamp ? { updatedAt: userStamp } : {}) },
+      fields: ["savedAt", "savedBy", "gen", ...(userStamp ? ["updatedAt"] : [])],
     });
 
   function warnSkipped(key: RecordKey) {
@@ -262,7 +265,7 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
           continue;
         }
         if (c.key === "user") userStamp = c.updatedAt;
-        (c.key.startsWith("project:") ? projects : rest).push(docFor(uid, c, path));
+        (c.key.startsWith("project:") ? projects : rest).push(docFor(uid, c, path, meta.saveId));
       }
       // A project must exist before anything is written under it (the rules read its members), so its batch is queued first.
       await Promise.all([commitProjects(uid, projects), commit([...rest.map(setOp), metaOp(uid, meta, userStamp)])]);
@@ -293,11 +296,12 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       for (const [id, t] of Object.entries(r.tasks)) if (t.value) idx.tasks.set(id, t.value.projectId);
       for (const [id, q] of Object.entries(r.requirements)) if (q.value) idx.requirements.set(id, q.value.projectId);
 
+      const gen = r.saveId ?? null;
       const wanted = new Map<string, Doc>();
       const add = (change: RemoteChange) => {
         const path = docPath(uid, change.key, change.kind === "upsert" ? change.value : null, idx);
         if (path === null) return warnSkipped(change.key);
-        wanted.set(path, docFor(uid, change, path));
+        wanted.set(path, docFor(uid, change, path, gen));
       };
       const stamped = (key: RecordKey, s: Stamped<unknown>) =>
         add(s.deleted || s.value === null ? { kind: "delete", key, updatedAt: s.updatedAt } : { kind: "upsert", key, updatedAt: s.updatedAt, value: s.value });
@@ -318,16 +322,20 @@ export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { hos
       const userDoc: Op = userLive
         ? setOp({
             path: `users/${uid}`,
-            data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt, ...generation },
-            fields: ["savedAt", "savedBy", "updatedAt", ...Object.keys(generation)],
+            data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt, gen, ...generation },
+            fields: ["savedAt", "savedBy", "updatedAt", "gen", ...Object.keys(generation)],
           })
-        : setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt, ...generation } });
+        : setOp({ path: `users/${uid}`, data: { savedAt: meta.savedAt, savedBy: meta.savedBy, updatedAt: r.user.updatedAt, gen, ...generation } });
       for (const [id, p] of idx.tasks) index.tasks.set(id, p);
       for (const [id, p] of idx.requirements) index.requirements.set(id, p);
-      // Queued in this order: projects first, then what goes under them, and project deletes last, since a project's members are what lets the rules reach its subdocuments.
-      const written = Promise.all([commitProjects(uid, projectDocs), commit([...subDeletes.map(deleteOp), ...rest.map(setOp), userDoc]), commit(projectDeletes.map(deleteOp))]);
+      // One ordered list, split into batches only past the batch size: the user doc first, since it carries the new save
+      // every other document is checked against; then projects before what goes under them (a project's members are what
+      // lets the rules reach its subdocuments); project deletes last. Up to the batch size, the whole save changes at once.
+      const { ops: projectOpsList, created } = projectOps(uid, projectDocs);
+      const written = commit([userDoc, ...projectOpsList, ...subDeletes.map(deleteOp), ...rest.map(setOp), ...projectDeletes.map(deleteOp)]);
       for (const p of projectDeletes) known.delete(p.split("/")[1]);
       await written;
+      for (const id of created) known.add(id);
     },
 
     async deleteAll(uid) {

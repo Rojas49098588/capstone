@@ -4,7 +4,7 @@ import { FakeRemote } from "./fakeRemote";
 
 const T1 = "2026-01-01T00:00:00.000Z";
 const T2 = "2026-01-02T00:00:00.000Z";
-const meta = { savedAt: T1, savedBy: "dev" };
+const meta = { savedAt: T1, savedBy: "dev", saveId: null };
 const empty = (): StampedRecords => ({
   user: { updatedAt: T1, deleted: false, value: null },
   projects: {},
@@ -41,7 +41,7 @@ describe("FakeRemote", () => {
         { kind: "delete", key: "task:t1", updatedAt: T2 },
         { kind: "delete", key: "event:e1", updatedAt: T2 },
       ],
-      { savedAt: T2, savedBy: "dev" },
+      { savedAt: T2, savedBy: "dev", saveId: null },
     );
     const r = (await remote.load("u1"))!;
     expect(r.tasks.t1).toEqual({ updatedAt: T2, deleted: true, value: null });

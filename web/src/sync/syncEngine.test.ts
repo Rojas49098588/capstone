@@ -9,7 +9,7 @@ import type { StudiumData } from "../planner/types";
 import * as A from "../store/actions";
 import { buildSeed, emptyData } from "../store/seed";
 import { DEFAULT_SETTINGS } from "../store/settings";
-import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
+import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { FakeRemote } from "../test/fakeRemote";
 import { memoryStorage, renderWithStudium } from "../test/render";
 import { liveRecords, type StampedRecords } from "./merge";
@@ -706,6 +706,43 @@ describe("sync engine: keeping this computer's save while another device is link
     expect(tokenBalance(a.data)).toBe(balance);
   });
 
+  it("a purchase still on its way up from the other device when the save is replaced is refused, not added to the kept save", async () => {
+    const remote = new FakeRemote();
+    const novel = withProject("Novel");
+    const b = device(remote, "Desktop", { ...novel.data, startingTokens: 5000 }, BEE);
+    await b.engine.connect("u1");
+    // The desktop's next write is held up, as an offline device's queued writes are, until after the laptop's choice.
+    const send = remote.write.bind(remote);
+    let reconnect = () => {};
+    const back = new Promise<void>((r) => (reconnect = r));
+    vi.spyOn(remote, "write").mockImplementationOnce(async (...args) => {
+      await back;
+      return send(...args);
+    });
+    b.edit((d) => A.purchase(d, "rainy-day-coat", NOW).data);
+    b.engine.localChanged();
+    const sending = b.engine.flush(); // sent now, but it won't arrive until later
+
+    const a = device(remote, "Laptop", withProject("Essay").data);
+    const balance = tokenBalance(a.data);
+    expect((await a.engine.connect("u1")).kind).toBe("picker");
+    await a.engine.choose("u1", "local");
+    await a.engine.flush();
+    reconnect();
+    await sending.catch(() => undefined);
+    await b.engine.flush().catch(() => undefined);
+
+    const account = await accountData(remote, "u1");
+    expect(names(account)).toEqual(["Essay"]);
+    expect(purchases(account)).toEqual([]);
+    expect(purchases(b.data)).toEqual([]);
+    expect(backups(b.storage).map(purchases).map((p) => p.length)).toEqual([1]);
+    a.advance(60_000);
+    await a.engine.connect("u1");
+    expect(tokenBalance(a.data)).toBe(balance);
+    expect(remote.refused).toBe(1);
+  });
+
   it("a device still connected takes the kept save from its next snapshot, and sends nothing of its own", async () => {
     const remote = new FakeRemote();
     const { a, b, balance } = await laptopKeepsItsOwn(remote, true);
@@ -784,6 +821,22 @@ describe("sync engine: backups", () => {
     a.advance(60_000);
     await a.engine.connect("u1"); // ...then another account signs in here: backed up and replaced
     expect(keys(storage)).toEqual([at(-40), at(-30), at(-20), at(-10), at(1)]);
+  });
+
+  it("a backup of damaged data is never pruned by the cap", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const storage = memoryStorage();
+    const damaged = `${DAMAGED_BACKUP_PREFIX}${new Date(NOW.getTime() - 120 * 60_000).toISOString()}`;
+    storage.setItem(damaged, "{not json");
+    for (const m of [-60, -50, -40, -30, -20, -10]) storage.setItem(at(m), "{}");
+    const a = device(remote, "Laptop", withProject("Essay").data, ABBY, storage);
+    await a.engine.connect("u2");
+    a.engine.stop();
+    a.advance(60_000);
+    await a.engine.connect("u1");
+    expect(storage.getItem(damaged)).toBe("{not json");
+    expect(keys(storage).filter((k) => k !== damaged)).toEqual([at(-40), at(-30), at(-20), at(-10), at(1)]);
   });
 
   it("a backup written while the clock is behind older ones still stays", async () => {
