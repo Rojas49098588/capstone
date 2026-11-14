@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NOW, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
-import { BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
+import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
 
 function memoryStorage(failWrites = false): Storage {
   const map = new Map<string, string>();
@@ -87,7 +87,7 @@ describe("loadData / saveData", () => {
     storage.setItem(STORAGE_KEY, "{not json");
     const result = loadData(storage, NOW);
     expect(result.notice).toBe("damaged-data");
-    expect(storage.getItem(`${BACKUP_PREFIX}${NOW.toISOString()}`)).toBe("{not json");
+    expect(storage.getItem(`${DAMAGED_BACKUP_PREFIX}${NOW.toISOString()}`)).toBe("{not json");
     expect(isValidData(JSON.parse(storage.getItem(STORAGE_KEY) as string))).toBe(true);
   });
 

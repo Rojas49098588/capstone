@@ -30,6 +30,22 @@ describe("isStudiumUrl", () => {
   });
 });
 
+describe("isStudiumUrl with no homepage argument", () => {
+  it("isStudiumUrl accepts the hosted app and localhost", () => {
+    expect(L.HOMEPAGE_URL).toBe("https://studium-9a00e.web.app/");
+    expect(L.isStudiumUrl("https://studium-9a00e.web.app/")).toBe(true);
+    expect(L.isStudiumUrl("https://studium-9a00e.web.app/#project=x")).toBe(true);
+    expect(L.isStudiumUrl("https://studium-9a00e.firebaseapp.com/")).toBe(true);
+    expect(L.isStudiumUrl("http://localhost:5173/")).toBe(true);
+    expect(L.isStudiumUrl("http://studium-9a00e.web.app/")).toBe(false);
+    expect(L.isStudiumUrl("https://other-project.web.app/")).toBe(false);
+  });
+  it("still honours an explicit homepage", () => {
+    expect(L.isStudiumUrl("https://example.com/x", "https://example.com/")).toBe(true);
+    expect(L.isStudiumUrl("https://studium-9a00e.web.app/", "https://example.com/")).toBe(false);
+  });
+});
+
 describe("parseStatuses", () => {
   it("reads what Studium publishes", () => {
     const raw = JSON.stringify({

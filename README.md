@@ -20,6 +20,19 @@ Studium isn't signed with a paid certificate, so your computer warns you the fir
 
 To update, install the new version over the old one. Your projects and pets stay.
 
+## Accounts and sync
+
+An account is optional. Without one you are a guest: everything works and is saved on your computer. With one, your projects and pets follow you between the desktop app and the web app at https://studium-9a00e.web.app/ (it goes live once published).
+
+- **Link an account:** Settings → **Account** → **Link account**. Your projects and pets stay and start syncing. If you already have an account, choose **Already use Studium? Sign in** during first-run setup instead.
+- **Ways to sign in:** email and password, or Google. Apple is coming later; its button stays hidden until it is set up.
+- **What syncs:** projects, requirements, tasks, history and Today, habitat decor, tokens and Shop purchases, your nickname, how much pets interact, and the pets-on-screen order.
+- **What stays on each device:** the theme, Pet sounds, volume and sound bubbles, how many pets show, Start with computer and Start quietly, and the tutorial.
+- **Two saves:** if this computer and your account already have different projects, Studium shows **You have two saves**. Pick one to keep; the other is saved as a backup file on this computer. **Not now (sign out)** leaves things as they were.
+- **Sign out** keeps everything on the computer; you carry on as a guest. Changes made while signed out aren't sent to the account. Signing in again offers the two-saves choice if something changed.
+- **Delete account** (Settings → Account) removes the account and its cloud data. Your computer keeps its copy.
+- **Backups:** Settings → **Account** lists the backups on this computer, each with a **Download** button.
+
 ## The code
 
 Two parts:
@@ -35,7 +48,7 @@ npm install
 npm run dev
 ```
 
-It runs at http://localhost:5173 (the port is fixed because the extension opens that URL).
+The hosted web app is at https://studium-9a00e.web.app/ (Firebase Hosting); the browser extension's toolbar icon opens it. For development, `npm run dev` runs it at http://localhost:5173 (the port is fixed; the extension also recognises that address as Studium).
 
 ## Desktop app
 
@@ -133,7 +146,7 @@ After editing extension files, click the reload icon on the extension's card, th
 | Each pet's speed, size, sound, naps, hops, flying | `KINDS` in `extension/content/pet.js` |
 | Shared physics (gravity, throwing, bounce) | constants at the top of `extension/content/pet.js` |
 | Pet art | `extension/assets/pets/` (cleaned-up copies of the originals in `assets/`) |
-| Studium's address (the icon opens it; pets read it) | `HOMEPAGE_URL` in `extension/content/logic.js` |
+| Studium's address (the icon opens it; pets read it; `https://studium-9a00e.web.app/`, plus localhost for development) | `HOMEPAGE_URL` and `STUDIUM_ORIGINS` in `extension/content/logic.js` |
 | Studium screens | `web/src/components/` (one file per piece; `App.tsx` is just the shell) |
 | Wording shown in Studium (labels, token messages) | `web/src/ui/format.ts` |
 | Egg looks and descriptions | `web/src/pets/eggs.ts` |

@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
+import { NOW } from "../planner/testData";
+import { buildSeed, emptyData } from "../store/seed";
 import { SETTINGS_KEY } from "../store/settings";
-import { renderWithStudium } from "../test/render";
+import { ABBY, accountHas, renderWithAccount, submitSignIn, workedOnExample } from "../test/account";
+import { FakeRemote } from "../test/fakeRemote";
+import { renderWithStudium, withEgg } from "../test/render";
 import Setup from "./Setup";
 
 const stored = (storage: Storage | null) => JSON.parse(storage?.getItem(SETTINGS_KEY) as string);
@@ -76,6 +80,115 @@ describe("Setup", () => {
     renderSetup();
     await next();
     screen.getByText(/More mischief coming in a future update/);
+  });
+
+  describe("Already use Studium? Sign in", () => {
+    const LINK = "Already use Studium? Sign in";
+    const signInFromSetup = async (user: ReturnType<typeof userEvent.setup>) => {
+      await user.click(screen.getByRole("button", { name: LINK }));
+      expect(within(screen.getByRole("dialog")).getByRole("tab", { name: "Sign in" }).getAttribute("aria-selected")).toBe("true");
+      await submitSignIn(user, "abby@example.com", "secret1");
+    };
+
+    it("with accounts on, step 1 offers 'Already use Studium? Sign in'", () => {
+      renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={vi.fn()} />, { settings: { setupDone: false } });
+      screen.getByRole("button", { name: LINK });
+    });
+
+    it("only step 1 offers it", async () => {
+      renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={vi.fn()} />, { settings: { setupDone: false } });
+      await next();
+      expect(screen.queryByRole("button", { name: LINK })).toBeNull();
+    });
+
+    it("with accounts off, the link isn't shown", () => {
+      renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={vi.fn()} />, { auth: null, remote: null, settings: { setupDone: false } });
+      expect(screen.queryByRole("button", { name: LINK })).toBeNull();
+    });
+
+    it("signing in there loads the account, sets setupDone and tutorialDone, and finishes setup", async () => {
+      const user = userEvent.setup();
+      const remote = new FakeRemote();
+      await accountHas(remote, "u-abby@example.com", buildSeed(NOW));
+      const onFinish = vi.fn();
+      const { storage } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, {
+        remote,
+        data: emptyData(NOW), // a new device: nothing to choose between
+        settings: { setupDone: false, tutorialDone: false, shopTutorialDone: false },
+      });
+      await user.type(screen.getByRole("textbox", { name: "Nickname" }), "Typed");
+      await signInFromSetup(user);
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+      expect(stored(storage)).toMatchObject({ nickname: "Bee", setupDone: true, tutorialDone: true, shopTutorialDone: true });
+    });
+
+    it("with two saves, setup finishes once one is kept", async () => {
+      const user = userEvent.setup();
+      const remote = new FakeRemote();
+      await accountHas(remote, "u-abby@example.com", withEgg(1).data);
+      const onFinish = vi.fn();
+      const { storage } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { remote, data: workedOnExample(), settings: { setupDone: false } });
+      await signInFromSetup(user);
+      const picker = await screen.findByRole("dialog", { name: "You have two saves" });
+      expect(onFinish).not.toHaveBeenCalled();
+      await user.click(within(picker).getByRole("button", { name: "Keep my account's" }));
+      await waitFor(() => expect(onFinish).toHaveBeenCalledTimes(1));
+      expect(stored(storage)).toMatchObject({ setupDone: true, tutorialDone: true, shopTutorialDone: true });
+    });
+
+    it("closing the dialog without signing in leaves setup where it was", async () => {
+      const user = userEvent.setup();
+      const onFinish = vi.fn();
+      const { storage } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { settings: { setupDone: false } });
+      await user.click(screen.getByRole("button", { name: LINK }));
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(screen.queryByRole("dialog")).toBeNull();
+      screen.getByText("Step 1 of 3");
+      expect(onFinish).not.toHaveBeenCalled();
+      expect(stored(storage).setupDone).toBe(false);
+    });
+
+    it("if the account can't be reached, setup stays", async () => {
+      const user = userEvent.setup();
+      const remote = new FakeRemote();
+      vi.spyOn(remote, "load").mockRejectedValue(new Error("offline"));
+      const onFinish = vi.fn();
+      renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { remote, settings: { setupDone: false } });
+      await signInFromSetup(user);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      screen.getByText("Step 1 of 3");
+      expect(onFinish).not.toHaveBeenCalled();
+    });
+
+    it("a retry after an offline connect doesn't finish setup by itself, or discard what was typed since", async () => {
+      const user = userEvent.setup();
+      const remote = new FakeRemote();
+      vi.spyOn(remote, "load").mockRejectedValueOnce(new Error("offline"));
+      const onFinish = vi.fn();
+      renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { remote, settings: { setupDone: false } });
+      await signInFromSetup(user);
+      await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+      await user.type(screen.getByRole("textbox", { name: "Nickname" }), "Typed");
+      act(() => {
+        window.dispatchEvent(new Event("online"));
+      });
+      await waitFor(async () => expect(await remote.load("u-abby@example.com")).not.toBeNull()); // the retry went through
+      expect(onFinish).not.toHaveBeenCalled();
+      expect((screen.getByRole("textbox", { name: "Nickname" }) as HTMLInputElement).value).toBe("Typed");
+    });
+
+    it("a sync from before the link was clicked doesn't finish setup", async () => {
+      const user = userEvent.setup();
+      const onFinish = vi.fn();
+      const { auth } = renderWithAccount(<Setup theme="light" onTheme={vi.fn()} onFinish={onFinish} />, { signedIn: ABBY, settings: { setupDone: false } });
+      await waitFor(() => expect(auth.current()).toEqual(ABBY));
+      await new Promise((r) => setTimeout(r, 50)); // its connect has settled
+      await user.click(screen.getByRole("button", { name: LINK }));
+      await screen.findByRole("dialog");
+      await user.click(screen.getByRole("button", { name: "Cancel" }));
+      expect(onFinish).not.toHaveBeenCalled();
+      screen.getByText("Step 1 of 3");
+    });
   });
 
   it("choosing Dark switches the theme right away", async () => {

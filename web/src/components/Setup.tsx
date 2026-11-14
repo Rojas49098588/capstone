@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { NICKNAME_MAX } from "../planner/tuning";
 import { PET_INVOLVEMENT_LEVELS, cleanNickname, type PetInvolvement, type ProgressStyle } from "../store/settings";
 import { useStudiumContext } from "../store/useStudium";
+import { useAccount } from "../sync/AccountProvider";
 import { INVOLVEMENT_HINTS, INVOLVEMENT_LABELS, SETUP_COPY, SETUP_SAMPLE_PROJECTS } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 
@@ -26,6 +27,27 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
     s.updateSettings({ nickname: cleanNickname(nickname), petInvolvement: involvement, progressStyle, setupDone: true });
     onFinish();
   }
+
+  // After "Already use Studium? Sign in": once the account is connected and settled (synced, or the
+  // two-saves choice answered), its settings are on this device, so setup and the tutorials are done.
+  // Closing the dialog, a failed connect or an unanswered picker all leave setup where it was.
+  // Only the attempt the person is in finishes setup: it ends when the dialog closes without the
+  // account settling (cancelled, or offline), so a later background retry can't jump past setup.
+  // A sync time from before the link was clicked doesn't count.
+  const { enabled, loading, account, lastSyncedAt, picker, signInOpen, openSignIn } = useAccount();
+  const [attempt, setAttempt] = useState<{ before: string | null; seenDialog: boolean } | null>(null);
+  const settled = attempt !== null && account !== null && lastSyncedAt !== null && lastSyncedAt !== attempt.before && picker === null;
+  useEffect(() => {
+    if (attempt === null) return;
+    if (signInOpen) {
+      if (!attempt.seenDialog) setAttempt({ ...attempt, seenDialog: true });
+    } else if (attempt.seenDialog && !settled && picker === null) setAttempt(null);
+  }, [attempt, signInOpen, settled, picker]);
+  useEffect(() => {
+    if (!settled) return;
+    s.updateSettings({ setupDone: true, tutorialDone: true, shopTutorialDone: true });
+    onFinish();
+  }, [settled]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[var(--color-background)] px-4 py-10">
@@ -104,6 +126,22 @@ export default function Setup({ theme, onTheme, onFinish }: Props) {
             </button>
           )}
         </div>
+
+        {step === 0 && enabled && (
+          <p className="text-center">
+            <button
+              type="button"
+              disabled={loading}
+              onClick={() => {
+                setAttempt({ before: lastSyncedAt, seenDialog: false });
+                openSignIn("link", "signin");
+              }}
+              className={`text-sm underline ${MUTED} hover:text-[var(--color-foreground)]`}
+            >
+              {SETUP_COPY.haveAccount}
+            </button>
+          </p>
+        )}
       </div>
     </div>
   );

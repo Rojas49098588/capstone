@@ -6,6 +6,8 @@ import { buildSeed, emptyData } from "./seed";
 
 export const STORAGE_KEY = "studium-data-v1";
 export const BACKUP_PREFIX = "studium-data-backup-";
+/** Backups of saved data that couldn't be read. Listed with the others, but never pruned: they may be the only copy. */
+export const DAMAGED_BACKUP_PREFIX = `${BACKUP_PREFIX}damaged-`;
 
 export type LoadNotice = "damaged-data" | "storage-unavailable" | null;
 export type LoadResult = { data: StudiumData; persistent: boolean; notice: LoadNotice };
@@ -159,7 +161,7 @@ export function loadData(storage: Storage | null, now: Date): LoadResult {
 
   // Damaged: keep the original text so nothing is lost, then start from the example data.
   try {
-    storage.setItem(`${BACKUP_PREFIX}${now.toISOString()}`, raw);
+    storage.setItem(`${DAMAGED_BACKUP_PREFIX}${now.toISOString()}`, raw);
   } catch {
     // Backup failed (storage full); still recover.
   }

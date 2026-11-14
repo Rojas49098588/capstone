@@ -1,5 +1,5 @@
 import { PROJECT_TYPES } from "../planner/types";
-import { PROJECT_TYPE_HINTS } from "./format";
+import { PROJECT_TYPE_HINTS, authErrorMessage, backupFileName, backupLabel, lastSyncedLabel, savedAtLabel } from "./format";
 import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeRequirement, makeTask } from "../planner/testData";
 import { ZERO_BREAKDOWN } from "../planner/types";
@@ -175,5 +175,39 @@ describe("durationLabel", () => {
     expect(durationLabel(45 * 60_000)).toBe("45m");
     expect(durationLabel(120 * 60_000)).toBe("2h 0m");
     expect(durationLabel(44 * 60_000 + 1)).toBe("45m");
+  });
+});
+
+describe("account wording", () => {
+  const at = (h: number, m: number, day = 14) => new Date(2026, 9, day, h, m);
+  it("Last synced: just now, minutes ago, then the time of day, then the date", () => {
+    expect(lastSyncedLabel(null, NOW)).toBe("Not synced yet");
+    expect(lastSyncedLabel(new Date(NOW.getTime() - 20_000).toISOString(), NOW)).toBe("Last synced just now");
+    expect(lastSyncedLabel(new Date(NOW.getTime() + 5_000).toISOString(), NOW)).toBe("Last synced just now");
+    expect(lastSyncedLabel(new Date(NOW.getTime() - 5 * 60_000).toISOString(), NOW)).toBe("Last synced 5 min ago");
+    expect(lastSyncedLabel(at(9, 5).toISOString(), NOW)).toBe("Last synced at 9:05 AM");
+    expect(lastSyncedLabel(at(21, 40, 7).toISOString(), NOW)).toBe("Last synced Oct 7, 9:40 PM");
+  });
+
+  it("Last saved: today or the date, with the time", () => {
+    expect(savedAtLabel(at(16, 12).toISOString(), at(18, 0))).toBe("Last saved today, 4:12 PM");
+    expect(savedAtLabel(at(21, 40, 7).toISOString(), NOW)).toBe("Last saved Oct 7, 9:40 PM");
+    expect(savedAtLabel(null, NOW)).toBe("Not saved yet");
+  });
+
+  it("names a backup by when it was made", () => {
+    expect(backupLabel(`${"studium-data-backup-"}${at(16, 12).toISOString()}-2`)).toBe("Backup from Oct 14, 2026, 4:12 PM");
+    expect(backupFileName(`studium-data-backup-${at(16, 2).toISOString()}`)).toBe("studium-backup-2026-10-14-1602.json"); // local time, like the label
+  });
+
+  it("sign-in errors in plain words; a cancelled sign-in says nothing", () => {
+    expect(authErrorMessage("wrong-password")).toBe("That password isn't right.");
+    expect(authErrorMessage("no-account")).toBe("There's no account with that email.");
+    expect(authErrorMessage("email-in-use")).toBe("That email already has an account. Sign in instead.");
+    expect(authErrorMessage("weak-password")).toBe("Use at least 6 characters.");
+    expect(authErrorMessage("network")).toBe("Couldn't reach Studium's servers. Check your connection.");
+    expect(authErrorMessage("cancelled")).toBeNull();
+    expect(authErrorMessage("other")).toBe("Something went wrong. Try again.");
+    expect(authErrorMessage(undefined)).toBe("Something went wrong. Try again.");
   });
 });

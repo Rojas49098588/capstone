@@ -132,7 +132,8 @@ test('Reload pets and waking the computer replace the pet window', async () => {
     await expect.poll(async () => {
       for (const p of app.windows()) {
         if (p.isClosed() || !p.url().startsWith('studium://overlay/')) continue;
-        const winId = await (await app.browserWindow(p)).evaluate((w) => w.id).catch(() => null);
+        // The old window can close between the check above and here, which rejects either call.
+        const winId = await app.browserWindow(p).then((w) => w.evaluate((x) => x.id)).catch(() => null);
         if (winId === id) page = p;
       }
       return page !== null;

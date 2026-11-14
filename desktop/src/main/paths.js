@@ -2,6 +2,8 @@
 const path = require('node:path');
 
 const STUDIUM_URL = 'studium://app/';
+// Where Studium is hosted: the page that signs in with Google in the person's own browser (desktop-sign-in.html).
+const HOSTED_URL = 'https://studium-9a00e.web.app/';
 // web/vite.config.ts keeps the dev server on this port.
 const DEV_URL = 'http://localhost:5173/';
 
@@ -58,4 +60,4 @@ function isStudiumPage(url, dev) {
   return typeof url === 'string' && url.startsWith(startUrl(dev));
 }
 
-module.exports = { STUDIUM_URL, DEV_URL, resolvePaths, parseArgs, startUrl, isStudiumPage };
+module.exports = { HOSTED_URL, STUDIUM_URL, DEV_URL, resolvePaths, parseArgs, startUrl, isStudiumPage };

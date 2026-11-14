@@ -18,3 +18,10 @@ desktop/release/
 test-results/
 playwright-report/
 .superpowers/
+
+# Firebase
+firebase/node_modules/
+*-debug.log
+
+# Firebase deploy cache
+.firebase/

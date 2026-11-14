@@ -1,0 +1,72 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    // Which save the account is on now: users/{uid}.saveId, as it will be after this write (a save that
+    // replaces another sets it in the same batch). null before the account has one.
+    function currentSave() {
+      let user = /databases/$(database)/documents/users/$(request.auth.uid);
+      return existsAfter(user) ? getAfter(user).data.get('saveId', null) : null;
+    }
+
+    // Every document the app writes is labelled `gen` with the save the writing device is on. A device that
+    // was offline while another replaced the save still has writes queued for the old one: they are refused,
+    // and that device then backs up its copy and takes the account's.
+    function forCurrentSave() {
+      return request.resource.data.get('gen', null) == currentSave();
+    }
+
+    // A user's own document. Its label must match the save it holds, so an old save's write can't land in it.
+    match /users/{uid} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.get('gen', null) == request.resource.data.get('saveId', null);
+    }
+    // Personal events. Nothing else under users/{uid} is writable by the app.
+    match /users/{uid}/events/{id} {
+      allow read, delete: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid && forCurrentSave();
+    }
+
+    // Purchase records: written only by server code (which bypasses these rules); the user can read theirs.
+    match /users/{uid}/purchases/{id} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // A shared project. Membership changes are not allowed here. Its id is "<owner uid>_<project id>",
+    // so two accounts' projects never collide and nobody can take an id another account will need.
+    match /projects/{pid} {
+      allow create: if signedIn()
+        && pid.matches(request.auth.uid + '_.*')
+        && request.resource.data.owner == request.auth.uid
+        && request.resource.data.members == [request.auth.uid]
+        && forCurrentSave();
+      allow read, delete: if signedIn()
+        && request.auth.uid in resource.data.members;
+      allow update: if signedIn()
+        && request.auth.uid in resource.data.members
+        && request.resource.data.members == resource.data.members
+        && request.resource.data.owner == resource.data.owner
+        && forCurrentSave();
+    }
+
+    // Requirements, tasks, events: members of the parent project only. The project as it will be after this
+    // batch counts (a save sends a new project and its tasks together), or as it was, for deletes that go with
+    // the project's own delete. Members never change in a write, so both say the same.
+    match /projects/{pid}/{sub}/{id} {
+      function member() {
+        let project = /databases/$(database)/documents/projects/$(pid);
+        return signedIn()
+          && ((existsAfter(project) && request.auth.uid in getAfter(project).data.members)
+            || (exists(project) && request.auth.uid in get(project).data.members));
+      }
+      allow read, delete: if member();
+      allow create, update: if member() && forCurrentSave();
+    }
+  }
+}

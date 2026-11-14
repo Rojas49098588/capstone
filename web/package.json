@@ -8,9 +8,11 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:emulator": "node ../firebase/node_modules/firebase-tools/lib/bin/firebase.js emulators:exec --config ../firebase.json --only firestore,auth --project demo-studium \"vitest run -c vitest.emulator.config.ts\""
   },
   "dependencies": {
+    "firebase": "^13.2.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0"
   },

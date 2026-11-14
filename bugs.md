@@ -75,4 +75,8 @@ Tests: unit tests for the tray item and the rebuild timer, and an e2e test showi
 
 ## Fixed
 
-_None yet._
+### Accounts: linking showed "Couldn't reach Studium's servers"
+
+_Opened 2026-11-10. Fixed 2026-11-10 in 350c767 (PR #23)._
+
+Right after linking, the app started listening to a new project's tasks before the server had saved the project, so the security rules refused it and the app showed a connection error. Its data still uploaded. It now waits for the server to confirm the project first.

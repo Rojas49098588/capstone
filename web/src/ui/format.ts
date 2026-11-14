@@ -4,7 +4,7 @@ import { findPet, suggestedPetName, type EggRefusal, type PetNews } from "../pla
 import { DAY_MS, isDateKey, localDateKey, startOfLocalDay } from "../planner/time";
 import { HATCH_REQUIREMENTS, LEARNING_MIN_SAMPLES_SHOWN, MAX_PETS_PER_PROJECT } from "../planner/tuning";
 import { projectType } from "../planner/projectKind";
-import type { Difficulty, Mood, Project, ProjectType, Requirement, StudiumData, Task } from "../planner/types";
+import type { Difficulty, Mood, PetStage, Project, ProjectType, Requirement, StudiumData, Task } from "../planner/types";
 import type { Blocker } from "../planner/blocking";
 import type { PetInvolvement } from "../store/settings";
 import type { Payout } from "../planner/value";
@@ -308,6 +308,7 @@ export const SETUP_COPY = {
   progressLegend: "How should Total Progress look?",
   themeLegend: "Light or dark?",
   changeLater: "You can change all of this later in Settings.",
+  haveAccount: "Already use Studium? Sign in",
 } as const;
 
 /** Made-up projects for setup's progress previews. */
@@ -337,4 +338,112 @@ export function waitingLabel(names: string[]): string {
 /** The "Blocked by" choice that waits on every other requirement in the project. */
 export function blockedByAllLabel(words: ProjectWords = SCHOOL_WORDS): string {
   return `All other ${words.requirements}`;
+}
+
+// ---- Accounts ----
+export const ACCOUNT_LINK_LABEL = "Link account";
+export const ACCOUNT_BONUS_LINE = "Link an account to save your progress and get a bonus later.";
+export const ACCOUNTS_OFF_TEXT = "Your account details will show here once accounts are added.";
+export const SIGN_IN_REASONS: Record<"link" | "companion" | "purchase" | "collab", string | null> = {
+  link: null,
+  companion: "Connect the companion app by signing in.",
+  purchase: "Sign in so your purchases are saved to your account.",
+  collab: "Sign in to share projects.",
+};
+export const RESET_SENT = "Check your email for a reset link.";
+export const RESET_NEEDS_EMAIL = "Enter your email first.";
+export const BACKUP_FAILED_MESSAGE = "Studium couldn't save a backup on this computer, so nothing was changed.";
+export const DELETE_ACCOUNT_CONFIRM = "Delete your account? Your projects stay on this computer.";
+export const DELETE_NEEDS_SIGN_IN = "For your security, sign in again, then delete.";
+export const PICKER_TITLE = "You have two saves";
+export const PICKER_LEAD = "This computer and your account have different projects. Pick one to keep. Studium will use it on every device you sign in on.";
+export const PICKER_KEEP_LOCAL = "Keep this computer's";
+export const PICKER_KEEP_ACCOUNT = "Keep my account's";
+export const PICKER_MORE_PROGRESS = "More progress";
+export const PICKER_FOOTER = "The one you don't keep is saved as a backup file on this computer, just in case.";
+
+const AUTH_ERROR_MESSAGES: Record<string, string | null> = {
+  "wrong-password": "That password isn't right.",
+  "no-account": "There's no account with that email.",
+  "email-in-use": "That email already has an account. Sign in instead.",
+  "weak-password": "Use at least 6 characters.",
+  network: "Couldn't reach Studium's servers. Check your connection.",
+  cancelled: null,
+};
+const SOMETHING_WRONG = "Something went wrong. Try again.";
+
+/** What to tell the person when sign-in fails (`code` from AuthError); null when they backed out themselves. */
+export function authErrorMessage(code: string | undefined): string | null {
+  return code !== undefined && code in AUTH_ERROR_MESSAGES ? AUTH_ERROR_MESSAGES[code] : SOMETHING_WRONG;
+}
+
+/** "4:12 PM", with a plain space whatever the browser's locale data uses. */
+function timeOfDay(d: Date): string {
+  return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s/g, " ");
+}
+
+function dayAndTime(d: Date): string {
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${timeOfDay(d)}`;
+}
+
+const sameDay = (a: Date, b: Date) => localDateKey(a) === localDateKey(b);
+
+/** "Last synced just now", "… 5 min ago", "… at 4:12 PM" (today), "… Nov 7, 9:40 PM". */
+export function lastSyncedLabel(syncedAt: string | null, now: Date): string {
+  if (syncedAt === null) return "Not synced yet";
+  const at = new Date(syncedAt);
+  const minutes = Math.floor((now.getTime() - at.getTime()) / 60_000);
+  if (minutes < 1) return "Last synced just now";
+  if (minutes < 60) return `Last synced ${minutes} min ago`;
+  return sameDay(at, now) ? `Last synced at ${timeOfDay(at)}` : `Last synced ${dayAndTime(at)}`;
+}
+
+/** When a save in the two-saves picker was made: "Last saved today, 4:12 PM" or "Last saved Nov 7, 9:40 PM". */
+export function savedAtLabel(savedAt: string | null, now: Date): string {
+  if (savedAt === null) return "Not saved yet";
+  const at = new Date(savedAt);
+  return sameDay(at, now) ? `Last saved today, ${timeOfDay(at)}` : `Last saved ${dayAndTime(at)}`;
+}
+
+/** When a backup was made, from its key (`studium-data-backup-<ISO time>`, maybe with "-2" after it). */
+export function backupTime(key: string): Date | null {
+  const m = /(\d{4}-\d{2}-\d{2}T[\d:.]+Z)/.exec(key);
+  const at = m ? new Date(m[1]) : null;
+  return at && !Number.isNaN(at.getTime()) ? at : null;
+}
+
+/** "Backup from Nov 9, 2026, 4:12 PM". */
+export function backupLabel(key: string): string {
+  const at = backupTime(key);
+  if (!at) return "Backup";
+  return `Backup from ${at.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}, ${timeOfDay(at)}`;
+}
+
+/** Stage names as the picker shows them. */
+export const PET_STAGE_NAMES: Record<PetStage, string> = { egg: "egg", juvenile: "baby", adult: "adult" };
+
+export const PICKER_NOT_NOW = "Not now (sign out)";
+export const PICKER_LOCAL_TAG = "On this computer";
+export const PICKER_ACCOUNT_TAG = "In your account";
+export const PICKER_UNKNOWN_LOCAL = "This device";
+export const PICKER_UNKNOWN_ACCOUNT = "Another device";
+export const PICKER_EGG = "An egg";
+export const SIGN_IN_TITLE = "Your Studium account";
+export const SIGN_IN_LABEL = "Sign in";
+export const CREATE_ACCOUNT_LABEL = "Create account";
+export const FORGOT_PASSWORD_LABEL = "Forgot password?";
+export const GOOGLE_SIGN_IN_LABEL = "Continue with Google";
+export const APPLE_SIGN_IN_LABEL = "Continue with Apple";
+export const SIGNED_IN_WITHOUT_EMAIL = "Signed in with Google or Apple";
+export const SIGN_OUT_LABEL = "Sign out";
+export const DELETE_ACCOUNT_LABEL = "Delete account";
+export const BACKUPS_HEADING = "Backups on this computer";
+export const BACKUP_DOWNLOAD_LABEL = "Download";
+
+/** The file a backup downloads as, named by its local date and time: "studium-backup-2026-11-09-1612.json". */
+export function backupFileName(key: string): string {
+  const at = backupTime(key);
+  if (!at) return "studium-backup.json";
+  const hhmm = `${String(at.getHours()).padStart(2, "0")}${String(at.getMinutes()).padStart(2, "0")}`;
+  return `studium-backup-${localDateKey(at)}-${hhmm}.json`;
 }

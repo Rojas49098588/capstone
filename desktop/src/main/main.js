@@ -2,8 +2,9 @@
 // the modules next to it, which have unit tests.
 const fs = require('node:fs');
 const path = require('node:path');
-const { app, ipcMain, powerMonitor, screen, session } = require('electron');
-const { parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
+const { app, ipcMain, powerMonitor, screen, session, shell } = require('electron');
+const { HOSTED_URL, parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
+const { startBrowserSignIn } = require('./browserSignIn');
 const { registerStudiumScheme, handleStudiumScheme } = require('./protocol');
 const { createStudiumWindow, showStudium, showStudiumQuietly } = require('./studiumWindow');
 const { createOpenProjectTimer } = require('./mischief');
@@ -108,6 +109,20 @@ if (!app.requestSingleInstanceLock() || args.quit) {
       if (win && event.sender === win.webContents && isStudiumPage(url, args.dev)) return 'studium';
       return null;
     };
+    // Sign in with Google in the person's own browser (Studium's window can't run Google's popup).
+    // One at a time: a new sign-in cancels the one still waiting.
+    let signInAttempt = null;
+    ipcMain.handle('auth:browser', (event, provider) => {
+      if (from(event) !== 'studium') throw new Error('not allowed');
+      // Google only for now: Apple's id token needs a raw nonce the hosted page cannot read reliably (see task-12 nonce note).
+      if (provider !== 'google') throw new Error('unsupported provider');
+      signInAttempt?.abort();
+      const attempt = new AbortController();
+      signInAttempt = attempt;
+      return startBrowserSignIn({ provider, hostedUrl: HOSTED_URL, openExternal: (url) => shell.openExternal(url), signal: attempt.signal }).finally(() => {
+        if (signInAttempt === attempt) signInAttempt = null;
+      });
+    });
     let overlayMouse = false;
     ipcMain.handle('pets:get', (event, keys) => (from(event) ? readPetState(store.get(), keys, habitat.get()) : {}));
     ipcMain.on('pets:set', (event, patch) => {

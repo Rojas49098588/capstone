@@ -12,7 +12,7 @@ import {
   STUDIUM_READY_EVENT,
   TASK_DONE_EVENT,
 } from "./petStatus";
-import { buildSeed } from "./seed";
+import { buildSeed, emptyData } from "./seed";
 import { STORAGE_KEY, saveData } from "./storage";
 
 /** Storage that already holds the example data (a returning user). */
@@ -84,6 +84,21 @@ describe("useStudium", () => {
       result.current.togglePriority("webDev-t6");
     });
     expect(result.current.data.tasks.find((t) => t.id === "webDev-t6")?.priority).toBe(true);
+  });
+
+  it("current() sees replaced data and changed settings straight away, before React re-renders", () => {
+    const { result } = renderHook(() => useStudium({ storage: seededStorage(), clock: () => NOW }));
+    const next = emptyData(NOW);
+    let seen: ReturnType<typeof result.current.current> | null = null;
+    act(() => {
+      result.current.replaceData(next);
+      result.current.updateSettings({ nickname: "Bee" });
+      seen = result.current.current();
+    });
+    expect(seen!.data.projects).toEqual([]);
+    expect(seen!.settings.nickname).toBe("Bee");
+    expect(result.current.storage).not.toBeNull();
+    expect(result.current.clock()).toEqual(NOW);
   });
 
   it('refreshes "now" every minute so day changes show up', () => {
@@ -285,5 +300,35 @@ describe("useStudium receiving focus sessions", () => {
     renderHook(() => useStudium({ storage: null, clock: () => NOW }));
     send(JSON.stringify([session()]));
     expect(answers).toEqual([]);
+  });
+});
+
+describe("replaceData", () => {
+  it("saves valid data and returns true", () => {
+    const storage = memoryStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const next = buildSeed(NOW);
+    let ok = false;
+    act(() => {
+      ok = result.current.replaceData(next);
+    });
+    expect(ok).toBe(true);
+    expect(result.current.data.projects.length).toBe(next.projects.length);
+    expect(savedData(storage).projects.length).toBe(next.projects.length);
+    expect(result.current.notice).toBeNull();
+  });
+
+  it("refuses invalid data and changes nothing", () => {
+    const storage = seededStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const before = result.current.data;
+    const savedBefore = storage.getItem(STORAGE_KEY);
+    let ok = true;
+    act(() => {
+      ok = result.current.replaceData({ nonsense: true } as never);
+    });
+    expect(ok).toBe(false);
+    expect(result.current.data).toBe(before);
+    expect(storage.getItem(STORAGE_KEY)).toBe(savedBefore);
   });
 });
