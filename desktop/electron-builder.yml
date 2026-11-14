@@ -26,8 +26,13 @@ win:
 mac:
   target: dmg
   category: public.app-category.productivity
-  identity: "-"          # ad-hoc signature: free, keeps Apple-chip Macs from calling the app "damaged"
-  hardenedRuntime: false
+  # Signed with the Developer ID certificate (CSC_LINK / CSC_KEY_PASSWORD) and notarized by Apple
+  # (APPLE_ID, APPLE_APP_SPECIFIC_PASSWORD, APPLE_TEAM_ID): GitHub secrets the workflow passes to the Mac build.
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  notarize: true
   artifactName: Studium-${version}-mac.${ext}
 dmg:
   title: Studium ${version}
