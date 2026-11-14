@@ -9,7 +9,7 @@ import type { StudiumData } from "../planner/types";
 import * as A from "../store/actions";
 import { buildSeed, emptyData } from "../store/seed";
 import { DEFAULT_SETTINGS } from "../store/settings";
-import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
+import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { FakeRemote } from "../test/fakeRemote";
 import { memoryStorage, renderWithStudium } from "../test/render";
 import { liveRecords, type StampedRecords } from "./merge";
@@ -784,6 +784,22 @@ describe("sync engine: backups", () => {
     a.advance(60_000);
     await a.engine.connect("u1"); // ...then another account signs in here: backed up and replaced
     expect(keys(storage)).toEqual([at(-40), at(-30), at(-20), at(-10), at(1)]);
+  });
+
+  it("a backup of damaged data is never pruned by the cap", async () => {
+    const remote = new FakeRemote();
+    await accountWithNovel(remote);
+    const storage = memoryStorage();
+    const damaged = `${DAMAGED_BACKUP_PREFIX}${new Date(NOW.getTime() - 120 * 60_000).toISOString()}`;
+    storage.setItem(damaged, "{not json");
+    for (const m of [-60, -50, -40, -30, -20, -10]) storage.setItem(at(m), "{}");
+    const a = device(remote, "Laptop", withProject("Essay").data, ABBY, storage);
+    await a.engine.connect("u2");
+    a.engine.stop();
+    a.advance(60_000);
+    await a.engine.connect("u1");
+    expect(storage.getItem(damaged)).toBe("{not json");
+    expect(keys(storage).filter((k) => k !== damaged)).toEqual([at(-40), at(-30), at(-20), at(-10), at(1)]);
   });
 
   it("a backup written while the clock is behind older ones still stays", async () => {

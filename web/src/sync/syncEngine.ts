@@ -5,7 +5,7 @@ import { emptyData } from "../store/seed";
 import { LEGACY_STARTING_TOKENS } from "../planner/tuning";
 import { localDateKey } from "../planner/time";
 import { DEFAULT_SETTINGS, PET_INVOLVEMENT_LEVELS, PET_ORDERS } from "../store/settings";
-import { BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
+import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, isValidData, normalizeData } from "../store/storage";
 import { decideLink, hasOwnProjects } from "./linkDecision";
 import { liveRecords, mergeRecords, type Stamped, type StampedRecords } from "./merge";
 import { fromRecords, recordHashes, toRecords, type RecordKey, type Records, type SyncedSettings, type UserRecord } from "./records";
@@ -174,13 +174,16 @@ function reconcile(local: StampedRecords, remote: StampedRecords, fallbackUser: 
 
 const BACKUPS_KEPT = 5;
 
-/** Keeps the newest BACKUPS_KEPT backups (by the time in their key), always including `written`, the one just made. */
+/**
+ * Keeps the newest BACKUPS_KEPT backups (by the time in their key), always including `written`, the one just made.
+ * Backups of damaged data aren't counted or removed: they may be the only copy of it.
+ */
 function pruneBackups(storage: Storage, written: string): void {
   try {
     const keys: string[] = [];
     for (let i = 0; i < storage.length; i++) {
       const k = storage.key(i);
-      if (k?.startsWith(BACKUP_PREFIX) && k !== written) keys.push(k);
+      if (k?.startsWith(BACKUP_PREFIX) && !k.startsWith(DAMAGED_BACKUP_PREFIX) && k !== written) keys.push(k);
     }
     keys.sort().reverse(); // ISO times: newest first
     for (const k of keys.slice(BACKUPS_KEPT - 1)) storage.removeItem(k);
