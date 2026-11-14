@@ -1,4 +1,4 @@
-// Checks the unpacked build (unpackedExe in scripts/releaseDir.js: win-unpacked or mac-universal) after `npm run dist`:
+// Checks the unpacked build (unpackedExe in scripts/releaseDir.js: win-unpacked, mac-universal or linux-unpacked), or the installed one at STUDIUM_EXE, after `npm run dist`:
 //   STUDIUM_PACKAGED=1 npx playwright test packaged
 // It proves the extraResources paths and the studium:// scheme work outside the repo.
 const { spawn } = require('node:child_process');
@@ -8,7 +8,8 @@ const { releaseDir, unpackedExe } = require('../scripts/releaseDir');
 
 test.skip(process.env.STUDIUM_PACKAGED !== '1', 'set STUDIUM_PACKAGED=1 after npm run dist');
 
-const exe = () => unpackedExe(releaseDir());
+// STUDIUM_EXE: an installed build instead (the workflow installs the Linux .deb and tests that).
+const exe = () => process.env.STUDIUM_EXE || unpackedExe(releaseDir());
 
 test('the packaged build opens Studium and loads the pet rules', async () => {
   const app = await _electron.launch({

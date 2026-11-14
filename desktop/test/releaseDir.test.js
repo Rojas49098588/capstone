@@ -40,7 +40,7 @@ describe('distArgs', () => {
     expect(args).not.toContain('--universal');
   });
 
-  it('builds the Linux AppImage and .deb', () => {
-    expect(distArgs('linux', '/o')).toEqual(['electron-builder', '--linux', 'AppImage', 'deb', '--publish', 'never', '--config.directories.output=/o']);
+  it('builds the Linux .deb', () => {
+    expect(distArgs('linux', '/o')).toEqual(['electron-builder', '--linux', 'deb', '--publish', 'never', '--config.directories.output=/o']);
   });
 });

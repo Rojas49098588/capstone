@@ -17,7 +17,7 @@ function unpackedExe(dir, platform = process.platform) {
 
 /** npx arguments for one platform's installer. Never publishes: the workflow uploads the files itself. */
 function distArgs(platform, out) {
-  const targets = { mac: ['--mac', 'dmg', '--universal'], linux: ['--linux', 'AppImage', 'deb'], win: ['--win', 'nsis'] };
+  const targets = { mac: ['--mac', 'dmg', '--universal'], linux: ['--linux', 'deb'], win: ['--win', 'nsis'] };
   const target = targets[platform];
   return ['electron-builder', ...target, '--publish', 'never', `--config.directories.output=${out}`];
 }
