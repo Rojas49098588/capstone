@@ -1,4 +1,5 @@
-# Builds the Studium installers: the Windows .exe and the universal (Apple chip + Intel) Mac .dmg.
+# Builds the Studium installers: the Windows .exe and the universal (Apple chip + Intel) Mac .dmg,
+# signed and notarized with the Apple secrets (see HANDOFF.md, "Mac signing").
 # Run it from the Actions tab → "Build installers" → Run workflow. It runs the tests, builds both
 # installers, checks each packaged app starts, and puts both files on a draft Release v<version>
 # (version from desktop/package.json) for you to publish. Running it again for the same version
@@ -51,8 +52,22 @@ jobs:
         working-directory: desktop
         run: npm test
 
-      - name: Build the installer
+      - name: Build the installer (Windows)
+        if: runner.os == 'Windows'
         working-directory: desktop
+        run: npm run dist
+
+      # Signed with the Developer ID certificate and notarized by Apple. The secrets go to this step only,
+      # so the Windows build never tries to sign with the Apple certificate.
+      - name: Build, sign and notarize the installer (Mac)
+        if: runner.os == 'macOS'
+        working-directory: desktop
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: npm run dist
 
       - name: Check the packaged app starts
@@ -61,11 +76,14 @@ jobs:
           STUDIUM_PACKAGED: '1'
         run: npx playwright test packaged
 
-      - name: Check the Mac app is signed (ad-hoc) and universal
+      - name: Check the Mac app is signed, notarized and universal
         if: runner.os == 'macOS'
         run: |
           app="$STUDIUM_RELEASE_DIR/mac-universal/Studium.app"
           codesign --verify --deep --strict --verbose=2 "$app"
+          # Gatekeeper's own check: passes only for a Developer ID app Apple has notarized.
+          spctl --assess --type execute --verbose=4 "$app"
+          xcrun stapler validate "$app"
           archs=$(lipo -archs "$app/Contents/MacOS/Studium")
           echo "Architectures: $archs"
           [[ "$archs" == *x86_64* && "$archs" == *arm64* ]] || { echo "Expected both x86_64 and arm64"; exit 1; }
