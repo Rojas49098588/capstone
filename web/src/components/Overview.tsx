@@ -188,6 +188,7 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
                         <button type="button" onClick={() => p && onSelect(p.id)} className="block w-full text-left">
                           <span className="block text-xs font-mono uppercase tracking-widest text-white/50">{p?.shortName}</span>
                           <span className={`block text-sm break-words ${t.done ? "line-through text-white/50" : ""}`}>{t.title}</span>
+                          {t.dueDate && <span className="block text-xs text-white/50">{`due ${formatDate(t.dueDate)}`}</span>}
                         </button>
                         {!t.done && (
                           <WaitingOn

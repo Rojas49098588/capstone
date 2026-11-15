@@ -1,3 +1,4 @@
+import { taskDueLimit } from "../planner/dueDates";
 import { useState } from "react";
 import { canBlockByAll, openRequirementBlockers, requirementBlockerOptions } from "../planner/blocking";
 import { estimateMultipliers, multiplierFor } from "../planner/learning";
@@ -146,6 +147,7 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
           initial={{ requirementId: requirement.id }}
           submitLabel={`Add ${words.task}`}
           words={words}
+          dueLimit={(requirementId) => taskDueLimit({ projectId: project.id, requirementId }, s.data)}
           onSubmit={(values) => {
             s.createTask({ projectId: project.id, ...values });
             setMode("view");

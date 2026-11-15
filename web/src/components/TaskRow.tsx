@@ -3,7 +3,8 @@ import { waitingOn } from "../planner/blocking";
 import { taskFocusMinutes } from "../planner/focus";
 import { todayTaskIds } from "../planner/suggest";
 import { useStudiumContext } from "../store/useStudium";
-import { blockerName, focusedLabel, formatMinutes, wordsFor } from "../ui/format";
+import { blockerName, focusedLabel, formatDate, formatMinutes, wordsFor } from "../ui/format";
+import { taskDueLimit } from "../planner/dueDates";
 import { BUTTON_SMALL } from "../ui/styles";
 import TaskForm from "./TaskForm";
 import WaitingOn from "./WaitingOn";
@@ -35,6 +36,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         initial={task}
         submitLabel={`Save ${words.task}`}
         words={words}
+        dueLimit={(requirementId) => taskDueLimit({ projectId: task.projectId, requirementId }, s.data)}
         onSubmit={(values) => {
           s.updateTask(task.id, values);
           setEditing(false);
@@ -74,6 +76,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
           {formatMinutes(task.estimateMin)} estimate
           {task.done && task.actualMin !== null && ` · took ${formatMinutes(task.actualMin)}`}
           {focused > 0 && ` · ${focusedLabel(focused)}`}
+          {task.dueDate && ` · due ${formatDate(task.dueDate)}`}
         </p>
         <WaitingOn names={blockers} />
         {task.requirementId === null && requirements.length > 0 && (

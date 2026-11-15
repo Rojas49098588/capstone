@@ -2,10 +2,11 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
-import { NOW, makeData, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
 import { buildSeed } from "../store/seed";
 import { renderWithStudium, savedData, withFocus } from "../test/render";
 import TaskRow from "./TaskRow";
+import { formatDate } from "../ui/format";
 
 const task = (storage: Storage | null, id: string) => savedData(storage).tasks.find((t) => t.id === id);
 
@@ -26,6 +27,13 @@ const prototypes = () =>
   });
 
 describe("TaskRow", () => {
+  it("shows a task's own due date, and nothing new without one", () => {
+    const data = makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a", title: "Has date", dueDate: dayKey(5) }), makeTask({ id: "b", title: "No date" })] });
+    renderWithStudium(<><TaskRow taskId="a" onRequestComplete={vi.fn()} /><TaskRow taskId="b" onRequestComplete={vi.fn()} /></>, { data });
+    expect(screen.getAllByText(/ · due /)).toHaveLength(1);
+    screen.getByText(new RegExp(`due ${formatDate(dayKey(5))}`));
+  });
+
   it("locks a task whose requirement is waiting and says why", () => {
     renderWithStudium(<TaskRow taskId="c10" onRequestComplete={vi.fn()} />, { data: prototypes() });
     expect((screen.getByRole("checkbox", { name: "Complete Git commit" }) as HTMLButtonElement).disabled).toBe(true);
