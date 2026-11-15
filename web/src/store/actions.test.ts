@@ -577,3 +577,30 @@ describe("feedPet", () => {
     expect(feedPet(worried(), "p2", "x1", "berry-bites", NOW).ok).toBe(false);
   });
 });
+
+describe("task due dates", () => {
+  const dueData = () =>
+    makeData({
+      requirements: [makeRequirement({ id: "r1", dueDate: dayKey(10) }), makeRequirement({ id: "r2", dueDate: dayKey(6) })],
+      tasks: [makeTask({ id: "t1", requirementId: "r1", dueDate: dayKey(8) })],
+    });
+  const input = { projectId: "p1", requirementId: "r1", title: "Draft", estimateMin: 30 };
+  const find = (d: { tasks: { id: string }[] }, id: string) => d.tasks.find((t) => t.id === id) as ReturnType<typeof makeTask>;
+
+  it("createTask keeps a due date, caps it at the requirement's, and drops empty or bad ones", () => {
+    const data = dueData();
+    expect(createTask(data, { ...input, dueDate: dayKey(5) }, NOW).task.dueDate).toBe(dayKey(5));
+    expect(createTask(data, { ...input, dueDate: dayKey(20) }, NOW).task.dueDate).toBe(dayKey(10));
+    expect(createTask(data, { ...input, dueDate: "" }, NOW).task.dueDate).toBeUndefined();
+    expect(createTask(data, { ...input, dueDate: "next week" }, NOW).task.dueDate).toBeUndefined();
+    expect(createTask(data, input, NOW).task).not.toHaveProperty("dueDate");
+  });
+
+  it("updateTask sets and clears a due date, and re-caps it when the task moves", () => {
+    const data = dueData();
+    expect(find(updateTask(data, "t1", { dueDate: dayKey(3) }, NOW), "t1").dueDate).toBe(dayKey(3));
+    expect(find(updateTask(data, "t1", { dueDate: null }, NOW), "t1")).not.toHaveProperty("dueDate");
+    expect(find(updateTask(data, "t1", { requirementId: "r2" }, NOW), "t1").dueDate).toBe(dayKey(6));
+    expect(find(updateTask(data, "t1", { title: "Renamed" }, NOW), "t1").dueDate).toBe(dayKey(8));
+  });
+});

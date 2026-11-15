@@ -1,6 +1,7 @@
 // User actions as pure functions: (data, input, now) → new data (+ result).
 // Every change that matters for history appends an event.
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
+import { taskDueLimit } from "../planner/dueDates";
 import { canFeed, foodKind } from "../planner/food";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
@@ -323,7 +324,23 @@ export type TaskInput = {
   title: string;
   estimateMin: number;
   blockedBy?: string[];
+  dueDate?: string | null; // optional; capped at the requirement's due date (planner/dueDates.ts)
 };
+
+/** A task's own due date, cleaned and capped at its limit; undefined for none (the field is then left off). */
+function cleanTaskDueDate(data: StudiumData, projectId: string, requirementId: string | null, value: string | null | undefined): string | undefined {
+  const date = cleanDate(value);
+  if (date === null) return undefined;
+  const limit = taskDueLimit({ projectId, requirementId }, data);
+  return limit !== null && limit < date ? limit : date;
+}
+
+/** The task with its due date set, or the field removed when it's null. */
+function withDueDate(task: Task): Task {
+  if (task.dueDate !== null) return task;
+  const { dueDate: _, ...rest } = task;
+  return rest;
+}
 
 export function createTask(data: StudiumData, input: TaskInput, now: Date): { data: StudiumData; task: Task } {
   if (!data.projects.some((p) => p.id === input.projectId)) throw new Error(`Unknown project ${input.projectId}`);
@@ -340,6 +357,8 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
     actualMin: null,
     createdAt: stamp(now),
   };
+  const dueDate = cleanTaskDueDate(data, task.projectId, task.requirementId, input.dueDate);
+  if (dueDate !== undefined) task.dueDate = dueDate;
   // Check the waits with the new task in place: it makes its requirement wait on it too.
   task.blockedBy = cleanBlockers(id, input.projectId, input.blockedBy ?? [], [...data.tasks, task], data.requirements);
   return {
@@ -351,7 +370,7 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
 export function updateTask(
   data: StudiumData,
   id: string,
-  changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy">>,
+  changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy" | "dueDate">>,
   now: Date,
 ): StudiumData {
   const task = data.tasks.find((t) => t.id === id);
@@ -369,10 +388,16 @@ export function updateTask(
     const moved = data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t));
     clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy ?? task.blockedBy, moved, data.requirements);
   }
+  if (changes.dueDate !== undefined || "requirementId" in clean) {
+    // Set, cleared (null), or re-capped because the task moved to another requirement.
+    const wanted = changes.dueDate !== undefined ? changes.dueDate : task.dueDate;
+    clean.dueDate = cleanTaskDueDate(data, task.projectId, clean.requirementId !== undefined ? clean.requirementId : task.requirementId, wanted) ?? null;
+    if (clean.dueDate === null && task.dueDate == null && changes.dueDate === undefined) delete clean.dueDate;
+  }
   return settled(
     {
       ...data,
-      tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
+      tasks: data.tasks.map((t) => (t.id === id ? withDueDate({ ...t, ...clean }) : t)),
       events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
     },
     now,

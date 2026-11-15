@@ -66,6 +66,7 @@ export type Task = {
   done: boolean;
   actualMin: number | null;
   createdAt: string;
+  dueDate?: string | null; // "YYYY-MM-DD"; missing/null = its requirement's date (planner/dueDates.ts). Reminders only.
 };
 
 export type TokenBreakdown = {
