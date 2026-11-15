@@ -71,6 +71,9 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
           }`}
         >
           {task.title}
+          {task.pending && (
+            <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-widest border border-[var(--color-border)] px-1.5 text-[var(--color-muted-foreground)]">Pending</span>
+          )}
         </p>
         <p className="text-xs text-[var(--color-muted-foreground)]">
           {formatMinutes(task.estimateMin)} estimate

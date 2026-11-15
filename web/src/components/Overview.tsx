@@ -5,6 +5,7 @@ import type { Task } from "../planner/types";
 import { useStudiumContext } from "../store/useStudium";
 import { summarizeAll } from "../ui/derive";
 import { blockerName, EGG_LABEL, MOOD_COLORS, NO_PROJECTS_TEXT, NO_PROJECTS_TITLE, projectsHeading, daysUntil, deadlineLabel, formatDate, gapLabel, percent } from "../ui/format";
+import PendingTasks from "./PendingTasks";
 import WaitingOn from "./WaitingOn";
 import { BUTTON_PRIMARY, CARD, LABEL, SERIF } from "../ui/styles";
 
@@ -148,6 +149,8 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
         )}
       </div>
 
+      <PendingTasks onSelect={onSelect} />
+
       {/* Priority focus */}
       <section
         aria-labelledby="priority-focus"
@@ -188,6 +191,7 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
                         <button type="button" onClick={() => p && onSelect(p.id)} className="block w-full text-left">
                           <span className="block text-xs font-mono uppercase tracking-widest text-white/50">{p?.shortName}</span>
                           <span className={`block text-sm break-words ${t.done ? "line-through text-white/50" : ""}`}>{t.title}</span>
+                          {t.pending && <span className="inline-block text-[10px] font-mono uppercase tracking-widest border border-white/30 px-1.5 mt-0.5">Pending</span>}
                           {t.dueDate && <span className="block text-xs text-white/50">{`due ${formatDate(t.dueDate)}`}</span>}
                         </button>
                         {!t.done && (
