@@ -1,6 +1,7 @@
 // User actions as pure functions: (data, input, now) → new data (+ result).
 // Every change that matters for history appends an event.
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
+import { taskDueLimit } from "../planner/dueDates";
 import { canFeed, foodKind } from "../planner/food";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
@@ -323,7 +324,23 @@ export type TaskInput = {
   title: string;
   estimateMin: number;
   blockedBy?: string[];
+  dueDate?: string | null; // optional; capped at the requirement's due date (planner/dueDates.ts)
 };
+
+/** A task's own due date, cleaned and capped at its limit; undefined for none (the field is then left off). */
+function cleanTaskDueDate(data: StudiumData, projectId: string, requirementId: string | null, value: string | null | undefined): string | undefined {
+  const date = cleanDate(value);
+  if (date === null) return undefined;
+  const limit = taskDueLimit({ projectId, requirementId }, data);
+  return limit !== null && limit < date ? limit : date;
+}
+
+/** The task with its due date set, or the field removed when it's null. */
+function withDueDate(task: Task): Task {
+  if (task.dueDate !== null) return task;
+  const { dueDate: _, ...rest } = task;
+  return rest;
+}
 
 export function createTask(data: StudiumData, input: TaskInput, now: Date): { data: StudiumData; task: Task } {
   if (!data.projects.some((p) => p.id === input.projectId)) throw new Error(`Unknown project ${input.projectId}`);
@@ -340,6 +357,8 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
     actualMin: null,
     createdAt: stamp(now),
   };
+  const dueDate = cleanTaskDueDate(data, task.projectId, task.requirementId, input.dueDate);
+  if (dueDate !== undefined) task.dueDate = dueDate;
   // Check the waits with the new task in place: it makes its requirement wait on it too.
   task.blockedBy = cleanBlockers(id, input.projectId, input.blockedBy ?? [], [...data.tasks, task], data.requirements);
   return {
@@ -348,11 +367,61 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
   };
 }
 
+export type PendingTaskInput = { projectId: string; title: string; addToToday: boolean };
+
+/**
+ * A task added on the phone (quick add): a title and a project, no requirement or estimate yet. It waits
+ * in Pending until finishTaskDetails. Shaped so Studium 0.11 still loads it (as an unlinked task).
+ */
+export function createPendingTask(data: StudiumData, input: PendingTaskInput, now: Date): { data: StudiumData; task: Task } {
+  if (!data.projects.some((p) => p.id === input.projectId)) throw new Error(`Unknown project ${input.projectId}`);
+  const title = input.title.trim();
+  if (!title) throw new Error("A task needs a name");
+  const task: Task = {
+    id: newId(),
+    projectId: input.projectId,
+    requirementId: null,
+    title,
+    estimateMin: 0,
+    blockedBy: [],
+    priority: false,
+    done: false,
+    actualMin: null,
+    createdAt: stamp(now),
+    pending: true,
+  };
+  const next: StudiumData = { ...data, tasks: [...data.tasks, task], events: withEvent(data, { type: "task_created", at: stamp(now), taskId: task.id }) };
+  return { data: input.addToToday ? addToToday(next, task.id, now) : next, task };
+}
+
+/** Waiting for its details. A task linked some other way (or by Studium 0.11, which keeps the flag) is not. */
+export function isPending(task: Task): boolean {
+  return task.pending === true && task.requirementId === null;
+}
+
+export type TaskDetails = { requirementId: string; estimateMin: number; dueDate?: string | null };
+
+/** Gives a pending task its requirement, estimate and (optional) due date, and it stops being pending. */
+export function finishTaskDetails(data: StudiumData, id: string, details: TaskDetails, now: Date): StudiumData {
+  return editTask(data, id, { ...details }, now, true);
+}
+
 export function updateTask(
   data: StudiumData,
   id: string,
-  changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy">>,
+  changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy" | "dueDate">>,
   now: Date,
+): StudiumData {
+  return editTask(data, id, changes, now, false);
+}
+
+/** updateTask's work; finishing a pending task's details also drops `pending`, in the same event. */
+function editTask(
+  data: StudiumData,
+  id: string,
+  changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy" | "dueDate">>,
+  now: Date,
+  finishing: boolean,
 ): StudiumData {
   const task = data.tasks.find((t) => t.id === id);
   if (!task) return data;
@@ -369,10 +438,28 @@ export function updateTask(
     const moved = data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t));
     clean.blockedBy = cleanBlockers(id, task.projectId, changes.blockedBy ?? task.blockedBy, moved, data.requirements);
   }
+  if (changes.dueDate !== undefined || "requirementId" in clean) {
+    // Set, cleared (null), or re-capped because the task moved to another requirement.
+    const wanted = changes.dueDate !== undefined ? changes.dueDate : task.dueDate;
+    clean.dueDate = cleanTaskDueDate(data, task.projectId, clean.requirementId !== undefined ? clean.requirementId : task.requirementId, wanted) ?? null;
+    if (clean.dueDate === null && task.dueDate == null && changes.dueDate === undefined) delete clean.dueDate;
+  }
+  // Finishing needs a requirement of this project that it could move to; otherwise it stays pending, unchanged.
+  if (finishing && (clean.requirementId === undefined || clean.requirementId === null)) return data;
+  // Linking a pending task any other way (the Link select, the edit form) also makes it an ordinary task,
+  // with a real estimate if it still has the placeholder 0.
+  const linksPending = !finishing && task.pending === true && (clean.requirementId ?? task.requirementId) !== null;
+  if (linksPending && task.estimateMin === 0 && clean.estimateMin === undefined) clean.estimateMin = DEFAULT_ESTIMATE_MIN;
+  const edited = (t: Task): Task => {
+    const next = withDueDate({ ...t, ...clean });
+    if (!finishing && !linksPending) return next;
+    const { pending: _, ...rest } = next;
+    return rest;
+  };
   return settled(
     {
       ...data,
-      tasks: data.tasks.map((t) => (t.id === id ? { ...t, ...clean } : t)),
+      tasks: data.tasks.map((t) => (t.id === id ? edited(t) : t)),
       events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
     },
     now,

@@ -6,7 +6,7 @@ import { capitalize, wordsFor, type ProjectWords } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, INPUT, LABEL } from "../ui/styles";
 import EstimatePicker from "./EstimatePicker";
 
-export type TaskFormValues = { title: string; requirementId: string | null; estimateMin: number; blockedBy: string[] };
+export type TaskFormValues = { title: string; requirementId: string | null; estimateMin: number; blockedBy: string[]; dueDate: string | null };
 
 type Props = {
   requirements: Requirement[];
@@ -17,15 +17,17 @@ type Props = {
   onSubmit: (values: TaskFormValues) => void;
   onCancel?: () => void;
   words?: ProjectWords; // the project's words (school by default)
+  dueLimit?: (requirementId: string | null) => string | null; // latest due date allowed (planner/dueDates.ts taskDueLimit)
 };
 
-export default function TaskForm({ requirements, projectTasks, taskId, initial, submitLabel, onSubmit, onCancel, words = wordsFor(undefined) }: Props) {
+export default function TaskForm({ requirements, projectTasks, taskId, initial, submitLabel, onSubmit, onCancel, words = wordsFor(undefined), dueLimit }: Props) {
   const [title, setTitle] = useState(initial?.title ?? "");
   const [requirementId, setRequirementId] = useState<string | null>(
     initial?.requirementId !== undefined ? initial.requirementId : (requirements[0]?.id ?? null),
   );
   const [estimateMin, setEstimateMin] = useState(initial?.estimateMin ?? DEFAULT_ESTIMATE_MIN);
   const [blockedBy, setBlockedBy] = useState<string[]>(initial?.blockedBy ?? []);
+  const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   const [error, setError] = useState("");
   // Checked against the requirement picked in the form, so nothing offered can deadlock.
   const projectId = projectTasks[0]?.projectId ?? requirements[0]?.projectId ?? "";
@@ -41,7 +43,7 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
       setError(`Give the ${words.task} a title.`);
       return;
     }
-    onSubmit({ title: title.trim(), requirementId, estimateMin, blockedBy });
+    onSubmit({ title: title.trim(), requirementId, estimateMin, blockedBy, dueDate: dueDate || null });
   }
 
   return (
@@ -80,6 +82,20 @@ export default function TaskForm({ requirements, projectTasks, taskId, initial, 
         </select>
       </div>
       <EstimatePicker label="Estimate" value={estimateMin} onChange={setEstimateMin} />
+      <div>
+        <label className={LABEL} htmlFor={`${taskId ?? "new"}-due`}>
+          Due date (optional)
+        </label>
+        <input
+          id={`${taskId ?? "new"}-due`}
+          type="date"
+          value={dueDate}
+          max={dueLimit?.(requirementId) ?? undefined}
+          onChange={(e) => setDueDate(e.target.value)}
+          className={INPUT}
+        />
+        <p className="text-xs text-[var(--color-muted-foreground)] mt-1">{`For reminders. Can't be after the ${words.requirement}'s due date.`}</p>
+      </div>
       {options.length > 0 && (
         <fieldset>
           <legend className={LABEL}>Blocked by</legend>

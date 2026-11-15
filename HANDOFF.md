@@ -111,6 +111,17 @@ Spec `docs/superpowers/specs/2026-11-09-accounts-and-sync-design.md`, plan `docs
 - Two-device checks (plan Task 13 Step 2), web app plus Windows app: link on one and see the projects on the other; complete the same task on both while offline, reconnect, and it's paid once; delete a task on one and edit it on the other, it stays deleted; sign out, change something, sign in, the picker appears; a second account on the same computer gets no data from the first.
 - Version bump (`desktop/package.json` and the lockfile root) and installer (`npm run dist`, then `STUDIUM_PACKAGED=1 npx playwright test e2e/packaged.spec.js`). The signed Mac installer (ROADMAP item 1) comes first.
 
+## Companion app, Plan 1: pending tasks and task due dates (built 2026-11-15)
+
+Spec `docs/superpowers/specs/2026-11-15-companion-app-design.md` (the phone app), plan `docs/superpowers/plans/2026-11-15-companion-plan-1-pending-and-due-dates.md`. These are the desktop and web changes the phone app needs; Plan 2 (the phone app itself) comes next. Mockups: `docs/companion/mockups/`.
+
+- **Two optional `Task` fields** (`web/src/planner/types.ts`). Missing means not pending and no own due date, so older saves load unchanged, and Studium 0.11 keeps both fields when it edits a task (it copies the task with `...t`, and the load check ignores fields it doesn't know).
+- **`dueDate`**: a task's own date, for reminders only (no effect on mood, plan, tokens or growth). It can't be later than its requirement's due date, which falls back to the project deadline: `planner/dueDates.ts` (`taskDueLimit`, `taskDueDate`, which also caps it at read time if the requirement's date moves earlier). `createTask`/`updateTask` clean and cap it, and re-cap it when a task moves to another requirement. Set in the task form ("Due date (optional)"), shown as "due <date>" on task rows and in Today.
+- **`pending: true`**: a task added on the phone's quick add (`createPendingTask` in `store/actions.ts`: title and project, optionally onto today's plan). It's shaped as an unlinked task (`requirementId: null`, `estimateMin: 0`), so it earns nothing, doesn't touch any mood and is never suggested, with no new rules; 0.11 shows it as an ordinary unlinked task. `finishTaskDetails` gives it a requirement (of its own project), an estimate and an optional due date, and drops `pending`, in one `task_edited` event. A pending task ticked off earns nothing, and finishing it later pays nothing.
+- **Pending section** (`components/PendingTasks.tsx`, top of the Overview): "Add details" or delete each one. Pending tasks also get a "Pending" tag in Today and in a project's Unlinked list.
+- **Sync**: nothing changed. Task fields aren't checked by the Firestore rules, and task docs store the whole task. Tests pin it: two devices in `sync/syncEngine.test.ts`, the real adapter in `sync/firestoreRemote.emulator.test.ts`.
+- Desktop version 0.12.0.
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):

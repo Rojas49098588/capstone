@@ -8,8 +8,21 @@ import Settings from "./Settings";
 import Overview from "./Overview";
 import { NOW, dayKey, makeData, makeRequirement, makeTask } from "../planner/testData";
 import { emptyData } from "../store/seed";
+import { formatDate } from "../ui/format";
 
 describe("Overview", () => {
+  it("shows a today task's due date capped at its requirement's", () => {
+    const data = makeData({ requirements: [makeRequirement({ dueDate: dayKey(3) })], tasks: [makeTask({ id: "a", title: "Late", dueDate: dayKey(5) })], today: { date: dayKey(0), taskIds: ["a"] } });
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { data });
+    within(screen.getByRole("region", { name: "Today" })).getByText(new RegExp(`due ${formatDate(dayKey(3))}`));
+  });
+
+  it("shows a today task's own due date", () => {
+    const data = makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a", title: "Has date", dueDate: dayKey(5) })], today: { date: dayKey(0), taskIds: ["a"] } });
+    renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { data });
+    within(screen.getByRole("region", { name: "Today" })).getByText(new RegExp(`due ${formatDate(dayKey(5))}`));
+  });
+
   it("uses the nickname in the heading", () => {
     renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { settings: { nickname: "Abby" } });
     screen.getByRole("heading", { name: "Abby's Projects" });

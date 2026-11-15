@@ -852,3 +852,64 @@ describe("sync engine: backups", () => {
     expect(JSON.parse(storage.getItem(at(0)) as string).projects[0].name).toBe("Essay");
   });
 });
+
+describe("sync engine: pending tasks and task due dates (the companion app)", () => {
+  function setUp() {
+    const made = withProject("Capstone");
+    const req = A.createRequirement(made.data, { projectId: made.id, title: "User testing", weight: 5, dueDate: "2026-12-01" }, NOW);
+    const dated = A.createTask(req.data, { projectId: made.id, requirementId: req.requirement.id, title: "Recruit", estimateMin: 30, dueDate: "2026-11-20" }, NOW);
+    return { data: dated.data, projectId: made.id, requirementId: req.requirement.id, datedId: dated.task.id };
+  }
+
+  it("a task added on one device reaches the other still pending, with due dates intact, and finishing it there reaches back", async () => {
+    const remote = new FakeRemote();
+    const s = setUp();
+    const phone = device(quiet(remote), "Phone", s.data);
+    await phone.engine.connect("u1");
+    let pendingId = "";
+    phone.advance(60_000);
+    phone.edit((d) => {
+      const r = A.createPendingTask(d, { projectId: s.projectId, title: "Email TA", addToToday: true }, phone.now());
+      pendingId = r.task.id;
+      return r.data;
+    });
+    phone.engine.localChanged();
+    await phone.engine.flush();
+
+    const desktop = device(quiet(remote), "Desktop");
+    await desktop.engine.connect("u1");
+    expect(desktop.data.tasks.find((t) => t.id === pendingId)).toMatchObject({ pending: true, requirementId: null });
+    expect(desktop.data.tasks.find((t) => t.id === s.datedId)?.dueDate).toBe("2026-11-20");
+
+    desktop.advance(120_000);
+    desktop.edit((d) => A.finishTaskDetails(d, pendingId, { requirementId: s.requirementId, estimateMin: 45, dueDate: "2026-11-25" }, desktop.now()));
+    desktop.engine.localChanged();
+    await desktop.engine.flush();
+
+    phone.advance(600_000);
+    await phone.engine.connect("u1");
+    const finished = phone.data.tasks.find((t) => t.id === pendingId);
+    expect(finished).toMatchObject({ requirementId: s.requirementId, estimateMin: 45, dueDate: "2026-11-25" });
+    expect(finished).not.toHaveProperty("pending");
+  });
+
+  it("an edit on another device keeps the new fields (as Studium 0.11 does, copying the task)", async () => {
+    const remote = new FakeRemote();
+    const s = setUp();
+    const withPending = A.createPendingTask(s.data, { projectId: s.projectId, title: "Email TA", addToToday: false }, NOW);
+    const phone = device(quiet(remote), "Phone", withPending.data);
+    await phone.engine.connect("u1");
+    const desktop = device(quiet(remote), "Desktop");
+    await desktop.engine.connect("u1");
+
+    desktop.advance(60_000);
+    desktop.edit((d) => A.updateTask(A.updateTask(d, withPending.task.id, { title: "Email the TA" }, desktop.now()), s.datedId, { title: "Recruit 5" }, desktop.now()));
+    desktop.engine.localChanged();
+    await desktop.engine.flush();
+
+    phone.advance(600_000);
+    await phone.engine.connect("u1");
+    expect(phone.data.tasks.find((t) => t.id === withPending.task.id)).toMatchObject({ title: "Email the TA", pending: true });
+    expect(phone.data.tasks.find((t) => t.id === s.datedId)).toMatchObject({ title: "Recruit 5", dueDate: "2026-11-20" });
+  });
+});

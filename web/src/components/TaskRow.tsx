@@ -3,7 +3,9 @@ import { waitingOn } from "../planner/blocking";
 import { taskFocusMinutes } from "../planner/focus";
 import { todayTaskIds } from "../planner/suggest";
 import { useStudiumContext } from "../store/useStudium";
-import { blockerName, focusedLabel, formatMinutes, wordsFor } from "../ui/format";
+import { blockerName, focusedLabel, formatDate, formatMinutes, wordsFor } from "../ui/format";
+import { taskDueDate, taskDueLimit } from "../planner/dueDates";
+import { isPending } from "../store/actions";
 import { BUTTON_SMALL } from "../ui/styles";
 import TaskForm from "./TaskForm";
 import WaitingOn from "./WaitingOn";
@@ -32,9 +34,10 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         requirements={requirements}
         projectTasks={projectTasks}
         taskId={task.id}
-        initial={task}
+        initial={{ ...task, dueDate: task.dueDate ? taskDueDate(task, s.data) : null }}
         submitLabel={`Save ${words.task}`}
         words={words}
+        dueLimit={(requirementId) => taskDueLimit({ projectId: task.projectId, requirementId }, s.data)}
         onSubmit={(values) => {
           s.updateTask(task.id, values);
           setEditing(false);
@@ -69,11 +72,15 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
           }`}
         >
           {task.title}
+          {isPending(task) && (
+            <span className="ml-2 align-middle text-[10px] font-mono uppercase tracking-widest border border-[var(--color-border)] px-1.5 text-[var(--color-muted-foreground)]">Pending</span>
+          )}
         </p>
         <p className="text-xs text-[var(--color-muted-foreground)]">
           {formatMinutes(task.estimateMin)} estimate
           {task.done && task.actualMin !== null && ` · took ${formatMinutes(task.actualMin)}`}
           {focused > 0 && ` · ${focusedLabel(focused)}`}
+          {task.dueDate && ` · due ${formatDate(taskDueDate(task, s.data) ?? task.dueDate)}`}
         </p>
         <WaitingOn names={blockers} />
         {task.requirementId === null && requirements.length > 0 && (

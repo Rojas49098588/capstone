@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { makeRequirement, makeTask } from "../planner/testData";
@@ -10,6 +10,28 @@ const requirements = [makeRequirement({ id: "r1", title: "Rigging" }), makeRequi
 const projectTasks = [makeTask({ id: "A", title: "Rig" }), makeTask({ id: "B", title: "Paint", blockedBy: ["A"] })];
 
 describe("TaskForm", () => {
+  const dueLimit = (id: string | null) => (id === "r1" ? "2026-11-20" : id === "r2" ? "2026-11-10" : "2026-12-01");
+
+  it("offers an optional due date that can't be after the chosen requirement's", async () => {
+    render(<TaskForm requirements={requirements} projectTasks={[]} submitLabel="Add task" onSubmit={vi.fn()} dueLimit={dueLimit} />);
+    const due = screen.getByLabelText("Due date (optional)");
+    expect(due.getAttribute("max")).toBe("2026-11-20");
+    screen.getByText("For reminders. Can't be after the requirement's due date.");
+    await userEvent.selectOptions(screen.getByLabelText("Requirement"), "r2");
+    expect(due.getAttribute("max")).toBe("2026-11-10");
+  });
+
+  it("submits the due date, or null when it's left empty", async () => {
+    const onSubmit = vi.fn();
+    render(<TaskForm requirements={requirements} projectTasks={[]} submitLabel="Add task" onSubmit={onSubmit} dueLimit={dueLimit} />);
+    await userEvent.type(screen.getByLabelText("Task title"), "Draft");
+    await userEvent.click(screen.getByRole("button", { name: "Add task" }));
+    expect(onSubmit.mock.calls[0][0].dueDate).toBeNull();
+    fireEvent.change(screen.getByLabelText("Due date (optional)"), { target: { value: "2026-11-05" } });
+    await userEvent.click(screen.getByRole("button", { name: "Add task" }));
+    expect(onSubmit.mock.calls[1][0].dueDate).toBe("2026-11-05");
+  });
+
   it("asks for a title", async () => {
     const onSubmit = vi.fn();
     render(<TaskForm requirements={requirements} projectTasks={projectTasks} submitLabel="Add task" onSubmit={onSubmit} />);
@@ -26,7 +48,7 @@ describe("TaskForm", () => {
     await userEvent.click(screen.getByRole("radio", { name: "2 h" }));
     await userEvent.click(screen.getByLabelText("Rig"));
     await userEvent.click(screen.getByRole("button", { name: "Add task" }));
-    expect(onSubmit).toHaveBeenCalledWith({ title: "Weight paint", requirementId: "r2", estimateMin: 120, blockedBy: ["A"] });
+    expect(onSubmit).toHaveBeenCalledWith({ title: "Weight paint", requirementId: "r2", estimateMin: 120, blockedBy: ["A"], dueDate: null });
   });
 
   it("can leave a task unlinked", async () => {

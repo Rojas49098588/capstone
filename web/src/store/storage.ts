@@ -97,6 +97,8 @@ export function isValidData(value: unknown): value is StudiumData {
     if (!(t.requirementId === null || (isStr(t.requirementId) && requirementIds.has(t.requirementId)))) return false;
     if (!isNum(t.estimateMin) || !Array.isArray(t.blockedBy) || !t.blockedBy.every(isStr)) return false;
     if (!isBool(t.priority) || !isBool(t.done) || !(t.actualMin === null || isNum(t.actualMin))) return false;
+    if (t.dueDate !== undefined && !(t.dueDate === null || isDateKey(t.dueDate))) return false;
+    if (t.pending !== undefined && t.pending !== true) return false;
   }
 
   for (const e of events as unknown[]) {

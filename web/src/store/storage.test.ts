@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { NOW, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
+import { NOW, dayKey, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
 import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
 
 function memoryStorage(failWrites = false): Storage {
@@ -23,6 +23,22 @@ const valid = () =>
   makeData({ requirements: [makeRequirement()], tasks: [makeTask()] });
 
 describe("isValidData", () => {
+  it("accepts tasks with or without a due date, and rejects a malformed one", () => {
+    const withTask = (extra: object) => makeData({ requirements: [makeRequirement()], tasks: [{ ...makeTask(), ...extra }] });
+    expect(isValidData(withTask({ dueDate: dayKey(3) }))).toBe(true);
+    expect(isValidData(withTask({ dueDate: null }))).toBe(true);
+    expect(isValidData(withTask({}))).toBe(true);
+    expect(isValidData(withTask({ dueDate: "soon" }))).toBe(false);
+  });
+
+  it("accepts pending tasks, and rejects any other pending value", () => {
+    const withTask = (extra: object) => makeData({ tasks: [{ ...makeTask({ requirementId: null }), ...extra }] });
+    expect(isValidData(withTask({ pending: true }))).toBe(true);
+    expect(isValidData(withTask({}))).toBe(true);
+    expect(isValidData(withTask({ pending: false }))).toBe(false);
+    expect(isValidData(withTask({ pending: "yes" }))).toBe(false);
+  });
+
   it("accepts requirements with or without blockers, and rejects damaged ones", () => {
     const withReq = (extra: object) => makeData({ requirements: [{ ...makeRequirement(), ...extra }], tasks: [makeTask()] });
     expect(isValidData(withReq({ blockedBy: ["x"] }))).toBe(true);

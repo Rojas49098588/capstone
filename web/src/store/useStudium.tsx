@@ -189,6 +189,12 @@ export function useStudium(options: StudiumOptions = {}) {
         }),
       updateTask: (id: string, changes: Parameters<typeof A.updateTask>[2]) =>
         change((d, at) => A.updateTask(d, id, changes, at)),
+      createPendingTask: (input: A.PendingTaskInput) =>
+        apply((d, at) => {
+          const r = A.createPendingTask(d, input, at);
+          return { data: r.data, result: r.task };
+        }),
+      finishTaskDetails: (id: string, details: A.TaskDetails) => change((d, at) => A.finishTaskDetails(d, id, details, at)),
       deleteTask: (id: string) => change((d, at) => A.deleteTask(d, id, at)),
       togglePriority: (id: string) => change((d) => A.togglePriority(d, id)),
       completeTask: (id: string, actualMin: number | null) => {
