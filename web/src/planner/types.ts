@@ -67,6 +67,7 @@ export type Task = {
   actualMin: number | null;
   createdAt: string;
   dueDate?: string | null; // "YYYY-MM-DD"; missing/null = its requirement's date (planner/dueDates.ts). Reminders only.
+  pending?: true; // added on the phone, still needs its requirement and estimate (store/actions.ts finishTaskDetails). Missing = not pending.
 };
 
 export type TokenBreakdown = {

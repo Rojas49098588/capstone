@@ -31,6 +31,14 @@ describe("isValidData", () => {
     expect(isValidData(withTask({ dueDate: "soon" }))).toBe(false);
   });
 
+  it("accepts pending tasks, and rejects any other pending value", () => {
+    const withTask = (extra: object) => makeData({ tasks: [{ ...makeTask({ requirementId: null }), ...extra }] });
+    expect(isValidData(withTask({ pending: true }))).toBe(true);
+    expect(isValidData(withTask({}))).toBe(true);
+    expect(isValidData(withTask({ pending: false }))).toBe(false);
+    expect(isValidData(withTask({ pending: "yes" }))).toBe(false);
+  });
+
   it("accepts requirements with or without blockers, and rejects damaged ones", () => {
     const withReq = (extra: object) => makeData({ requirements: [{ ...makeRequirement(), ...extra }], tasks: [makeTask()] });
     expect(isValidData(withReq({ blockedBy: ["x"] }))).toBe(true);

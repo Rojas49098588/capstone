@@ -8,11 +8,13 @@ import {
   completeTask,
   createProject,
   createRequirement,
+  createPendingTask,
   createTask,
   deleteRequirement,
   deleteTask,
   duplicateRequirement,
   feedPet,
+  finishTaskDetails,
   nextRequirementTitle,
   giveMedicine,
   purchase,
@@ -602,5 +604,63 @@ describe("task due dates", () => {
     expect(find(updateTask(data, "t1", { dueDate: null }, NOW), "t1")).not.toHaveProperty("dueDate");
     expect(find(updateTask(data, "t1", { requirementId: "r2" }, NOW), "t1").dueDate).toBe(dayKey(6));
     expect(find(updateTask(data, "t1", { title: "Renamed" }, NOW), "t1").dueDate).toBe(dayKey(8));
+  });
+});
+
+describe("pending tasks", () => {
+  const base = () =>
+    makeData({
+      projects: [makeProject({ id: "p1" }), makeProject({ id: "p2" })],
+      requirements: [makeRequirement({ id: "r1", projectId: "p1", dueDate: dayKey(10) }), makeRequirement({ id: "q1", projectId: "p2" })],
+      tasks: [makeTask({ id: "t1", requirementId: "r1" })],
+    });
+  const quickAdd = (addToToday = false) => createPendingTask(base(), { projectId: "p1", title: "  Email TA  ", addToToday }, NOW);
+  const find = (d: { tasks: { id: string }[] }, id: string) => d.tasks.find((t) => t.id === id) as ReturnType<typeof makeTask>;
+
+  it("createPendingTask makes an unlinked, pending task that the old load check accepts", () => {
+    const { data: d, task } = quickAdd();
+    expect(task).toMatchObject({ title: "Email TA", requirementId: null, estimateMin: 0, blockedBy: [], priority: false, done: false, actualMin: null, pending: true });
+    expect(d.today.taskIds).not.toContain(task.id);
+    expect(d.events.slice(-1)[0]).toMatchObject({ type: "task_created", taskId: task.id });
+    const { pending: _, ...asOldVersionSeesIt } = task;
+    expect(isValidData({ ...d, tasks: [...base().tasks, asOldVersionSeesIt] })).toBe(true);
+  });
+
+  it("createPendingTask can put it on today's plan", () => {
+    const { data: d, task } = quickAdd(true);
+    expect(d.today.taskIds).toContain(task.id);
+  });
+
+  it("createPendingTask refuses an unknown project or an empty title", () => {
+    expect(() => createPendingTask(base(), { projectId: "nope", title: "x", addToToday: false }, NOW)).toThrow();
+    expect(() => createPendingTask(base(), { projectId: "p1", title: "   ", addToToday: false }, NOW)).toThrow();
+  });
+
+  it("finishTaskDetails links it, sets the estimate and due date, and it stops being pending", () => {
+    const { data: d, task } = quickAdd();
+    const done = finishTaskDetails(d, task.id, { requirementId: "r1", estimateMin: 45, dueDate: dayKey(3) }, NOW);
+    const t = find(done, task.id);
+    expect(t).toMatchObject({ requirementId: "r1", estimateMin: 45, dueDate: dayKey(3) });
+    expect(t).not.toHaveProperty("pending");
+    expect(done.events.length).toBe(d.events.length + 1);
+    expect(done.events.slice(-1)[0]).toMatchObject({ type: "task_edited", taskId: task.id });
+  });
+
+  it("finishTaskDetails ignores a requirement from another project and leaves it pending", () => {
+    const { data: d, task } = quickAdd();
+    expect(find(finishTaskDetails(d, task.id, { requirementId: "q1", estimateMin: 45 }, NOW), task.id).pending).toBe(true);
+  });
+
+  it("a pending task ticked off earns nothing, and finishing its details later pays nothing", () => {
+    const { data: d, task } = quickAdd();
+    const done = completeTask(d, task.id, null, NOW);
+    expect(done.payout?.tokens ?? 0).toBe(0);
+    const linked = finishTaskDetails(done.data, task.id, { requirementId: "r1", estimateMin: 30 }, NOW);
+    expect(tokenBalance(linked)).toBe(tokenBalance(done.data));
+  });
+
+  it("deleting a pending task on today's plan takes it off the plan", () => {
+    const { data: d, task } = quickAdd(true);
+    expect(deleteTask(d, task.id, NOW).today.taskIds).not.toContain(task.id);
   });
 });

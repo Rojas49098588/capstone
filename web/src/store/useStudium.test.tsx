@@ -26,6 +26,22 @@ import { NOW_REFRESH_MS, useStudium } from "./useStudium";
 afterEach(() => vi.useRealTimers());
 
 describe("useStudium", () => {
+  it("quick-adds a pending task and finishes its details, saving both", () => {
+    const storage = seededStorage();
+    const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));
+    const project = result.current.data.projects[0];
+    const requirement = result.current.data.requirements.find((r) => r.projectId === project.id)!;
+    let id = "";
+    act(() => {
+      id = result.current.createPendingTask({ projectId: project.id, title: "Email TA", addToToday: true }).id;
+    });
+    expect(savedData(storage).tasks.find((t) => t.id === id)?.pending).toBe(true);
+    expect(result.current.data.today.taskIds).toContain(id);
+    act(() => result.current.finishTaskDetails(id, { requirementId: requirement.id, estimateMin: 30 }));
+    expect(savedData(storage).tasks.find((t) => t.id === id)).toMatchObject({ requirementId: requirement.id, estimateMin: 30 });
+    expect(savedData(storage).tasks.find((t) => t.id === id)).not.toHaveProperty("pending");
+  });
+
   it("starts with no projects and saves that on the first visit", () => {
     const storage = memoryStorage();
     const { result } = renderHook(() => useStudium({ storage, clock: () => NOW }));

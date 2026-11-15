@@ -23,6 +23,11 @@ describe("suggestNext", () => {
     expect(suggestNext(data(), NOW).map((s) => s.task.id)).toEqual(["g", "a", "b"]);
   });
 
+  it("never suggests a pending task", () => {
+    const d = { ...data(), tasks: [...data().tasks, makeTask({ id: "p", requirementId: null, estimateMin: 0, pending: true })] };
+    expect(suggestNext(d, NOW, 20).map((s) => s.task.id)).not.toContain("p");
+  });
+
   it("respects the count", () => {
     expect(suggestNext(data(), NOW, 2).map((s) => s.task.id)).toEqual(["g", "a"]);
   });

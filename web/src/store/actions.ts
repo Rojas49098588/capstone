@@ -367,11 +367,60 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
   };
 }
 
+export type PendingTaskInput = { projectId: string; title: string; addToToday: boolean };
+
+/**
+ * A task added on the phone (quick add): a title and a project, no requirement or estimate yet. It waits
+ * in Pending until finishTaskDetails. Shaped so Studium 0.11 still loads it (as an unlinked task).
+ */
+export function createPendingTask(data: StudiumData, input: PendingTaskInput, now: Date): { data: StudiumData; task: Task } {
+  if (!data.projects.some((p) => p.id === input.projectId)) throw new Error(`Unknown project ${input.projectId}`);
+  const title = input.title.trim();
+  if (!title) throw new Error("A task needs a name");
+  const task: Task = {
+    id: newId(),
+    projectId: input.projectId,
+    requirementId: null,
+    title,
+    estimateMin: 0,
+    blockedBy: [],
+    priority: false,
+    done: false,
+    actualMin: null,
+    createdAt: stamp(now),
+    pending: true,
+  };
+  const next: StudiumData = { ...data, tasks: [...data.tasks, task], events: withEvent(data, { type: "task_created", at: stamp(now), taskId: task.id }) };
+  return { data: input.addToToday ? addToToday(next, task.id, now) : next, task };
+}
+
+export function isPending(task: Task): boolean {
+  return task.pending === true;
+}
+
+export type TaskDetails = { requirementId: string; estimateMin: number; dueDate?: string | null };
+
+/** Gives a pending task its requirement, estimate and (optional) due date, and it stops being pending. */
+export function finishTaskDetails(data: StudiumData, id: string, details: TaskDetails, now: Date): StudiumData {
+  return editTask(data, id, { ...details }, now, true);
+}
+
 export function updateTask(
   data: StudiumData,
   id: string,
   changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy" | "dueDate">>,
   now: Date,
+): StudiumData {
+  return editTask(data, id, changes, now, false);
+}
+
+/** updateTask's work; finishing a pending task's details also drops `pending`, in the same event. */
+function editTask(
+  data: StudiumData,
+  id: string,
+  changes: Partial<Pick<Task, "title" | "requirementId" | "estimateMin" | "blockedBy" | "dueDate">>,
+  now: Date,
+  finishing: boolean,
 ): StudiumData {
   const task = data.tasks.find((t) => t.id === id);
   if (!task) return data;
@@ -394,10 +443,18 @@ export function updateTask(
     clean.dueDate = cleanTaskDueDate(data, task.projectId, clean.requirementId !== undefined ? clean.requirementId : task.requirementId, wanted) ?? null;
     if (clean.dueDate === null && task.dueDate == null && changes.dueDate === undefined) delete clean.dueDate;
   }
+  // Finishing needs a requirement of this project that it could move to; otherwise it stays pending, unchanged.
+  if (finishing && (clean.requirementId === undefined || clean.requirementId === null)) return data;
+  const edited = (t: Task): Task => {
+    const next = withDueDate({ ...t, ...clean });
+    if (!finishing) return next;
+    const { pending: _, ...rest } = next;
+    return rest;
+  };
   return settled(
     {
       ...data,
-      tasks: data.tasks.map((t) => (t.id === id ? withDueDate({ ...t, ...clean }) : t)),
+      tasks: data.tasks.map((t) => (t.id === id ? edited(t) : t)),
       events: withEvent(data, { type: "task_edited", at: stamp(now), taskId: id, changes: clean }),
     },
     now,
