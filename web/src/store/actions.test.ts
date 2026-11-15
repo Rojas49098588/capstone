@@ -15,6 +15,7 @@ import {
   duplicateRequirement,
   feedPet,
   finishTaskDetails,
+  isPending,
   nextRequirementTitle,
   giveMedicine,
   purchase,
@@ -662,5 +663,21 @@ describe("pending tasks", () => {
   it("deleting a pending task on today's plan takes it off the plan", () => {
     const { data: d, task } = quickAdd(true);
     expect(deleteTask(d, task.id, NOW).today.taskIds).not.toContain(task.id);
+  });
+});
+
+describe("review fixes: pending tasks linked another way", () => {
+  const base = () => makeData({ requirements: [makeRequirement({ id: "r1" })], tasks: [makeTask({ id: "pt", requirementId: null, estimateMin: 0, pending: true })] });
+
+  it("linking a pending task with updateTask makes it an ordinary task with a real estimate", () => {
+    const t = updateTask(base(), "pt", { requirementId: "r1" }, NOW).tasks.find((x) => x.id === "pt")!;
+    expect(t).not.toHaveProperty("pending");
+    expect(t.requirementId).toBe("r1");
+    expect(t.estimateMin).toBeGreaterThan(0);
+  });
+
+  it("a task an older version linked but left marked pending isn't pending", () => {
+    expect(isPending(makeTask({ requirementId: "r1", pending: true }))).toBe(false);
+    expect(isPending(makeTask({ requirementId: null, pending: true }))).toBe(true);
   });
 });

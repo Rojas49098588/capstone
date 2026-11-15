@@ -59,6 +59,11 @@ describe("PendingTasks", () => {
     expect(onSelect).toHaveBeenCalledWith("p2");
   });
 
+  it("leaves out pending tasks already ticked off", () => {
+    renderWithStudium(<PendingTasks onSelect={vi.fn()} />, { data: { ...data(), tasks: [pending({ done: true })] } });
+    expect(screen.queryByRole("region", { name: "Pending" })).toBeNull();
+  });
+
   it("deletes a pending task", async () => {
     const { storage } = renderWithStudium(<PendingTasks onSelect={vi.fn()} />, { data: data() });
     await userEvent.click(screen.getByRole("button", { name: "Delete Email TA" }));

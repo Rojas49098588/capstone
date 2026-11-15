@@ -394,8 +394,9 @@ export function createPendingTask(data: StudiumData, input: PendingTaskInput, no
   return { data: input.addToToday ? addToToday(next, task.id, now) : next, task };
 }
 
+/** Waiting for its details. A task linked some other way (or by Studium 0.11, which keeps the flag) is not. */
 export function isPending(task: Task): boolean {
-  return task.pending === true;
+  return task.pending === true && task.requirementId === null;
 }
 
 export type TaskDetails = { requirementId: string; estimateMin: number; dueDate?: string | null };
@@ -445,9 +446,13 @@ function editTask(
   }
   // Finishing needs a requirement of this project that it could move to; otherwise it stays pending, unchanged.
   if (finishing && (clean.requirementId === undefined || clean.requirementId === null)) return data;
+  // Linking a pending task any other way (the Link select, the edit form) also makes it an ordinary task,
+  // with a real estimate if it still has the placeholder 0.
+  const linksPending = !finishing && task.pending === true && (clean.requirementId ?? task.requirementId) !== null;
+  if (linksPending && task.estimateMin === 0 && clean.estimateMin === undefined) clean.estimateMin = DEFAULT_ESTIMATE_MIN;
   const edited = (t: Task): Task => {
     const next = withDueDate({ ...t, ...clean });
-    if (!finishing) return next;
+    if (!finishing && !linksPending) return next;
     const { pending: _, ...rest } = next;
     return rest;
   };

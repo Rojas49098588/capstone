@@ -15,7 +15,8 @@ type Props = { onSelect: (projectId: string) => void };
 export default function PendingTasks({ onSelect }: Props) {
   const s = useStudiumContext();
   const [open, setOpen] = useState<string | null>(null);
-  const tasks = s.data.tasks.filter(isPending);
+  // Ticked off already (e.g. done straight away on the phone): nothing left to add, so not listed.
+  const tasks = s.data.tasks.filter((t) => isPending(t) && !t.done);
   if (tasks.length === 0) return null;
 
   return (

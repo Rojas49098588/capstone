@@ -27,6 +27,14 @@ const prototypes = () =>
   });
 
 describe("TaskRow", () => {
+  it("shows a task's own due date capped at its requirement's, and the edit form starts capped", async () => {
+    const data = makeData({ requirements: [makeRequirement({ dueDate: dayKey(3) })], tasks: [makeTask({ id: "a", title: "Late", dueDate: dayKey(5) })] });
+    renderWithStudium(<TaskRow taskId="a" onRequestComplete={vi.fn()} />, { data });
+    screen.getByText(new RegExp(`due ${formatDate(dayKey(3))}`));
+    await userEvent.click(screen.getByRole("button", { name: /Edit/ }));
+    expect((screen.getByLabelText("Due date (optional)") as HTMLInputElement).value).toBe(dayKey(3));
+  });
+
   it("shows a task's own due date, and nothing new without one", () => {
     const data = makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a", title: "Has date", dueDate: dayKey(5) }), makeTask({ id: "b", title: "No date" })] });
     renderWithStudium(<><TaskRow taskId="a" onRequestComplete={vi.fn()} /><TaskRow taskId="b" onRequestComplete={vi.fn()} /></>, { data });
