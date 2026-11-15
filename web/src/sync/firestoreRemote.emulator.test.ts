@@ -59,6 +59,16 @@ describe("firestore remote against the emulator", () => {
     expect(await remote.savedInfo(uid)).toEqual(info);
   });
 
+  it("a pending task and a task due date round-trip (the companion app's fields)", async () => {
+    const { uid, remote } = await newUser();
+    const pending = { ...task("t1", "p1"), requirementId: null, estimateMin: 0, pending: true };
+    const dated = { ...task("t2", "p1"), dueDate: "2026-11-20" };
+    await remote.write(uid, [up("user", user), up("project:p1", { project: project("p1"), decor: {} }), up("task:t1", pending), up("task:t2", dated)], meta);
+    const r = await remote.load(uid);
+    expect(r?.tasks.t1.value).toEqual(pending);
+    expect(r?.tasks.t2.value).toEqual(dated);
+  });
+
   it("a removed decor key and a dropped project field are gone after the next write", async () => {
     const { uid, remote } = await newUser();
     await remote.write(uid, [up("project:p1", { project: project("p1", { difficulty: "hard" }), decor: { h1: { floor: "a" }, h2: { floor: "b" } } })], meta);
