@@ -2,10 +2,11 @@ import { pendingRows, todayRows, type TodayRow } from "@shared/companion/view";
 import { localDateKey, startOfLocalDay } from "@shared/planner/time";
 import { ESTIMATE_CHOICES, formatMinutes, payoutMessage } from "@shared/ui/format";
 import { useEffect, useState } from "react";
-import { Modal, Pressable, RefreshControl, ScrollView, Switch, Text, TextInput, View } from "react-native";
+import { Modal, Pressable, ScrollView, Switch, Text, TextInput, View } from "react-native";
 import { usePhone } from "./PhoneContext";
 import { NO_PETS_LINE } from "./PetsScreen";
 import { colors, ui } from "./theme";
+import { useRefresh } from "./useRefresh";
 
 function Row({ row, onTick }: { row: TodayRow; onTick: (row: TodayRow) => void }) {
   const details = [row.projectName, formatMinutes(row.estimateMin), row.due ? `due ${row.due}` : null].filter(Boolean).join(" · ");
@@ -142,7 +143,7 @@ export default function TodayScreen() {
   const { phone, state } = usePhone();
   const [ticking, setTicking] = useState<TodayRow | null>(null);
   const [note, setNote] = useState<string | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
+  const { control, note: refreshNote } = useRefresh();
   const rows = todayRows(state.data, state.now);
   const pending = pendingRows(state.data, state.now);
   const day = startOfLocalDay(localDateKey(state.now)).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
@@ -152,16 +153,11 @@ export default function TodayScreen() {
     else setTicking(row);
   }
 
-  async function refresh() {
-    setRefreshing(true);
-    await phone.reconnect();
-    setRefreshing(false);
-  }
-
   return (
-    <ScrollView style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled" refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+    <ScrollView testID="scroll" style={ui.screen} contentContainerStyle={ui.content} keyboardShouldPersistTaps="handled" refreshControl={control}>
       <Text style={ui.title}>Today</Text>
       <Text style={ui.small}>{`${day} · your plan from the desktop`}</Text>
+      {refreshNote}
       {state.message ? <Text style={[ui.banner, ui.small]}>{state.message}</Text> : null}
       {note ? (
         <Text style={[ui.banner, ui.text]} accessibilityLiveRegion="polite">

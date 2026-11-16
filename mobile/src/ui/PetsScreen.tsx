@@ -1,10 +1,10 @@
 import { needsYou, petGroups, type PetCard } from "@shared/companion/view";
 import { MOOD_COLORS } from "@shared/ui/format";
-import { useState } from "react";
-import { Image, RefreshControl, ScrollView, Text, View } from "react-native";
+import { Image, ScrollView, Text, View } from "react-native";
 import { usePhone } from "./PhoneContext";
 import { PET_ART } from "./petArt";
 import { colors, ui } from "./theme";
+import { useRefresh } from "./useRefresh";
 
 export const NO_PETS_LINE = "No pets yet. Create a project in Studium on your computer.";
 
@@ -28,20 +28,15 @@ function Card({ pet }: { pet: PetCard }) {
 }
 
 export default function PetsScreen() {
-  const { phone, state } = usePhone();
-  const [refreshing, setRefreshing] = useState(false);
+  const { state } = usePhone();
+  const { control, note } = useRefresh();
   const groups = petGroups(state.data, state.now);
   const needs = needsYou(state.data, state.now);
 
-  async function refresh() {
-    setRefreshing(true);
-    await phone.reconnect();
-    setRefreshing(false);
-  }
-
   return (
-    <ScrollView style={ui.screen} contentContainerStyle={ui.content} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={refresh} />}>
+    <ScrollView testID="scroll" style={ui.screen} contentContainerStyle={ui.content} refreshControl={control}>
       <Text style={ui.title}>Your pets</Text>
+      {note}
       {state.message ? <Text style={[ui.banner, ui.small]}>{state.message}</Text> : null}
       {needs.length > 0 ? (
         <View style={[ui.card, { backgroundColor: colors.needsBg, borderColor: colors.needsBorder, gap: 4 }]} accessibilityLabel="Needs you on the desktop">
