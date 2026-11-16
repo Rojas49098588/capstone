@@ -22,6 +22,11 @@ export type EngineDeps = {
   applyLocal: (data: StudiumData, settings: SyncedSettings) => boolean; // replaceData + updateSettings
   /** Syncing stopped by itself (a cloud listener died, or the cloud refused a write); still signed in. Connect again to resume. */
   onConnectionLost?: (e: Error) => void;
+  /**
+   * The companion phone: it only ever takes the account's save, never makes or replaces one (no upload, no
+   * "keep this device's"). An account with no save yet is simply waited for; the first save another device makes arrives.
+   */
+  takeOnly?: boolean;
 };
 export type ConnectResult =
   | { kind: "synced" }
@@ -450,6 +455,15 @@ export function createSyncEngine(deps: EngineDeps) {
         }
         const local = deps.getLocal();
         const decision = decideLink({ uid, state, localHasProjects: hasOwnProjects(local.data), remoteHasProjects: hasProjects(remote) });
+        if (deps.takeOnly && (decision === "upload" || decision === "picker" || !remote)) {
+          if (remote) {
+            state = { ...state, saveId: remote.saveId ?? null };
+            mergeIn(uid, nothingHere(), remote, defaultUser(deps.clock()));
+          }
+          current(s);
+          startSession(uid);
+          return { kind: "synced" };
+        }
         if (decision === "picker") {
           const saved = await deps.remote.savedInfo(uid);
           current(s);
