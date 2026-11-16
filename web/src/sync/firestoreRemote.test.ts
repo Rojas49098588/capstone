@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { authErrorCode } from "./firebaseAuth";
-import { batchChanges, docPath } from "./firestoreRemote";
+import { batchChanges, docPath, firestoreSettings } from "./firestoreRemote";
 
 describe("firestore remote helpers", () => {
   it("a first upload of 1,200 records uses 3 batches", () => {
@@ -34,5 +34,25 @@ describe("firestore remote helpers", () => {
     expect(authErrorCode("auth/popup-closed-by-user")).toBe("cancelled");
     expect(authErrorCode("auth/cancelled-popup-request")).toBe("cancelled");
     expect(authErrorCode("auth/whatever")).toBe("other");
+  });
+});
+
+describe("firestoreSettings", () => {
+  it("keeps the browser's persistent cache for the web and desktop apps", () => {
+    const s = firestoreSettings({});
+    expect((s.localCache as { kind: string }).kind).toBe("persistent");
+    expect(s.ignoreUndefinedProperties).toBe(true);
+    expect(s.experimentalAutoDetectLongPolling).toBeUndefined();
+  });
+
+  it("gives a phone a memory cache and long-polling detection", () => {
+    const s = firestoreSettings({ phone: true });
+    expect((s.localCache as { kind: string }).kind).toBe("memory");
+    expect(s.ignoreUndefinedProperties).toBe(true);
+    expect(s.experimentalAutoDetectLongPolling).toBe(true);
+  });
+
+  it("uses a memory cache against the emulator, as before", () => {
+    expect((firestoreSettings({ emulator: { host: "127.0.0.1", port: 8080 } }).localCache as { kind: string }).kind).toBe("memory");
   });
 });

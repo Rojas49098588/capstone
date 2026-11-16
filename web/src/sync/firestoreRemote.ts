@@ -16,6 +16,7 @@ import {
   writeBatch,
   type DocumentData,
   type Firestore,
+  type FirestoreSettings,
   type QuerySnapshot,
   type WriteBatch,
 } from "firebase/firestore";
@@ -158,11 +159,23 @@ function build(p: Pieces, index: ProjectIndex): StampedRecords | null {
 const byId = (s: QuerySnapshot) => new Map(s.docs.map((d) => [d.id, d.data()]));
 
 /** `emulator` is for the integration tests: it points at a local Firestore emulator and skips the browser cache. */
-export function createFirestoreRemote(app: FirebaseApp, opts: { emulator?: { host: string; port: number } } = {}): RemoteStore {
-  const db: Firestore = initializeFirestore(app, {
-    localCache: opts.emulator ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
+export type RemoteOptions = {
+  emulator?: { host: string; port: number };
+  /** The companion phone app: no IndexedDB for a persistent cache, and React Native's networking may need long polling. */
+  phone?: boolean;
+};
+
+export function firestoreSettings(opts: RemoteOptions): FirestoreSettings {
+  const memory = Boolean(opts.emulator || opts.phone);
+  return {
+    localCache: memory ? memoryLocalCache() : persistentLocalCache({ tabManager: persistentMultipleTabManager() }),
     ignoreUndefinedProperties: true,
-  });
+    ...(opts.phone ? { experimentalAutoDetectLongPolling: true } : {}),
+  };
+}
+
+export function createFirestoreRemote(app: FirebaseApp, opts: RemoteOptions = {}): RemoteStore {
+  const db: Firestore = initializeFirestore(app, firestoreSettings(opts));
   if (opts.emulator) connectFirestoreEmulator(db, opts.emulator.host, opts.emulator.port);
   const index = newIndex();
   const known = new Set<string>(); // project document ids seen to exist, so a write knows to update rather than create
