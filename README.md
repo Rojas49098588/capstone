@@ -1,6 +1,6 @@
 # Capstone
 
-**Studium** is a study and project manager with project pets, as a desktop app for Windows and Mac.
+**Studium** is a study and project manager with project pets, as a desktop app for Windows, Mac and Linux, and a companion phone app (`mobile/`).
 
 ## Installing
 
@@ -8,15 +8,11 @@ Download the latest version from this repo's **[Releases](https://github.com/Roj
 
 - **Windows:** `Studium-Setup-<version>.exe`
 - **Mac** (Apple chip or Intel): `Studium-<version>-mac.dmg`
+- **Linux** (Ubuntu, Debian and similar, 64-bit): `Studium-<version>-amd64.deb`
 
-Studium isn't signed with a paid certificate, so your computer warns you the first time.
-
-- **Windows:** open the `.exe`. At "Windows protected your PC", click **More info → Run anyway**.
-- **Mac:**
-  1. Open the `.dmg`, drag **Studium** into **Applications**, then open it. macOS says it can't check it for malware; click **Done**.
-  2. Go to **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to Studium (macOS 15 and later). On macOS 14 or earlier, you can instead right-click Studium → **Open**.
-  3. If macOS says Studium "is damaged and can't be opened", run `xattr -cr /Applications/Studium.app` in Terminal and open it again.
-  4. On a Mac, Studium's icon is in the menu bar at the top right, and pets walk along the top of the Dock.
+- **Mac:** signed and checked by Apple. Open the `.dmg`, drag **Studium** into **Applications**, and open it. macOS asks whether to open an app downloaded from the Internet; click **Open**. Studium's icon is in the menu bar at the top right, and pets walk along the top of the Dock.
+- **Windows:** the installer isn't signed yet, so Windows warns you the first time. Open the `.exe`; at "Windows protected your PC", click **More info → Run anyway**.
+- **Linux:** double-click the `.deb` to install it from the Software app, or run `sudo apt install ./Studium-<version>-amd64.deb`.
 
 To update, install the new version over the old one. Your projects and pets stay.
 
