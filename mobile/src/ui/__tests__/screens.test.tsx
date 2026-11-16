@@ -8,6 +8,7 @@ import { FakeRemote } from "@shared/test/fakeRemote";
 import { NOW, accountData, phone as makePhone, signedInPhone } from "../../testing/phoneFixture";
 import PetsScreen, { NO_PETS_LINE } from "../PetsScreen";
 import { PhoneProvider, TICK_MS } from "../PhoneContext";
+import { REFRESH_MIN_MS } from "../useRefresh";
 import Root from "../Root";
 import SettingsScreen from "../SettingsScreen";
 import TodayScreen from "../TodayScreen";
@@ -70,6 +71,34 @@ describe("Pets", () => {
       });
       expect(screen.queryByText("Meal: × 1.1 tokens for 1h 0m more")).toBeNull();
       screen.getAllByText("Next meal tomorrow");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe("Pull to refresh", () => {
+  test.each([
+    ["Pets", () => <PetsScreen />],
+    ["Today", () => <TodayScreen />],
+  ])("%s shows the spinner while refreshing, then says it's up to date", async (_name, screenFor) => {
+    const { phone } = await signedInPhone(seeded());
+    const reconnect = jest.spyOn(phone, "reconnect");
+    jest.useFakeTimers();
+    try {
+      await show(phone, screenFor());
+      const refresh = () => screen.getByTestId("scroll").props.refreshControl.props;
+      await act(async () => {
+        refresh().onRefresh();
+      });
+      expect(refresh().refreshing).toBe(true);
+      expect(refresh().tintColor).toBe("#2d3a8c");
+      await act(async () => {
+        jest.advanceTimersByTime(REFRESH_MIN_MS);
+      });
+      expect(refresh().refreshing).toBe(false);
+      screen.getByText("Up to date");
+      expect(reconnect).toHaveBeenCalled();
     } finally {
       jest.useRealTimers();
     }
