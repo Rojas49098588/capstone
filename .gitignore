@@ -25,3 +25,8 @@ firebase/node_modules/
 
 # Firebase deploy cache
 .firebase/
+
+# Companion phone app
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
