@@ -122,6 +122,19 @@ Spec `docs/superpowers/specs/2026-11-15-companion-app-design.md` (the phone app)
 - **Sync**: nothing changed. Task fields aren't checked by the Firestore rules, and task docs store the whole task. Tests pin it: two devices in `sync/syncEngine.test.ts`, the real adapter in `sync/firestoreRemote.emulator.test.ts`.
 - Desktop version 0.12.0.
 
+## Companion app, Plan 2: the phone app (built 2026-11-15)
+
+Plan `docs/superpowers/plans/2026-11-15-companion-plan-2-phone-app.md`. How to run and build: `mobile/README.md`.
+
+- **Where:** `mobile/`, an Expo SDK 58 app (expo-router tabs Pets, Today, Settings; sign-in gate in `src/ui/Root.tsx`). Screens are `src/ui/*Screen.tsx`; `app/(tabs)/*.tsx` only re-export them.
+- **Shared code:** the phone imports `web/src` through `@shared/*` (`tsconfig.json` paths, Jest `moduleNameMapper`, and `metro.config.js`'s `resolveRequest`). Metro re-resolves every bare import made from a `web/` file as if from `mobile/`, so packages come from `mobile/node_modules` only (one Firebase); a source-map check found 0 files from `web/node_modules`. Expo's monorepo settings (`disableHierarchicalLookup` and friends) are not used: they're for workspaces and break nested packages.
+- **What it shows:** `web/src/companion/view.ts` (`petGroups`, `needsYou`, `todayRows`, `pendingRows`), plain TypeScript tested with the web app's Vitest, built on the planner's own functions.
+- **Sync:** the phone is one more device on the existing sync engine (`mobile/src/phoneStudium.ts`, device name "Phone"). It starts empty, so signing in "takes" the account's save; it writes only ticks, reopens and quick adds (`createPendingTask`). Sign-out uses `engine.forget()`, never `stop()`: with `stop()` a later sign-in took the empty phone for deletions and wiped the account (a test pins this). When another device replaces the save, the engine backs up the phone's copy and takes the new one; the phone notices the backup and says "Your account's data changed on another device, so this phone took the newest copy." A lost connection retries after 30 s, on pull-to-refresh and when the app comes back to the front.
+- **Storage:** the engine reads storage synchronously, so `mobile/src/phoneStorage.ts` loads AsyncStorage into memory at start and writes through.
+- **Firebase on phones:** `createFirestoreRemote(app, { phone: true })` uses a memory cache (no IndexedDB) and long-polling detection. Auth uses `initializeAuth` with `getReactNativePersistence(AsyncStorage)` before `createFirebaseAuth`, so it stays signed in; TypeScript doesn't see that export (Firebase lists browser types first), so `src/firebase-auth-rn.d.ts` declares it. Email and password only for now.
+- **Tests:** `cd mobile && npx jest` (fakes from `web/src/test`), `npx tsc --noEmit`, `npx expo export --platform ios --output-dir dist`.
+- **Needs the owner:** the by-hand check on a real phone (Expo Go), then tester builds with EAS (Expo account; App Store Connect for TestFlight). The app icon is still Expo's template icon.
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):
