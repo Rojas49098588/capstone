@@ -913,3 +913,52 @@ describe("sync engine: pending tasks and task due dates (the companion app)", ()
     expect(phone.data.tasks.find((t) => t.id === s.datedId)).toMatchObject({ title: "Recruit 5", dueDate: "2026-11-20" });
   });
 });
+
+describe("sync engine: a device that only takes the account's save (the companion phone)", () => {
+  function phoneDevice(remote: FakeRemote) {
+    let local = { data: emptyData(NOW), settings: DEFAULT_SYNCED_FOR_TEST };
+    const engine = createSyncEngine({
+      remote,
+      storage: memoryStorage(),
+      clock: () => NOW,
+      device: "Phone",
+      takeOnly: true,
+      getLocal: () => local,
+      applyLocal: (d, s) => {
+        local = { data: normalizeData(d), settings: s };
+        return true;
+      },
+    });
+    return { engine, data: () => local.data, settings: () => local.settings };
+  }
+  const DEFAULT_SYNCED_FOR_TEST: SyncedSettings = { nickname: "", petInvolvement: "mild", petOrder: "project" };
+
+  it("never replaces an account that has settings but no projects; it takes them", async () => {
+    const remote = new FakeRemote();
+    const desktop = device(remote, "Desktop", emptyData(NOW), BEE);
+    await desktop.engine.connect("u1");
+    await desktop.engine.flush();
+    const replaceAll = vi.spyOn(remote, "replaceAll");
+    const phone = phoneDevice(remote);
+    await phone.engine.connect("u1");
+    await phone.engine.flush();
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(phone.settings()).toEqual(BEE);
+  });
+
+  it("never makes a save for an empty account, and takes the first one another device makes", async () => {
+    const remote = new FakeRemote();
+    const replaceAll = vi.spyOn(remote, "replaceAll");
+    const phone = phoneDevice(remote);
+    await phone.engine.connect("u1");
+    await phone.engine.flush();
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(await remote.load("u1")).toBeNull();
+    const made = withProject("Essay");
+    const desktop = device(remote, "Desktop", made.data);
+    await desktop.engine.connect("u1");
+    await desktop.engine.flush();
+    await phone.engine.flush();
+    expect(phone.data().projects.map((p) => p.name)).toEqual(["Essay"]);
+  });
+});

@@ -10,14 +10,15 @@ import { BACKUP_PREFIX, isValidData, loadData, normalizeData, saveData } from "@
 import type { Account, AuthClient } from "@shared/sync/auth";
 import type { SyncedSettings } from "@shared/sync/records";
 import type { RemoteStore } from "@shared/sync/remote";
-import { createSyncEngine } from "@shared/sync/syncEngine";
+import { SUPERSEDED, createSyncEngine } from "@shared/sync/syncEngine";
 
 export const REPLACED_MESSAGE = "Your account's data changed on another device, so this phone took the newest copy.";
 export const OFFLINE_MESSAGE = "Not syncing right now. Pull down to try again.";
 const SETTINGS_KEY = "studium-phone-settings-v1";
 const RETRY_MS = 30_000;
 
-export type PhoneState = { account: Account | null; data: StudiumData; syncing: boolean; message: string | null; now: Date };
+/** unsaved: a change made here that the cloud hasn't acknowledged yet (offline, Firestore just keeps it queued). */
+export type PhoneState = { account: Account | null; data: StudiumData; syncing: boolean; unsaved: boolean; message: string | null; now: Date };
 
 export type PhoneStudium = {
   state(): PhoneState;
@@ -65,14 +66,15 @@ export function createPhoneStudium(deps: PhoneDeps): PhoneStudium {
   let settings = readSettings(deps.storage);
   let account = deps.auth.current();
   let syncing = false;
+  let unsaved = false;
   let message: string | null = null;
   let now = deps.clock();
   let connectedUid: string | null = null;
   let retry: ReturnType<typeof setTimeout> | null = null;
-  let snapshot: PhoneState = { account, data, syncing, message, now };
+  let snapshot: PhoneState = { account, data, syncing, unsaved, message, now };
 
   const emit = () => {
-    snapshot = { account, data, syncing, message, now };
+    snapshot = { account, data, syncing, unsaved, message, now };
     for (const cb of [...listeners]) cb();
   };
 
@@ -83,6 +85,7 @@ export function createPhoneStudium(deps: PhoneDeps): PhoneStudium {
     }),
     clock: deps.clock,
     device: "Phone",
+    takeOnly: true, // the phone never makes or replaces the account's save
     getLocal: () => ({ data, settings }),
     applyLocal: (d, s) => {
       if (!isValidData(d)) return false;
@@ -109,15 +112,24 @@ export function createPhoneStudium(deps: PhoneDeps): PhoneStudium {
     }, RETRY_MS);
   }
 
+  /** Clears `unsaved` once the cloud has acknowledged everything (Firestore's write promises resolve then). */
+  function whenSaved(): void {
+    void engine.flush().then(() => {
+      if (!syncing || !unsaved) return;
+      unsaved = false;
+      emit();
+    });
+  }
+
   async function connectTo(uid: string): Promise<void> {
     connectedUid = uid;
     try {
-      const result = await engine.connect(uid);
-      // The phone can't make projects, so if it ever holds a save of its own the account's wins.
-      if (result.kind === "picker") await engine.choose(uid, "account");
+      await engine.connect(uid); // takeOnly: never a picker, never an upload
       syncing = true;
       if (message === OFFLINE_MESSAGE) message = null;
-    } catch {
+      whenSaved();
+    } catch (e) {
+      if (e instanceof Error && e.message === SUPERSEDED) return; // a newer connect took over; it reports
       syncing = false;
       if (message !== REPLACED_MESSAGE) message = OFFLINE_MESSAGE;
       scheduleRetry();
@@ -129,7 +141,28 @@ export function createPhoneStudium(deps: PhoneDeps): PhoneStudium {
     if (account) await connectTo(account.uid);
   }
 
+  /** Drops everything of the account on this phone. forget, not stop: a later sign-in then takes the account's
+   * save afresh, instead of taking the now-empty phone for deletions. */
+  function leaveAccount(): void {
+    if (retry) clearTimeout(retry);
+    retry = null;
+    engine.forget();
+    connectedUid = null;
+    account = null;
+    syncing = false;
+    unsaved = false;
+    message = null;
+    data = emptyData(deps.clock());
+    saveData(deps.storage, data);
+    emit();
+  }
+
   deps.auth.onChange((a) => {
+    // Firebase can end the session by itself (password changed elsewhere, token revoked): clean up as for sign-out.
+    if (a === null) {
+      if (account !== null || connectedUid !== null) leaveAccount();
+      return;
+    }
     account = a;
     emit();
     // Signed back in after a restart (Firebase restores the session by itself).
@@ -139,9 +172,11 @@ export function createPhoneStudium(deps: PhoneDeps): PhoneStudium {
 
   function change(next: StudiumData): void {
     data = next;
+    unsaved = true;
     saveData(deps.storage, data);
     emit();
     engine.localChanged();
+    if (syncing) whenSaved();
   }
 
   return {
@@ -157,19 +192,8 @@ export function createPhoneStudium(deps: PhoneDeps): PhoneStudium {
       if (connectedUid !== a.uid) await connectTo(a.uid);
     },
     async signOut() {
-      if (retry) clearTimeout(retry);
-      retry = null;
-      // forget, not stop: the phone drops the account's copy, so a later sign-in takes the account's save
-      // afresh instead of taking the now-empty phone for deletions.
-      engine.forget();
-      connectedUid = null;
+      leaveAccount();
       await deps.auth.signOut();
-      account = null;
-      syncing = false;
-      message = null;
-      data = emptyData(deps.clock());
-      saveData(deps.storage, data);
-      emit();
     },
     reconnect,
     tick() {

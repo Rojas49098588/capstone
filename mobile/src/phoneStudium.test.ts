@@ -50,7 +50,7 @@ async function accountData(remote: FakeRemote): Promise<StudiumData> {
   return fromRecords(liveRecords(r!)).data;
 }
 
-function phone(remote: FakeRemote, auth = new FakeAuth()) {
+function phone(remote: FakeRemote, auth: FakeAuth = new FakeAuth()) {
   return createPhoneStudium({ auth, remote, storage: memory(), clock: () => NOW });
 }
 
@@ -139,4 +139,67 @@ test("signing out leaves the phone empty, and signing back in doesn't delete the
   await p.flush();
   expect((await accountData(remote)).projects.length).toBe(before);
   expect(p.state().data.projects.length).toBe(before);
+});
+
+describe("review fixes", () => {
+  test("the phone never makes or replaces the account's save, even for an account with settings but no projects", async () => {
+    const remote = new FakeRemote();
+    await computer(remote, emptyData(NOW));
+    const replaceAll = jest.spyOn(remote, "replaceAll");
+    const p = phone(remote);
+    await p.signIn(EMAIL, "pw");
+    await p.flush();
+    const empty = new FakeRemote();
+    const replaceEmpty = jest.spyOn(empty, "replaceAll");
+    const q = phone(empty);
+    await q.signIn(EMAIL, "pw");
+    await q.flush();
+    expect(replaceAll).not.toHaveBeenCalled();
+    expect(replaceEmpty).not.toHaveBeenCalled();
+  });
+
+  test("changes not yet acknowledged by the cloud show as unsaved until they are", async () => {
+    const remote = new FakeRemote();
+    await computer(remote, buildSeed(NOW));
+    const p = phone(remote);
+    await p.signIn(EMAIL, "pw");
+    const write = remote.write.bind(remote);
+    let release: () => void = () => undefined;
+    jest.spyOn(remote, "write").mockImplementationOnce((...args) => new Promise<void>((resolve) => (release = () => void write(...args).then(resolve))));
+    p.quickAdd({ projectId: p.state().data.projects[0].id, title: "Held", addToToday: false });
+    expect(p.state().unsaved).toBe(true);
+    await settle();
+    expect(p.state().unsaved).toBe(true);
+    release();
+    await p.flush();
+    await settle();
+    expect(p.state().unsaved).toBe(false);
+  });
+
+  test("overlapping reconnects don't report the phone as offline", async () => {
+    const remote = new FakeRemote();
+    await computer(remote, buildSeed(NOW));
+    const p = phone(remote);
+    await p.signIn(EMAIL, "pw");
+    const load = remote.load.bind(remote);
+    // The first reconnect's read is slow, so it finishes after the second has connected.
+    jest.spyOn(remote, "load").mockImplementationOnce((uid) => new Promise((r) => setTimeout(() => r(load(uid)), 30)));
+    await Promise.all([p.reconnect(), p.reconnect()]);
+    expect(p.state().message).toBeNull();
+    expect(p.state().syncing).toBe(true);
+  });
+
+  test("when Firebase ends the session by itself, the phone signs out cleanly", async () => {
+    const remote = new FakeRemote();
+    await computer(remote, buildSeed(NOW));
+    const auth = new FakeAuth();
+    const p = phone(remote, auth);
+    await p.signIn(EMAIL, "pw");
+    await auth.signOut();
+    await settle();
+    expect(p.state().account).toBeNull();
+    expect(p.state().data.projects).toEqual([]);
+    await p.signIn("other@example.com", "pw");
+    expect(p.state().message).toBeNull();
+  });
 });

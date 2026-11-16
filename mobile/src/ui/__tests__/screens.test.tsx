@@ -143,6 +143,21 @@ describe("Settings and signing in", () => {
     screen.getByText("That password isn't right.");
   });
 
+  test("signing out with changes not yet uploaded asks first", async () => {
+    const { phone, remote } = await signedInPhone(seeded());
+    jest.spyOn(remote, "write").mockImplementation(() => new Promise<void>(() => undefined)); // offline: never acknowledged
+    phone.quickAdd({ projectId: phone.state().data.projects[0].id, title: "Held", addToToday: false });
+    await show(phone, <Root><SettingsScreen /></Root>);
+    screen.getByText("Some changes haven't reached your account yet.");
+    await fireEvent.press(screen.getByText("Sign out"));
+    screen.getByText("Signing out now loses them. Sign out anyway?");
+    expect(phone.state().account).not.toBeNull();
+    await act(async () => {
+      fireEvent.press(screen.getByText("Sign out anyway"));
+    });
+    screen.getByLabelText("Email");
+  });
+
   test("shows the account, and signing out goes back to Sign in", async () => {
     const { phone } = await signedInPhone(seeded());
     await show(
