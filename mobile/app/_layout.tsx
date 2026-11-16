@@ -1,3 +1,4 @@
+import "../src/polyfills"; // first: the shared code needs crypto.randomUUID
 import { DMSerifDisplay_400Regular } from "@expo-google-fonts/dm-serif-display";
 import { Inter_400Regular, Inter_600SemiBold } from "@expo-google-fonts/inter";
 import { useFonts } from "expo-font";
