@@ -246,10 +246,11 @@ later means swapping the file. The style matches today's placeholder decor SVGs 
   for any pet, though each pet has its own toy out. The desktop overlay can't read purchases today
   (`desktop/src/main/petChannel.js` `READABLE_KEYS`). Studium publishes the owned toys to the overlay
   the same way it publishes `petStatuses`, for example a toys list there or a new readable key.
-- **Refund timing:** it runs when the data loads. On a signed-in device it runs only after the first
-  sync with the account has finished, so a device that hasn't pulled old purchases yet can't miss
-  them. The amount uses today's catalog prices, which are unchanged since launch: Scarf 120, Coat
-  180, Puzzle Cube 150.
+- **Refund (updated while planning):** no refund record is saved. The token balance and the inventory simply
+  stop counting purchases of the removed products, using the price stored on each purchase. Because
+  it's worked out from purchases that already sync, it can't be paid twice and needs no wait for a
+  sync. The notice ("…you got N tokens back") is shown once per device, using a flag saved only on
+  that device.
 - **Eggs:** feeding an egg stays blocked as it is today. If it isn't blocked, block it. Favorites
   use the pet's kind from the existing pet data, and the bonus is worked out where feeding happens
   (`actions.ts`).
