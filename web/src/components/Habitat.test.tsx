@@ -147,6 +147,36 @@ describe("Habitat decor", () => {
     expect(screen.queryAllByRole("button", { name: /^Put / })).toHaveLength(0); // not placing
   });
 
+  it("a placed window shows the sky for the time and dims the room at night", () => {
+    const night = new Date(2026, 9, 14, 22, 0);
+    const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: night });
+    expect(document.querySelector("[data-window]")?.getAttribute("data-period")).toBe("night");
+    const tint = screen.getByTestId("room-tint");
+    expect(tint.closest("[data-pet-habitat]")).not.toBeNull(); // the room, not the status panel
+    expect(screen.getByText("Food").closest("[data-pet-habitat]")).toBeNull();
+  });
+
+  it("doesn't dim the room by day", () => {
+    const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: new Date(2026, 9, 14, 12, 0) });
+    expect(document.querySelector("[data-window]")?.getAttribute("data-period")).toBe("day");
+    expect(screen.queryByTestId("room-tint")).toBeNull();
+  });
+
+  it("never dims a habitat without a window", () => {
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data: owning("window"), now: new Date(2026, 9, 14, 22, 0) });
+    expect(screen.queryByTestId("room-tint")).toBeNull();
+  });
+
+  it("dims once with two windows", () => {
+    let data = placeDecor(owning("window", "window"), "webDev", "wallLeft", "window");
+    data = placeDecor(data, "webDev", "wallRight", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: new Date(2026, 9, 14, 22, 0) });
+    expect(screen.getAllByTestId("room-tint")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-window]")).toHaveLength(2);
+  });
+
   it("outlines the free slots while placing", async () => {
     const data = placeDecor(owning("pet-bed", "clock"), "webDev", "floorMiddle", "pet-bed");
     const onPickSlot = vi.fn();

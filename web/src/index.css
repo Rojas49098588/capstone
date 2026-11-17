@@ -74,3 +74,43 @@ textarea {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 3px; }
+
+/* Window decor (shop, toys and window spec): drifting clouds by day, an occasional shooting star at night. */
+.window-motion-day::before,
+.window-motion-day::after {
+  content: "";
+  position: absolute;
+  width: 40%;
+  height: 18%;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.9);
+  animation: window-cloud 26s linear infinite;
+}
+.window-motion-day::before { top: 18%; left: -45%; }
+.window-motion-day::after { top: 52%; left: -45%; width: 30%; animation-duration: 38s; animation-delay: -14s; }
+.window-motion-night::before {
+  content: "";
+  position: absolute;
+  top: 12%;
+  left: 70%;
+  width: 22%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0), #fff);
+  opacity: 0;
+  transform: rotate(-28deg);
+  animation: window-shooting-star 9s ease-in infinite;
+}
+@keyframes window-cloud {
+  from { transform: translateX(0); }
+  to { transform: translateX(360%); }
+}
+@keyframes window-shooting-star {
+  0%, 88% { opacity: 0; translate: 0 0; }
+  90% { opacity: 1; }
+  100% { opacity: 0; translate: -60% 40%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .window-motion::before,
+  .window-motion::after { animation: none; }
+  .window-motion-night::before { display: none; }
+}

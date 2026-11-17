@@ -7,14 +7,18 @@ const ofType = (type: string) => DECOR_ITEMS.filter((i) => i.type === type);
 describe("decor catalog", () => {
   it("has the agreed items and prices", () => {
     const counts = ["wallpaper", "flooring", "rug", "wallDecor", "bed", "petFurniture"].map((t) => ofType(t).length);
-    expect(counts).toEqual([3, 3, 2, 2, 1, 5]);
+    expect(counts).toEqual([3, 3, 2, 3, 1, 5]);
     const prices = ["wallpaper", "flooring", "rug", "wallDecor", "bed", "petFurniture"].map((t) => [...new Set(ofType(t).map((i) => i.price))]);
-    expect(prices).toEqual([[100], [90], [60], [40], [150], [200]]);
+    expect(prices).toEqual([[100], [90], [60], [40, 80], [150], [200]]);
     expect(ofType("wallpaper").map((i) => i.name)).toEqual(["Sage Stripes", "Library Gold", "Night Sky"]);
     expect(ofType("flooring").map((i) => i.name)).toEqual(["Oak Planks", "Stone Tiles", "Grass"]);
     expect(ofType("petFurniture").map((i) => i.name)).toEqual(["Scratching Post", "Heat Lamp", "Perch", "Mini Sofa", "Log"]);
     expect(new Set(DECOR_ITEMS.map((i) => i.id)).size).toBe(DECOR_ITEMS.length);
     for (const i of DECOR_ITEMS) expect(i.image).toBe(`decor/${i.id}.svg`);
+  });
+
+  it("sells a Window for 80 that goes on a wall", () => {
+    expect(findDecor("window")).toMatchObject({ name: "Window", type: "wallDecor", price: 80, slots: ["wallLeft", "wallRight"] });
   });
 
   it("slots follow the type rules", () => {

@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useState, type CSSProperties } from "react";
 import { findPet } from "../planner/pets";
+import { ROOM_TINT, WINDOW_ID, dayPeriod, hasPlacedWindow, type DayPeriod } from "../planner/timeOfDay";
 import type { DecorSlot } from "../planner/types";
 import { allowedIn, findDecor } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
@@ -19,6 +20,17 @@ const place = (b: SlotBox) => ({
   height: `${b.h * 100}%`,
 });
 
+/** A window: the sky for the time of day, its drifting clouds or stars, and the frame on top. */
+function WindowView({ period, style }: { period: DayPeriod; style: CSSProperties }) {
+  return (
+    <div data-window data-period={period} role="img" aria-label={`Window (${period})`} className="absolute overflow-hidden" style={style}>
+      <img src={url(`decor/window-sky-${period}.svg`)} alt="" className="absolute inset-[8%] w-[84%] h-[84%] object-cover" />
+      <div className={`absolute inset-[8%] overflow-hidden window-motion window-motion-${period}`} aria-hidden="true" />
+      <img src={url("decor/window-frame.svg")} alt="" className="absolute inset-0 w-full h-full" />
+    </div>
+  );
+}
+
 /** The habitat's decor, drawn inside the habitat box: wallpaper, flooring, items, and spot outlines. */
 export default function HabitatDecor({ projectId, placing = null, onPickSlot }: Props) {
   const s = useStudiumContext();
@@ -30,6 +42,8 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
   const wallpaper = habitat.wallpaper ? findDecor(habitat.wallpaper) : undefined;
   const flooring = habitat.flooring ? findDecor(habitat.flooring) : undefined;
   const placingItem = placing ? findDecor(placing.itemId) : undefined;
+  const period = dayPeriod(s.now);
+  const tint = hasPlacedWindow(habitat) ? ROOM_TINT[period] : null;
   // While moving a copy within this habitat, its own slot counts as free for the bed rule.
   const rulesHabitat =
     placing?.from?.projectId === projectId ? { ...habitat, [placing.from.slot]: undefined } : habitat;
@@ -53,6 +67,7 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
       {SPOT_SLOTS.map((slot) => {
         const item = habitat[slot] ? findDecor(habitat[slot] as string) : undefined;
         if (!item || broken.has(item.id)) return null;
+        if (item.id === WINDOW_ID) return <WindowView key={slot} period={period} style={place(itemBox(slot, item.type))} />;
         return (
           <DecorArt
             key={slot}
@@ -65,6 +80,9 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
           />
         );
       })}
+      {tint && (
+        <div data-testid="room-tint" aria-hidden="true" className="absolute inset-0 pointer-events-none transition-colors duration-1000" style={{ backgroundColor: tint }} />
+      )}
       {placingItem &&
         SPOT_SLOTS.filter((slot) => !habitat[slot] && allowedIn(rulesHabitat, slot, placingItem.id)).map((slot) => (
           <button
