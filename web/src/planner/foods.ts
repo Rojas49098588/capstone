@@ -52,3 +52,8 @@ export function isFavorite(productId: string, petKind: PetKind): boolean {
   const food = findFood(productId);
   return food !== undefined && food.flavor !== "bland" && FAVORITE_FLAVOR[petKind] === food.flavor;
 }
+
+/** "Sour", "Bland", … for showing a flavor. */
+export function flavorLabel(flavor: Flavor): string {
+  return flavor.charAt(0).toUpperCase() + flavor.slice(1);
+}

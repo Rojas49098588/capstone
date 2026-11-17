@@ -103,7 +103,7 @@ export function runningBoosts(events: StudiumEvent[], projectId: string, now: Da
 }
 
 /** The highest running boost's entry, or null when none is running. */
-function topBoost(events: StudiumEvent[], projectId: string, now: Date): RunningBoost | null {
+export function topMealBoost(events: StudiumEvent[], projectId: string, now: Date): RunningBoost | null {
   let top: RunningBoost | null = null;
   for (const b of runningBoosts(events, projectId, now)) {
     if (!top || b.multiplier > top.multiplier || (b.multiplier === top.multiplier && b.until > top.until)) top = b;
@@ -113,12 +113,12 @@ function topBoost(events: StudiumEvent[], projectId: string, now: Date): Running
 
 /** What tasks on the project earn × now: the highest running boost, never the product of them. */
 export function mealMultiplier(events: StudiumEvent[], projectId: string, now: Date): number {
-  return topBoost(events, projectId, now)?.multiplier ?? 1;
+  return topMealBoost(events, projectId, now)?.multiplier ?? 1;
 }
 
 /** When the project's highest running meal boost ends, or null when none is running. */
 export function mealBoostUntil(events: StudiumEvent[], projectId: string, now: Date): Date | null {
-  return topBoost(events, projectId, now)?.until ?? null;
+  return topMealBoost(events, projectId, now)?.until ?? null;
 }
 
 /** The mood a pet shows: one step up while a snack is lifting it, never for a Sick or Recovering pet. */

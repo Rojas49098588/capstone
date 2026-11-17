@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
@@ -295,7 +295,7 @@ describe("Habitat food", () => {
       tasks: ids.map((id, i) => makeTask({ id, requirementId: "r1", done: i < done })),
       events: [
         ...ids.slice(0, done).map((id) => completed(id, daysAgo(1), { requirementId: "r1" })),
-        ...(o.stocked === false ? [] : [stock("berry-bites"), stock("power-bento")]),
+        ...(o.stocked === false ? [] : [stock("berry-bites"), stock("berry-bites"), stock("power-bento"), stock("power-bento")]),
         ...(o.events ?? []),
       ],
     });
@@ -336,10 +336,36 @@ describe("Habitat food", () => {
     expect(screen.queryByRole("button", { name: /Feed|Not hungry/ })).toBeNull();
   });
 
-  it("sends you to the shop for food you don't have", async () => {
+  it("sends you to the shop when you have no food", async () => {
     const onOpenShop = vi.fn();
     renderWithStudium(<Habitat habitatId="p1" onOpenShop={onOpenShop} />, { data: fed({ stocked: false }) });
-    await userEvent.click(screen.getByRole("button", { name: "Buy Berry Bites in the Shop" }));
+    await userEvent.click(screen.getByRole("button", { name: "Buy food in the Shop" }));
     expect(onOpenShop).toHaveBeenCalled();
+  });
+
+  it("says what the pet loves and marks its favorites", () => {
+    renderWithStudium(<Habitat habitatId="x1" onOpenShop={vi.fn()} />, { data: fed({ events: [stock("sour-gummies")] }) });
+    screen.getByText("Loves sour food");
+    const gummies = screen.getByRole("button", { name: "Feed Sour Gummies" });
+    expect(within(gummies).getByText("♥ Favorite")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: "Feed Power Bento" })).queryByText("♥ Favorite")).toBeNull();
+  });
+
+  it("offers only the foods you own, as snacks and meals", () => {
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed({ events: [stock("plain-crackers"), stock("garden-salad")] }) });
+    screen.getByText("Snacks");
+    screen.getByText("Meals");
+    screen.getByRole("button", { name: "Feed Plain Crackers" });
+    screen.getByRole("button", { name: "Feed Garden Salad" });
+    expect(screen.queryByRole("button", { name: /Seed Crunch|Meaty Stew/ })).toBeNull();
+  });
+
+  it("shows a salad's boost until midnight and a stew's shorter snack wait", () => {
+    const at = new Date(NOW.getTime() - HOUR).toISOString();
+    const salad: StudiumEvent = { type: "fed", at, projectId: "p1", petId: "x1", productId: "garden-salad" };
+    const stew: StudiumEvent = { type: "fed", at, projectId: "p1", petId: "p1", productId: "meaty-stew" };
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed({ events: [salad, stew] }) });
+    screen.getByText("Meal: × 1.05 tokens until midnight");
+    screen.getByText("Snacks every 2h 30m today");
   });
 });

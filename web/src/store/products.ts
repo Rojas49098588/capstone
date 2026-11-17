@@ -18,7 +18,7 @@ export type ShopProduct = {
 function food(id: string, name: string, description: string, effect: string): ShopProduct {
   const spec = findFood(id);
   if (!spec) throw new Error(`No food ${id} in the catalog`);
-  return { id, name, description, category: "Food", price: spec.price, effect };
+  return { id, name, description, category: "Food", price: spec.price, effect, image: `food/${id}.svg` };
 }
 
 export const SHOP_PRODUCTS: ShopProduct[] = [

@@ -3,6 +3,7 @@
 import { isBlocked } from "../planner/blocking";
 import { taskDueDate } from "../planner/dueDates";
 import { canFeed, mealBoostUntil, snackLiftUntil } from "../planner/food";
+import { mealBoostLine } from "../ui/foodText";
 import { projectMood, type ProjectMood } from "../planner/mood";
 import { petMood, petsOf, suggestedPetName, type PetRef } from "../planner/pets";
 import { todayTaskIds } from "../planner/suggest";
@@ -50,8 +51,8 @@ function looksAfter(pet: PetRef, project: Project, data: StudiumData): string {
 
 function foodLine(pet: PetRef, mood: ProjectMood | null, data: StudiumData, now: Date): string | null {
   if (pet.stage === "egg") return null;
-  const boost = mealBoostUntil(data.events, pet.projectId, now);
-  if (boost) return `Meal: × ${MEAL_TOKEN_MULTIPLIER} tokens for ${durationLabel(boost.getTime() - now.getTime())} more`;
+  const boost = mealBoostLine(data.events, pet.projectId, now);
+  if (boost) return boost;
   const meal = canFeed(data, pet, mood, MEAL_PRODUCT_ID, now);
   if (!meal.ok && meal.reason === "wait") return "Next meal tomorrow";
   const lift = mood?.liftedFrom ? snackLiftUntil(data.events, pet.petId, now) : null;

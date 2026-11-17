@@ -56,6 +56,11 @@ describe("petGroups", () => {
     expect(biscuit.looksAfter).toBe("Looks after the whole project");
   });
 
+  it("names the running meal's multiplier, and \"until midnight\" for a salad", () => {
+    const salad: StudiumEvent = { type: "fed", at: ago(HOUR), projectId: "p1", petId: "p1", productId: "garden-salad" };
+    expect(petGroups(makeData({ events: [salad] }), NOW)[0].pets[0].food).toBe("Meal: × 1.05 tokens until midnight");
+  });
+
   it("says how a meal or a snack is helping", () => {
     const boost = makeData({ events: [stock("power-bento"), meal(ago(3 * HOUR))] });
     expect(petGroups(boost, NOW)[0].pets[0].food).toBe("Meal: × 1.1 tokens for 1h 0m more");
