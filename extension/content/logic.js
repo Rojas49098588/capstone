@@ -114,6 +114,9 @@
       .map((f) => ({ use: f.use, slot: f.slot }));
   }
 
+  // Toys that work on the desktop pets, in Shop order (TOY_PRODUCT_IDS in web/src/planner/tuning.ts).
+  const TOY_IDS = ['focus-ball', 'robo-mouse'];
+
   function cleanStatus(p) {
     if (!p || typeof p !== 'object') return null;
     if (!text(p.projectId) || !PET_KINDS.includes(p.petKind) || !MOODS.includes(p.mood)) return null;
@@ -138,6 +141,7 @@
       furniture: cleanFurniture(p.furniture),
       deadline: isDateKey(p.deadline) ? p.deadline : null, // missing in statuses from older Studium builds
       stage: p.stage === 'juvenile' ? 'juvenile' : 'adult', // missing in statuses from older Studium builds
+      favoriteFedAt: text(p.favoriteFedAt) ? p.favoriteFedAt : null, // when it last ate its favorite food
     };
   }
 
@@ -170,7 +174,8 @@
         pets.push(clean);
       }
     }
-    return { updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '', pets };
+    const toys = Array.isArray(value.toys) ? TOY_IDS.filter((id) => value.toys.includes(id)) : [];
+    return { updatedAt: typeof value.updatedAt === 'string' ? value.updatedAt : '', pets, toys };
   }
 
   /** Saved pet positions ({ [petId]: { xRatio } }), keeping only usable entries. */

@@ -1,10 +1,13 @@
 // Tells the browser extension how each project's pet is doing (spec section 5).
 // The extension's content script reads this key on the Studium page and on PET_STATUS_EVENT.
 import { isBlocked } from "../planner/blocking";
+import { isFavorite } from "../planner/foods";
+import { inventory } from "../planner/history";
 import { estimateMultipliers } from "../planner/learning";
 import { petMood, petsOf, suggestedPetName, type PetRef } from "../planner/pets";
 import { projectMood } from "../planner/mood";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
+import { TOY_PRODUCT_IDS } from "../planner/tuning";
 import type { DecorSlot, Mood, PetKind, StudiumData } from "../planner/types";
 import { DECOR_SLOTS, findDecor, type FurnitureUse } from "./decor";
 
@@ -52,11 +55,12 @@ export type PetStatus = {
   furniture: PetFurniture[]; // what the pet can use in its habitat
   deadline: string; // the project's "YYYY-MM-DD" due date, for "Which pets show first"
   stage: "juvenile" | "adult"; // eggs aren't sent at all: they stay in Studium's habitat
+  favoriteFedAt: string | null; // when this pet last ate its favorite food: the pets show a heart
 };
 
 export type PetFurniture = { use: FurnitureUse; slot: DecorSlot };
 
-export type PetStatuses = { updatedAt: string; pets: PetStatus[] };
+export type PetStatuses = { updatedAt: string; pets: PetStatus[]; toys: string[] }; // toys: owned toy ids, for the desktop pets' Toys menu
 
 /** Something kept per project and per requirement: a pet sees its project's, or its requirement's. */
 type Scoped<T> = { project: Map<string, T>; requirement: Map<string, T> };
@@ -166,10 +170,23 @@ export function buildPetStatuses(data: StudiumData, now: Date): PetStatuses {
         celebration: forPet(celebrated, pet) ?? null,
         furniture: furnitureFor(pet.habitatId, pet.kind, data),
         stage: pet.stage === "juvenile" ? "juvenile" : "adult",
+        favoriteFedAt: favoriteFedAt(data, pet.petId, pet.kind, now),
       });
     }
   }
-  return { updatedAt: now.toISOString(), pets };
+  const owned = inventory(data.events);
+  return { updatedAt: now.toISOString(), pets, toys: TOY_PRODUCT_IDS.filter((id) => (owned[id] ?? 0) > 0) };
+}
+
+/** When this pet last ate a food of its favorite flavor (up to now), or null. */
+function favoriteFedAt(data: StudiumData, petId: string, kind: PetKind, now: Date): string | null {
+  let latest: string | null = null;
+  for (const e of data.events) {
+    if (e.type !== "fed" || e.petId !== petId || !isFavorite(e.productId, kind)) continue;
+    if (Date.parse(e.at) > now.getTime()) continue;
+    if (latest === null || Date.parse(e.at) > Date.parse(latest)) latest = e.at;
+  }
+  return latest;
 }
 
 /** Saves the statuses where the extension looks for them. False if they couldn't be saved. */

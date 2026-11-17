@@ -29,6 +29,23 @@ describe("pet statuses", () => {
     expect(s.pets[2].idleRequirement).toEqual({ title: "Rigging", days: 9 });
   });
 
+  it("lists the toys you own, in the catalog's order", () => {
+    expect(buildPetStatuses(buildSeed(NOW), NOW).toys).toEqual([]);
+    let data = purchase({ ...buildSeed(NOW), startingTokens: 5000 }, "robo-mouse", NOW).data;
+    data = purchase(data, "focus-ball", NOW).data;
+    expect(buildPetStatuses(data, NOW).toys).toEqual(["focus-ball", "robo-mouse"]);
+  });
+
+  it("says when a pet last ate its favorite food", () => {
+    const at = new Date(NOW.getTime() - 60_000).toISOString();
+    // The Animation project's pet is a frog: sour is its favorite.
+    const fed = (productId: string) => ({ ...buildSeed(NOW), events: [...buildSeed(NOW).events, { type: "fed" as const, at, projectId: "Animation", petId: "Animation", productId }] });
+    const frog = (data: StudiumData) => buildPetStatuses(data, NOW).pets.find((p) => p.petId === "Animation")!;
+    expect(frog(fed("sour-gummies")).favoriteFedAt).toBe(at);
+    expect(frog(fed("berry-bites")).favoriteFedAt).toBeNull();
+    expect(frog(buildSeed(NOW)).favoriteFedAt).toBeNull();
+  });
+
   it("marks a pet that is recovering", () => {
     let data = purchase(buildSeed(NOW), "medicine", NOW).data;
     data = giveMedicine(data, "seniorCap", NOW).data;

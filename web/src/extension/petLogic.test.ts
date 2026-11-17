@@ -58,6 +58,15 @@ describe("parseStatuses", () => {
     expect(s.pets[1].idleRequirement).toEqual({ title: "Push", days: 9 });
   });
 
+  it("reads owned toys and favorite feedings, and older statuses without them", () => {
+    const s = L.parseStatuses({ pets: [pet({ favoriteFedAt: "2026-10-14T11:00:00.000Z" })], toys: ["focus-ball", "bogus", 3] });
+    expect(s.toys).toEqual(["focus-ball"]);
+    expect(s.pets[0].favoriteFedAt).toBe("2026-10-14T11:00:00.000Z");
+    const old = L.parseStatuses({ pets: [pet()] });
+    expect(old.toys).toEqual([]);
+    expect(old.pets[0].favoriteFedAt).toBeNull();
+  });
+
   it("drops pets it can't draw and rejects damaged data", () => {
     const s = L.parseStatuses({ pets: [pet({ petKind: "dragon" }), pet({ mood: "Bored" }), pet({ projectId: "" }), pet(), pet()] });
     expect(s.pets).toHaveLength(1);
