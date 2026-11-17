@@ -44,10 +44,17 @@ export function retiredRefund(events: StudiumEvent[]): { tokens: number; count: 
 
 export function tokenBalance(data: Pick<StudiumData, "events" | "startingTokens">): number {
   let balance = data.startingTokens ?? LEGACY_STARTING_TOKENS;
+  // A feeding pays only if a copy was owned: two devices feeding the same last copy offline get paid once.
+  const stock: Record<string, number> = {};
   for (const e of data.events) {
     if (e.type === "task_completed") balance += e.tokens;
-    else if (e.type === "purchase" && !isRetired(e.productId)) balance -= e.price;
-    else if (e.type === "fed") balance += e.tokens ?? 0;
+    else if (e.type === "purchase" && !isRetired(e.productId)) {
+      balance -= e.price;
+      stock[e.productId] = (stock[e.productId] ?? 0) + 1;
+    } else if (e.type === "fed" && (stock[e.productId] ?? 0) > 0) {
+      stock[e.productId] -= 1;
+      balance += e.tokens ?? 0;
+    }
   }
   return balance;
 }

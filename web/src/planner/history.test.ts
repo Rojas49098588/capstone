@@ -31,10 +31,17 @@ describe("removed products and food tokens", () => {
     expect(retiredRefund(clothes)).toEqual({ tokens: 480, count: 3 });
     expect(retiredRefund([buy("medicine", 80)])).toEqual({ tokens: 0, count: 0 });
   });
+  it("pays a feeding's tokens only when a copy was owned, so two offline devices can't both cash one", () => {
+    const fed = (petId: string): StudiumEvent => ({ type: "fed", at: daysAgo(1), projectId: "p1", petId, productId: "sour-gummies", tokens: 23 });
+    const events: StudiumEvent[] = [buy("sour-gummies", 40), fed("p1"), fed("x1")];
+    expect(tokenBalance({ events, startingTokens: 100 })).toBe(100 - 40 + 23);
+  });
+
   it("adds a feeding's tokens, and nothing for older feedings", () => {
     const fed = (o: object = {}): StudiumEvent => ({ type: "fed", at: daysAgo(1), projectId: "p1", petId: "p1", productId: "sour-gummies", ...o });
-    expect(tokenBalance({ events: [fed({ tokens: 23 })], startingTokens: 100 })).toBe(123);
-    expect(tokenBalance({ events: [fed()], startingTokens: 100 })).toBe(100);
+    const owned = buy("sour-gummies", 0);
+    expect(tokenBalance({ events: [owned, fed({ tokens: 23 })], startingTokens: 100 })).toBe(123);
+    expect(tokenBalance({ events: [owned, fed()], startingTokens: 100 })).toBe(100);
   });
 });
 
