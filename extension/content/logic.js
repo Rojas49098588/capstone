@@ -196,7 +196,7 @@
    * mustn't rebuild pets. Furniture does count, so the habitat pet learns what it can use.
    */
   function statusesEqual(a, b) {
-    const looks = (s) => s?.pets?.map(({ suggestion, napTasks, celebration, ...rest }) => rest) ?? null;
+    const looks = (s) => s?.pets?.map(({ suggestion, napTasks, celebration, favoriteFedAt, ...rest }) => rest) ?? null;
     return JSON.stringify(looks(a)) === JSON.stringify(looks(b));
   }
 
@@ -595,7 +595,11 @@
   }
 
   // Every completion celebrates; a project's first completed task and a finished requirement celebrate bigger.
+  // What a pet says when it just ate its favorite food.
+  const favoriteHeartText = '♥';
+
   function celebrationText(kind) {
+    if (kind === 'favorite') return favoriteHeartText;
     if (kind === 'requirement') return 'Requirement finished!';
     if (kind === 'firstTask') return 'First task done!';
     return 'Task done!';
@@ -620,6 +624,28 @@
       if (seen && (before === undefined || Date.parse(p.celebration.at) > Date.parse(before))) {
         celebrate.push({ petId: petKey(p), kind: p.celebration.kind });
       }
+    }
+    return { seen: next, celebrate };
+  }
+
+  // A favorite feeding older than this when the tab first hears of it shows no heart (after a restart, say).
+  const FAVORITE_FRESH_MS = 60_000;
+
+  /**
+   * Which pets should show a heart for eating their favorite food. Works like newCelebrations: `seen`
+   * ({ [petId]: at }) stays null until the first statuses, which only fill it in.
+   */
+  function newFavorites(seen, statuses, now) {
+    if (!statuses) return { seen, celebrate: [] };
+    const next = {};
+    const celebrate = [];
+    for (const p of statuses.pets) {
+      if (!p.favoriteFedAt) continue;
+      next[petKey(p)] = p.favoriteFedAt;
+      const at = Date.parse(p.favoriteFedAt);
+      const before = seen?.[petKey(p)];
+      const isNew = before === undefined || at > Date.parse(before);
+      if (seen && isNew && now - at <= FAVORITE_FRESH_MS) celebrate.push({ petId: petKey(p), kind: 'favorite' });
     }
     return { seen: next, celebrate };
   }
@@ -1045,6 +1071,8 @@
     checkInPrompt,
     napPrompt,
     celebrationText,
+    favoriteHeartText,
+    newFavorites,
     celebrationHops,
     newCelebrations,
     awayAttribute,

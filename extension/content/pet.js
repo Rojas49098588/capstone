@@ -972,6 +972,7 @@
   let liveHabitats = []; // petHabitat (desktop app): the pets whose habitats show in the Studium window
   let timing = L.mischiefTiming(null); // mischief gaps (desktop app), shortened by petTimingOverride.mischiefMinutes
   let seenCelebrations = null; // { [petId]: at } already seen by this tab (null until the first statuses)
+  let seenFavorites = null; // the same for favorite-food feedings (a heart)
   let pendingCelebrations = [];
 
   const send = (msg) => {
@@ -1236,6 +1237,9 @@
     const r = L.newCelebrations(seenCelebrations, statuses);
     seenCelebrations = r.seen;
     pendingCelebrations.push(...r.celebrate);
+    const f = L.newFavorites(seenFavorites, statuses, Date.now());
+    seenFavorites = f.seen;
+    pendingCelebrations.push(...f.celebrate);
     playCelebrations();
   }
 
