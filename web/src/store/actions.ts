@@ -559,7 +559,7 @@ export function feedPet(data: StudiumData, projectId: string, petId: string, pro
   const pet = findPet(data, petId);
   const kind = foodKind(productId);
   if (!pet || pet.projectId !== projectId || kind === null) return { data, ok: false };
-  if (!canFeed(data, pet, petMood(pet, data, now), kind, now).ok) return { data, ok: false };
+  if (!canFeed(data, pet, petMood(pet, data, now), productId, now).ok) return { data, ok: false };
   return { data: { ...data, events: withEvent(data, { type: "fed", at: stamp(now), projectId, petId, productId }) }, ok: true };
 }
 

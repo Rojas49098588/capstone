@@ -19,7 +19,7 @@ export default function FoodPanel({ pet, mood, onOpenShop }: Props) {
   const now = s.now;
   const liftEnd = mood.liftedFrom ? snackLiftUntil(s.data.events, pet.petId, now) : null;
   const boostEnd = mealBoostUntil(s.data.events, pet.projectId, now);
-  const checks = Object.fromEntries(FOODS.map((f) => [f.kind, canFeed(s.data, pet, mood, f.kind, now)])) as Record<FoodKind, FeedCheck>;
+  const checks = Object.fromEntries(FOODS.map((f) => [f.kind, canFeed(s.data, pet, mood, f.productId, now)])) as Record<FoodKind, FeedCheck>;
   const left = (end: Date) => durationLabel(end.getTime() - now.getTime());
 
   const waits: string[] = [];
