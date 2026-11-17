@@ -249,7 +249,7 @@ describe("buying decor", () => {
 
   it("refuses decor it can't afford", () => {
     const seed = buildSeed(NOW);
-    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: tokenBalance(seed) - 199 });
+    seed.events.push({ type: "purchase", at: NOW.toISOString(), productId: "robo-mouse", price: tokenBalance(seed) - 199 });
     expect(purchase(seed, "log", NOW).ok).toBe(false);
   });
 });
@@ -553,6 +553,14 @@ describe("feedPet", () => {
     expect(r.ok).toBe(true);
     expect(r.data.events[r.data.events.length - 1]).toEqual({ type: "fed", at: NOW.toISOString(), projectId: "p1", petId: "x1", productId: "berry-bites" });
     expect(inventory(r.data.events)["berry-bites"]).toBe(1);
+  });
+
+  it("records the tokens a feeding gives, and the balance goes up by them", () => {
+    const d = worried([stock("sour-gummies")]);
+    const r = feedPet(d, "p1", "x1", "sour-gummies", NOW);
+    expect(r.ok).toBe(true);
+    expect(r.data.events[r.data.events.length - 1]).toMatchObject({ type: "fed", productId: "sour-gummies", tokens: 23 });
+    expect(tokenBalance(r.data)).toBe(tokenBalance(d) + 23);
   });
 
   it("refuses what canFeed refuses and changes nothing", () => {

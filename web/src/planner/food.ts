@@ -1,13 +1,13 @@
 // Food (food spec; shop, toys and window spec): a snack lifts a struggling pet's shown mood or gives
 // tokens, a meal boosts its project's tokens or shortens the pet's snack wait. Everything is worked
 // out from "fed" events, the food catalog (foods.ts) and the current time.
-import { findFood, type FoodKind } from "./foods";
+import { findFood, isFavorite, type FoodKind } from "./foods";
 import { inventory } from "./history";
 import type { ProjectMood } from "./mood";
 import type { PetRef } from "./pets";
 import { addDays, localDateKey, startOfLocalDay } from "./time";
-import { SNACK_WAIT_HOURS } from "./tuning";
-import type { Mood, StudiumData, StudiumEvent } from "./types";
+import { FAVORITE_BONUS_SHARE, SNACK_WAIT_HOURS } from "./tuning";
+import type { Mood, PetKind, StudiumData, StudiumEvent } from "./types";
 
 export type { FoodKind } from "./foods";
 
@@ -154,4 +154,12 @@ export function canFeed(data: StudiumData, pet: PetRef, mood: ProjectMood | null
   const extendsBoost =
     food.effect.type === "boost" && food.effect.extends && runningBoosts(data.events, pet.projectId, now).some((b) => b.productId === productId);
   return { ok: true, extendsBoost };
+}
+
+/** The tokens a feeding gives: the food's instant tokens, plus a share of its price when it's the pet's favorite. */
+export function feedTokens(productId: string, petKind: PetKind): number {
+  const food = findFood(productId);
+  if (!food) return 0;
+  const instant = food.effect.type === "tokens" ? food.effect.tokens : 0;
+  return instant + (isFavorite(productId, petKind) ? Math.floor(food.price * FAVORITE_BONUS_SHARE) : 0);
 }

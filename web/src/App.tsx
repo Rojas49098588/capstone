@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react
 import CompletionPrompt from "./components/CompletionPrompt";
 import FirstProjectPrompt from "./components/FirstProjectPrompt";
 import NoticeBanner from "./components/NoticeBanner";
+import RefundNotice from "./components/RefundNotice";
 import Overview from "./components/Overview";
 import ProjectDetail from "./components/ProjectDetail";
 import ProjectModal from "./components/ProjectModal";
@@ -13,7 +14,7 @@ import Shop, { type ShopTab } from "./components/Shop";
 import Toast from "./components/Toast";
 import Tour from "./components/Tour";
 import { isBlocked } from "./planner/blocking";
-import { tokenBalance } from "./planner/history";
+import { retiredRefund, tokenBalance } from "./planner/history";
 import { StudiumProvider, useStudiumContext } from "./store/useStudium";
 import { AccountProvider } from "./sync/AccountProvider";
 import { parseHashLink } from "./ui/hashLinks";
@@ -262,6 +263,7 @@ export function StudiumApp() {
       </nav>
 
       <NoticeBanner notice={s.notice} onDismiss={s.dismissNotice} />
+      <RefundNotice tokens={retiredRefund(s.data.events).tokens} storage={s.storage} />
 
       <main className="max-w-6xl mx-auto w-full px-6 py-10">
         {page === "shop" ? (

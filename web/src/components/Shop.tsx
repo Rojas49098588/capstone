@@ -16,7 +16,6 @@ const TABS: { id: ShopTab; label: string }[] = [
 const CATEGORIES: { category: ShopCategory; blurb: string }[] = [
   { category: "Care", blurb: "Health & recovery" },
   { category: "Food", blurb: "Care & energy" },
-  { category: "Clothes", blurb: "Companion style" },
   { category: "Toys", blurb: "Play & enrichment" },
 ];
 
@@ -35,13 +34,6 @@ function ProductIcon({ category }: { category: ShopCategory }) {
       <svg {...common}>
         <path d="M14 28h36l-4 22H18l-4-22Z" strokeWidth="2" strokeLinejoin="round" />
         <path d="M21 28c1-8 6-13 11-13s10 5 11 13M26 20c-2-5 1-9 6-10" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (category === "Clothes") {
-    return (
-      <svg {...common}>
-        <path d="m22 14-12 9 7 10 6-4v22h18V29l6 4 7-10-12-9c-2 4-5 6-10 6s-8-2-10-6Z" strokeWidth="2" strokeLinejoin="round" />
       </svg>
     );
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canFeed, foodKind, liftMood, mealBoostUntil, mealMultiplier, runningBoosts, snackLiftUntil, snackWaitHours, withSnack } from "./food";
+import { canFeed, feedTokens, foodKind, liftMood, mealBoostUntil, mealMultiplier, runningBoosts, snackLiftUntil, snackWaitHours, withSnack } from "./food";
 import { FAVORITE_FLAVOR, FOODS, findFood, isFavorite } from "./foods";
 import type { ProjectMood } from "./mood";
 import { findPet } from "./pets";
@@ -295,5 +295,15 @@ describe("the new foods' rules", () => {
       events: [fedAt("garden-salad", new Date(NOW.getTime() - HOUR))],
     });
     expect(computeCompletionPayout(d, "a", 60, NOW).breakdown.foodMultiplier).toBe(1.05);
+  });
+});
+
+describe("feedTokens", () => {
+  it("is the instant tokens plus a fifth of the price for a favorite", () => {
+    expect(feedTokens("sour-gummies", "frog")).toBe(23);
+    expect(feedTokens("sour-gummies", "cat")).toBe(15);
+    expect(feedTokens("power-bento", "cat")).toBe(12);
+    expect(feedTokens("berry-bites", "frog")).toBe(0);
+    expect(feedTokens("medicine", "frog")).toBe(0);
   });
 });

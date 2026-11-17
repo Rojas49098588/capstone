@@ -494,11 +494,11 @@ describe("sync engine: while connected", () => {
     const b = device(remote, "Desktop");
     await b.engine.connect("u1");
 
-    // Each spends 180 of the 200 before hearing about the other's purchase.
+    // Each spends 120 of the 200 before hearing about the other's purchase.
     a.advance(60_000);
-    a.edit((d) => A.purchase(d, "rainy-day-coat", a.now()).data);
+    a.edit((d) => A.purchase(d, "robo-mouse", a.now()).data);
     b.advance(120_000);
-    b.edit((d) => A.purchase(d, "rainy-day-coat", b.now()).data);
+    b.edit((d) => A.purchase(d, "robo-mouse", b.now()).data);
     b.engine.localChanged();
     await b.engine.flush();
     a.engine.localChanged();
@@ -507,12 +507,12 @@ describe("sync engine: while connected", () => {
 
     for (const d of [a.data, b.data]) {
       expect(d.events.filter((e) => e.type === "purchase")).toHaveLength(2);
-      expect(tokenBalance(d)).toBe(-160);
+      expect(tokenBalance(d)).toBe(-40);
       expect(A.purchase(d, "berry-bites", NOW).ok).toBe(false);
     }
 
     renderWithStudium(createElement(Shop), { data: a.data });
-    screen.getByText("-160");
+    screen.getByText("-40");
   });
 });
 
@@ -672,7 +672,7 @@ describe("sync engine: keeping this computer's save while another device is link
   /** The desktop linked "u1" with a Novel project and a purchase; the laptop then links with an Essay and keeps its own. */
   async function laptopKeepsItsOwn(remote: FakeRemote, desktopStaysConnected: boolean) {
     const novel = withProject("Novel");
-    const bought = A.purchase({ ...novel.data, startingTokens: 5000 }, "rainy-day-coat", NOW).data;
+    const bought = A.purchase({ ...novel.data, startingTokens: 5000 }, "robo-mouse", NOW).data;
     const b = device(remote, "Desktop", bought, BEE);
     await b.engine.connect("u1");
     if (!desktopStaysConnected) b.engine.stop();
@@ -719,7 +719,7 @@ describe("sync engine: keeping this computer's save while another device is link
       await back;
       return send(...args);
     });
-    b.edit((d) => A.purchase(d, "rainy-day-coat", NOW).data);
+    b.edit((d) => A.purchase(d, "robo-mouse", NOW).data);
     b.engine.localChanged();
     const sending = b.engine.flush(); // sent now, but it won't arrive until later
 

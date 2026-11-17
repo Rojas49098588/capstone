@@ -22,7 +22,7 @@ type Props = {
 };
 
 type Tab = "items" | "furniture";
-const SUPPLY_GROUPS: ShopCategory[] = ["Care", "Food", "Clothes", "Toys"];
+const SUPPLY_GROUPS: ShopCategory[] = ["Care", "Food", "Toys"];
 const isSurface = (item: DecorItem) => item.type === "wallpaper" || item.type === "flooring";
 const SURFACE_NAMES: Record<string, string> = { wallpaper: "wallpaper", flooring: "flooring" };
 

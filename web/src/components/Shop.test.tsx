@@ -32,7 +32,7 @@ describe("Shop", () => {
 
   it("disables what you can't afford", () => {
     const data = buildSeed(NOW);
-    data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: 600 });
+    data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "robo-mouse", price: 600 });
     renderWithStudium(<Shop />, { data });
     expect((screen.getByRole("button", { name: "Need 30 more" }) as HTMLButtonElement).disabled).toBe(true);
   });

@@ -2,7 +2,7 @@
 // Every change that matters for history appends an event.
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { taskDueLimit } from "../planner/dueDates";
-import { canFeed, foodKind } from "../planner/food";
+import { canFeed, feedTokens, foodKind } from "../planner/food";
 import { inventory, tokenBalance } from "../planner/history";
 import { hatchIfReady } from "../planner/lifecycle";
 import { eggProductId, eggRefusal, findPet, habitatIds, petMood, petsOf, settlePets, suggestedPetName, type PetNews } from "../planner/pets";
@@ -560,7 +560,9 @@ export function feedPet(data: StudiumData, projectId: string, petId: string, pro
   const kind = foodKind(productId);
   if (!pet || pet.projectId !== projectId || kind === null) return { data, ok: false };
   if (!canFeed(data, pet, petMood(pet, data, now), productId, now).ok) return { data, ok: false };
-  return { data: { ...data, events: withEvent(data, { type: "fed", at: stamp(now), projectId, petId, productId }) }, ok: true };
+  const tokens = feedTokens(productId, pet.kind);
+  const fed: StudiumEvent = { type: "fed", at: stamp(now), projectId, petId, productId, ...(tokens > 0 ? { tokens } : {}) };
+  return { data: { ...data, events: withEvent(data, fed) }, ok: true };
 }
 
 // ---- Bought pets ----
