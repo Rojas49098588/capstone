@@ -34,9 +34,11 @@ export function SublabelTag({ text }: { text: string }) {
   );
 }
 
-export default function RequirementCard({ requirementId, onRequestComplete, onHatch, collapsed = false, onToggleCollapsed, taskFilter, reorderable = true }: Props) {
+export default function RequirementCard({ requirementId, onRequestComplete, onHatch, collapsed: collapsedWanted = false, onToggleCollapsed, taskFilter, reorderable = true }: Props) {
   const s = useStudiumContext();
   const [mode, setMode] = useState<Mode>("view");
+  // A card with an open form (edit, add task, delete) stays open, so collapsing never throws away typing.
+  const collapsed = collapsedWanted && mode === "view";
   const requirement = s.data.requirements.find((r) => r.id === requirementId);
   const project = requirement ? s.data.projects.find((p) => p.id === requirement.projectId) : undefined;
   if (!requirement || !project) return null;
@@ -61,7 +63,7 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
       type="button"
       aria-label={`${collapsed ? "Expand" : "Collapse"} ${requirement.title}`}
       aria-expanded={!collapsed}
-      disabled={mode === "edit"}
+      disabled={mode !== "view"}
       onClick={onToggleCollapsed}
       className="flex-shrink-0 w-5 text-sm leading-6 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-30"
     >

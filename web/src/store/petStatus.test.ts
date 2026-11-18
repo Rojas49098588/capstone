@@ -4,7 +4,7 @@ import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRe
 import { findPet, petMood } from "../planner/pets";
 import type { ExtraPet, StudiumData } from "../planner/types";
 import { memoryStorage } from "../test/render";
-import { completeTask, giveMedicine, placeDecor, purchase, reopenTask } from "./actions";
+import { completeTask, giveMedicine, moveTodayTask, placeDecor, purchase, reopenTask } from "./actions";
 import { PET_STATUS_EVENT, PET_STATUS_KEY, buildPetStatuses, publishPetStatuses } from "./petStatus";
 import { buildSeed } from "./seed";
 
@@ -95,6 +95,12 @@ function suggestData(todayIds = ["f"]) {
 describe("pet suggestions", () => {
   it("suggests today's tasks for the project first", () => {
     expect(buildPetStatuses(suggestData(), NOW).pets[0].suggestion).toEqual({ taskId: "f", title: "Task", estimateMin: 60 });
+  });
+
+  it("follows the order you set for Today (owner's ruling, 2026-11-18)", () => {
+    const data = suggestData(["f", "b"]);
+    expect(buildPetStatuses(data, NOW).pets[0].suggestion?.taskId).toBe("f");
+    expect(buildPetStatuses(moveTodayTask(data, "b", 0, NOW), NOW).pets[0].suggestion?.taskId).toBe("b");
   });
 
   it("then follows Suggested next", () => {

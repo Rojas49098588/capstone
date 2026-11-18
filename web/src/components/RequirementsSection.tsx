@@ -28,14 +28,15 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
   };
   const requirements = s.data.requirements.filter((r) => r.projectId === projectId);
   const words = wordsFor(s.data.projects.find((p) => p.id === projectId));
-  const shown = viewOf(projectId, s.data, current.view, s.now);
+  // No requirements: no ≡ menu to get back with, so always Show all (Unlinked tasks must never be hidden then).
+  const view: RequirementView = requirements.length === 0 ? "all" : current.view;
+  const shown = viewOf(projectId, s.data, view, s.now);
   const collapsed = new Set(current.collapsed);
   const allCollapsed = shown.requirements.length > 0 && shown.requirements.every((r) => collapsed.has(r.id));
   const unlinkedFilter = shown.tasksShown(null);
   const unlinkedAll = sortListTasks(s.data.tasks.filter((t) => t.projectId === projectId && t.requirementId === null));
   const unlinked = shown.showUnlinked ? unlinkedAll.filter(unlinkedFilter) : [];
   const unlinkedOpen = unlinkedAll.filter((t) => !t.done).length;
-  const view = current.view;
   const setView = (v: RequirementView) => setPrefs({ ...current, view: v });
   const toggle = (id: string) =>
     setPrefs({ ...current, collapsed: collapsed.has(id) ? current.collapsed.filter((x) => x !== id) : [...current.collapsed, id] });

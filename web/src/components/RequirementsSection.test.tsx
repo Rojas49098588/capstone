@@ -123,4 +123,22 @@ describe("the condensed requirements view", () => {
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(menuButton());
   });
+
+  it("a project with no requirements always shows its Unlinked tasks, whatever view was saved", () => {
+    const storage = memoryStorage();
+    storage.setItem("studium.requirementView.p1", JSON.stringify({ view: "soon", collapsed: [] }));
+    const d = makeData({ tasks: [makeTask({ id: "u", requirementId: null, title: "Email advisor" })] });
+    renderWithStudium(<RequirementsSection projectId="p1" onRequestComplete={vi.fn()} onHatch={vi.fn()} />, { data: d, storage });
+    screen.getByText("Email advisor");
+  });
+
+  it("a card with an open form stays open, so Collapse all never throws away typing", async () => {
+    show();
+    await userEvent.click(within(card("Prototype 11")).getByRole("button", { name: "+ Add task" }));
+    expect((screen.getByRole("button", { name: "Collapse Prototype 11" }) as HTMLButtonElement).disabled).toBe(true);
+    await userEvent.type(within(card("Prototype 11")).getAllByRole("textbox")[0], "Half typed");
+    await pick("Collapse all");
+    expect((within(card("Prototype 11")).getAllByRole("textbox")[0] as HTMLInputElement).value).toBe("Half typed");
+    expect(within(card("Prototype 9")).queryByRole("progressbar")).toBeNull();
+  });
 });

@@ -167,3 +167,7 @@ these are display choices, and syncing them would add records for no benefit.
 - How Move up and Move down are presented.
 - The exact order-number scheme.
 - The look of the ▾ toggle, the ≡ menu, the sublabel tag and the empty lines, in Studium's style.
+
+## Settled after the final review (Claude's call, 2026-11-18; the owner can reverse it)
+
+- **Today's order does reach the pets.** Pets have always offered Today's tasks in the order of `today.taskIds`, so after a reorder "What should I work on?" names the task you put first. That's the order you chose, so it stays. This narrows the anti-goal "order never changes planning" to: suggestions from Suggested next, tokens, mood and progress never read the order. Pinned by `petStatus.test.ts` "follows the order you set for Today". Undoing it would mean saving the order tasks were added in separately.
