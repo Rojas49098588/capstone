@@ -1,7 +1,7 @@
 {
   "name": "studium-desktop",
   "productName": "Studium",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "Studium and its project pets as a desktop app",
   "homepage": "https://studium-9a00e.web.app",
   "private": true,
