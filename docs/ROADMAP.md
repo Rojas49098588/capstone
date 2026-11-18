@@ -59,6 +59,13 @@ Found in the whole-branch reviews of the companion app work; none blocks the dem
 - [ ] "Save details" closes without a message if the save is refused (e.g. the requirement was deleted meanwhile).
 - [ ] Import order in `web/src/components/RequirementCard.tsx`.
 
+**Food and the window (from the 2026-11-17 review)**
+- [ ] The refund notice says "Clothes" even when only the Puzzle Cube was refunded.
+- [ ] Feeding a weaker meal (Plain Rice) while a stronger boost runs uses up the pet's meal for nothing, with no warning.
+- [ ] The phone's meal suggestion always names Power Bento (× 1.1 for 4 hours).
+- [ ] The snack-rule test checks a fixed 2.5 h instead of the shortest wait in the food catalog.
+- [ ] A browser habitat without the extension shows no ♥ for a favorite food (the desktop is fine).
+
 ## After December 3
 
 Each of these builds on accounts.
