@@ -267,14 +267,16 @@ export function nextRequirementTitle(title: string, taken: string[] = []): strin
       if (free(name)) return name;
     }
   }
-  if (free(`${title} (copy)`)) return `${title} (copy)`;
-  for (let n = 2; ; n++) if (free(`${title} (copy ${n})`)) return `${title} (copy ${n})`;
+  // No number at the end: "Final report (1)", "(2)"… A copy of a copy counts on from the same base.
+  const base = title.trim().replace(/ \(\d+\)$/, "");
+  for (let n = 1; ; n++) if (free(`${base} (${n})`)) return `${base} (${n})`;
 }
 
 /**
- * Copies a requirement as the next in its series: right after the original, waiting on it, dates
- * moved forward by its length (7 days when a date is unset), with every task copied fresh (not done,
- * no time). Blockers between its own tasks point at the copies; others stay as they were.
+ * Copies a requirement as the next in its series: right after the original, dates moved forward by
+ * its length (7 days when a date is unset), with every task copied fresh (not done, no time). The copy
+ * waits on nothing (owner's call, 2026-11-18): waits between its own tasks point at the copies, and
+ * waits on anything outside it are dropped.
  */
 export function duplicateRequirement(
   data: StudiumData,
@@ -286,14 +288,13 @@ export function duplicateRequirement(
   const { startDate, dueDate } = original;
   const span = startDate && dueDate ? Math.round((startOfLocalDay(dueDate).getTime() - startOfLocalDay(startDate).getTime()) / DAY_MS) + 1 : 7;
   const shift = (key: string | null) => (key ? localDateKey(addDays(startOfLocalDay(key), span)) : null);
-  const { blockedByAll: _drop, ...rest } = original;
+  const { blockedByAll: _drop, blockedBy: _waits, ...rest } = original;
   const requirement: Requirement = {
     ...rest,
     id: newId(),
     title: nextRequirementTitle(original.title, data.requirements.filter((r) => r.projectId === original.projectId).map((r) => r.title)),
     startDate: shift(startDate),
     dueDate: shift(dueDate),
-    blockedBy: [id],
     createdAt: stamp(now),
   };
   const sources = data.tasks.filter((t) => t.requirementId === id);
@@ -302,7 +303,7 @@ export function duplicateRequirement(
     ...t,
     id: newIds.get(t.id) as string,
     requirementId: requirement.id,
-    blockedBy: t.blockedBy.map((b) => newIds.get(b) ?? b),
+    blockedBy: t.blockedBy.filter((b) => newIds.has(b)).map((b) => newIds.get(b) as string),
     done: false,
     actualMin: null,
     createdAt: stamp(now),

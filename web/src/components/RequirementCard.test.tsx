@@ -51,7 +51,7 @@ describe("RequirementCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Duplicate Prototype 10" }));
     // Prototype 11 already exists, so the copy is Prototype 12.
     const copy = savedData(storage).requirements.find((r) => r.title === "Prototype 12");
-    expect(copy).toMatchObject({ blockedBy: ["P10"] });
+    expect(copy).not.toHaveProperty("blockedBy");
     expect(savedData(storage).tasks.filter((t) => t.requirementId === copy!.id).map((t) => t.title)).toEqual(["Git commit", "APK"]);
     expect(onHatch).not.toHaveBeenCalled();
   });

@@ -427,10 +427,12 @@ describe("duplicating a requirement", () => {
     expect(nextRequirementTitle("Prototype 9")).toBe("Prototype 10");
     expect(nextRequirementTitle("Week 09")).toBe("Week 10");
     expect(nextRequirementTitle("Sprint 1.5")).toBe("Sprint 1.6");
-    expect(nextRequirementTitle("Final report")).toBe("Final report (copy)");
+    expect(nextRequirementTitle("Final report")).toBe("Final report (1)");
+    expect(nextRequirementTitle("Final report (1)", ["Final report", "Final report (1)"])).toBe("Final report (2)");
+    expect(nextRequirementTitle("Final report", ["Final report (1)", "final report (2)"])).toBe("Final report (3)");
     // Skips names already used in the project.
     expect(nextRequirementTitle("Prototype 9", ["Prototype 10", "prototype 11"])).toBe("Prototype 12");
-    expect(nextRequirementTitle("Final report", ["Final report (copy)"])).toBe("Final report (copy 2)");
+    expect(nextRequirementTitle("Final report", ["Final report (1)"])).toBe("Final report (2)");
   });
 
   function series() {
@@ -448,9 +450,10 @@ describe("duplicating a requirement", () => {
     });
   }
 
-  it("copies a requirement with fresh tasks, right after the original, blocked by it", () => {
+  it("copies a requirement with fresh tasks, right after the original, waiting on nothing", () => {
     const { data, requirement } = duplicateRequirement(series(), "P9", NOW);
-    expect(requirement).toMatchObject({ title: "Prototype 10", weight: 4, blockedBy: ["P9"], startDate: "2026-11-02", dueDate: "2026-11-08" });
+    expect(requirement).toMatchObject({ title: "Prototype 10", weight: 4, startDate: "2026-11-02", dueDate: "2026-11-08" });
+    expect(requirement).not.toHaveProperty("blockedBy");
     expect(requirement).not.toHaveProperty("blockedByAll");
     expect(data.requirements.map((r) => r.id)).toEqual(["P9", requirement!.id, "P8", "Z"]);
     const copies = data.tasks.filter((t) => t.requirementId === requirement!.id);
@@ -459,7 +462,8 @@ describe("duplicating a requirement", () => {
       ["EAS build", 90, false, false, null],
     ]);
     expect(copies.every((t) => !["c9a", "c9b"].includes(t.id))).toBe(true);
-    expect(copies[1].blockedBy).toEqual([copies[0].id, "x"]);
+    // Waits between its own tasks are copied; waits on anything outside the copy are not.
+    expect(copies[1].blockedBy).toEqual([copies[0].id]);
     const added = data.events.slice(-3);
     expect(added.map((e) => e.type)).toEqual(["requirement_created", "task_created", "task_created"]);
     expect(isValidData(data)).toBe(true);
