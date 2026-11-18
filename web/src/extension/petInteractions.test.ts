@@ -474,23 +474,54 @@ describe("newFavorites", () => {
   });
 });
 
-describe("ballFlight", () => {
-  it("a throw to the right lands further right", () => {
-    expect(L.ballFlight({ x: 300, y: 50 }, { vx: 600, vy: 300 }, 1000, 28).x).toBeGreaterThan(300);
+describe("ballStep", () => {
+  type Ball = { x: number; y: number; vx: number; vy: number; resting: boolean };
+  const run = (ball: Ball, secs: number, each?: (b: Ball) => void) => {
+    let b = ball;
+    for (let t = 0; t < secs && !b.resting; t += 0.016) {
+      b = L.ballStep(b, 0.016, 1000, 28);
+      each?.(b);
+    }
+    return b;
+  };
+
+  it("falls, bounces a little lower each time, and comes to rest", () => {
+    const peaks: number[] = [];
+    let rising = false;
+    let last = 200;
+    const end = run({ x: 300, y: 200, vx: 0, vy: 0, resting: false }, 6, (b) => {
+      if (b.y > last) rising = true;
+      else if (rising && b.y < last) {
+        peaks.push(last);
+        rising = false;
+      }
+      last = b.y;
+    });
+    expect(peaks.length).toBeGreaterThanOrEqual(1);
+    expect(peaks[0]).toBeLessThan(30); // a small bounce, not a pet's
+    for (let i = 1; i < peaks.length; i++) expect(peaks[i]).toBeLessThan(peaks[i - 1]);
+    expect(end).toMatchObject({ y: 0, resting: true });
   });
-  it("can't land past the left edge", () => {
-    expect(L.ballFlight({ x: 10, y: 0 }, { vx: -800, vy: 400 }, 1000, 28).x).toBe(0);
+
+  it("bounces off the side of the screen and stays on it", () => {
+    let minX = Infinity;
+    const end = run({ x: 20, y: 60, vx: -900, vy: 200, resting: false }, 6, (b) => {
+      minX = Math.min(minX, b.x);
+    });
+    expect(minX).toBeGreaterThanOrEqual(0);
+    expect(end.resting).toBe(true);
+    expect(end.x).toBeGreaterThanOrEqual(0);
+    expect(end.x).toBeLessThanOrEqual(972);
   });
-  it("can't land past the right edge", () => {
-    expect(L.ballFlight({ x: 900, y: 0 }, { vx: 2000, vy: 400 }, 1000, 28).x).toBe(972);
+
+  it("rolls to a stop along the floor", () => {
+    const end = run({ x: 300, y: 0, vx: 400, vy: 0, resting: false }, 6);
+    expect(end.resting).toBe(true);
+    expect(end.x).toBeGreaterThan(300);
   });
-  it("a ball let go without speed lands where it was", () => {
-    expect(L.ballFlight({ x: 300, y: 0 }, { vx: 0, vy: 0 }, 1000, 28)).toEqual({ x: 300, t: 0 });
-  });
-  it("takes longer to land when thrown higher", () => {
-    const low = L.ballFlight({ x: 300, y: 0 }, { vx: 100, vy: 200 }, 1000, 28).t;
-    const high = L.ballFlight({ x: 300, y: 0 }, { vx: 100, vy: 800 }, 1000, 28).t;
-    expect(high).toBeGreaterThan(low);
+
+  it("a ball let go without speed on the floor stays put", () => {
+    expect(L.ballStep({ x: 300, y: 0, vx: 0, vy: 0, resting: false }, 0.016, 1000, 28)).toMatchObject({ x: 300, y: 0, resting: true });
   });
 });
 

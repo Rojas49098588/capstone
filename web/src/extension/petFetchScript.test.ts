@@ -104,17 +104,19 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
   let carried = false;
   for (let i = 0; i < 600 && !carried; i++) {
     frames(1);
-    carried = ball().classList.contains("carried");
+    carried = ball().classList.contains("held");
   }
   expect(carried).toBe(true);
+  // A held ball isn't drawn as the pet's carried sticky note (a yellow square in the middle of the screen).
+  expect(ball().matches(".carried")).toBe(false);
   frames(5);
   const whileCarried = xOf(ball());
   frames(20);
   expect(xOf(ball())).not.toBe(whileCarried);
 
   // It brings it back near where it was let go (the ball's left edge about x = 386) and drops it.
-  for (let i = 0; i < 900 && ball().classList.contains("carried"); i++) frames(1);
-  expect(ball().classList.contains("carried")).toBe(false);
+  for (let i = 0; i < 900 && ball().classList.contains("held"); i++) frames(1);
+  expect(ball().classList.contains("held")).toBe(false);
   expect(Math.abs(xOf(ball()) - 386)).toBeLessThan(80);
 
   // A second throw works the same.
@@ -128,14 +130,14 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
   carried = false;
   for (let i = 0; i < 600 && !carried; i++) {
     frames(1);
-    carried = ball().classList.contains("carried");
+    carried = ball().classList.contains("held");
   }
   expect(carried).toBe(true);
 
   // Its mood changes while it carries the ball (the pets are rebuilt): the ball is dropped, and can be thrown again.
   await set({ petStatuses: { updatedAt: new Date().toISOString(), pets: [{ ...status, mood: "Worried" }], toys: ["focus-ball"] } });
   frames(2);
-  expect(ball().classList.contains("carried")).toBe(false);
+  expect(ball().classList.contains("held")).toBe(false);
   // Thrown left from where it was dropped (near the right edge), so the fetch is a long one.
   const from = xOf(ball());
   pointer(ball(), "pointerdown", from + 14, 786);
@@ -148,7 +150,7 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
   carried = false;
   for (let i = 0; i < 600 && !carried; i++) {
     frames(1);
-    carried = ball().classList.contains("carried");
+    carried = ball().classList.contains("held");
   }
   expect(carried).toBe(true);
 
@@ -157,7 +159,7 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
   pointer(petEl(), "pointerdown", petX + 20, 770);
   pointer(petEl(), "pointermove", petX + 80, 600);
   frames(2);
-  expect(ball().classList.contains("carried")).toBe(false);
+  expect(ball().classList.contains("held")).toBe(false);
   expect(Math.abs(xOf(ball()) - petX)).toBeLessThan(120);
   expect(petEl().classList.contains("dragging")).toBe(true);
   pointer(petEl(), "pointerup", petX + 80, 600);

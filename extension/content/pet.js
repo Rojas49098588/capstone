@@ -1328,7 +1328,7 @@
     el.dataset.pet = pet.id;
     el.src = chrome.runtime.getURL(`assets/toys/${toyId}.svg`);
     const spot = pet.toySpot(TOY_SIZE);
-    const toy = { id: toyId, el, x: spot.x, y: spot.y, flight: null, carried: false };
+    const toy = { id: toyId, el, x: spot.x, y: spot.y, ball: null, carried: false };
     drawToy(toy);
     root.appendChild(el);
     toysOut.set(pet.id, toy);
@@ -1351,7 +1351,7 @@
 
   function drawToy(toy) {
     toy.el.style.transform = `translate(${toy.x}px, ${-toy.y}px)${toy.mouse && toy.mouse.dir < 0 ? ' scaleX(-1)' : ''}`;
-    toy.el.classList.toggle('carried', toy.carried);
+    toy.el.classList.toggle('held', toy.carried); // not .carried: that's the sticky note's style
   }
 
   // The Focus Ball: drag it and let go to throw it; its pet fetches it back to where it was let go.
@@ -1361,7 +1361,7 @@
       if (!press) return;
       if (!press.moved && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) < 4) return;
       press.moved = true;
-      toy.flight = null;
+      toy.ball = null;
       toy.x = Math.min(Math.max(0, e.clientX - TOY_SIZE / 2), Math.max(0, window.innerWidth - TOY_SIZE));
       toy.y = Math.max(0, window.innerHeight - e.clientY - TOY_SIZE / 2);
       const t = performance.now();
@@ -1386,8 +1386,7 @@
       press = null;
       if (!moved || toysOut.get(petId) !== toy) return; // a click doesn't throw
       const v = throwVelocity(samples);
-      const landing = L.ballFlight({ x: toy.x, y: toy.y }, v, window.innerWidth, TOY_SIZE);
-      toy.flight = { x0: toy.x, y0: toy.y, vy: v.vy, t0: performance.now(), t: landing.t, x1: landing.x, back: toy.x };
+      toy.ball = { x: toy.x, y: toy.y, vx: v.vx, vy: v.vy, resting: false, back: toy.x, last: performance.now() };
     };
     toy.el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || toy.carried) return;
@@ -1437,13 +1436,14 @@
         stepMouse(toy, pet, now);
         continue;
       }
-      if (toy.flight) {
-        const f = toy.flight;
-        const s = (now - f.t0) / 1000;
-        if (s >= f.t) {
-          toy.flight = null;
-          toy.x = f.x1;
-          toy.y = 0;
+      if (toy.ball) {
+        const f = toy.ball;
+        const dt = Math.min(0.05, (now - f.last) / 1000);
+        Object.assign(f, L.ballStep(f, dt, window.innerWidth, TOY_SIZE), { last: now });
+        toy.x = f.x;
+        toy.y = f.y;
+        if (f.resting) {
+          toy.ball = null;
           pet?.fetch(toy.x, f.back, TOY_SIZE, {
             onPickUp: () => {
               toy.carried = true;
@@ -1455,9 +1455,6 @@
               drawToy(toy);
             },
           });
-        } else {
-          toy.x = f.x0 + (f.x1 - f.x0) * (s / f.t);
-          toy.y = Math.max(0, f.y0 + f.vy * s - (L.BALL_GRAVITY * s * s) / 2);
         }
         drawToy(toy);
       } else if (toy.carried && pet) {
