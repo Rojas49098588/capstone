@@ -313,6 +313,38 @@ describe("menus", () => {
     expect(L.petMenuItems("appDev", { webDev: napEntry({ kind: "sleep" }) }, statuses())[1].disabled).toBeFalsy();
   });
 
+  it("has no Toys item where toys don't work", () => {
+    expect(L.petMenuItems("appDev", {}, statuses(), null).some((i: { id: string }) => i.id === "toys")).toBe(false);
+  });
+
+  it("Toys lists the toys you own, before Open project", () => {
+    const items = L.petMenuItems("appDev", {}, statuses(), { owned: ["focus-ball", "robo-mouse"], out: null });
+    expect(items.map((i: { id: string }) => i.id)).toEqual(["suggest", "nap", "sleep", "toys", "open"]);
+    expect(items[3]).toEqual({
+      id: "toys",
+      label: "Toys",
+      children: [
+        { id: "toy:focus-ball", label: "Focus Ball" },
+        { id: "toy:robo-mouse", label: "Robo Mouse" },
+      ],
+    });
+  });
+
+  it("Toys is disabled with a hint when you own none", () => {
+    const items = L.petMenuItems("appDev", {}, statuses(), { owned: [], out: null });
+    expect(items.find((i: { id: string }) => i.id === "toys")).toEqual({ id: "toys", label: "Toys", disabled: true, hint: "Buy toys in the Shop" });
+  });
+
+  it("offers Put away while a toy is out", () => {
+    const ids = L.petMenuItems("appDev", {}, statuses(), { owned: ["focus-ball"], out: "focus-ball" }).map((i: { id: string }) => i.id);
+    expect(ids).toEqual(["suggest", "nap", "sleep", "toys", "toy:away", "open"]);
+  });
+
+  it("an away pet has no Toys item", () => {
+    const ids = L.petMenuItems("webDev", { webDev: napEntry() }, statuses(), { owned: ["focus-ball"], out: null }).map((i: { id: string }) => i.id);
+    expect(ids).toEqual(["wake", "open"]);
+  });
+
   it("an away pet offers only Wake and Open project", () => {
     const items = L.petMenuItems("webDev", { webDev: napEntry() }, statuses());
     expect(items).toEqual([
@@ -439,6 +471,75 @@ describe("newFavorites", () => {
   });
   it("a new favorite feeding doesn't count as different pets", () => {
     expect(L.statusesEqual(withFavorite(null), withFavorite(iso(T)))).toBe(true);
+  });
+});
+
+describe("ballStep", () => {
+  type Ball = { x: number; y: number; vx: number; vy: number; resting: boolean };
+  const run = (ball: Ball, secs: number, each?: (b: Ball) => void) => {
+    let b = ball;
+    for (let t = 0; t < secs && !b.resting; t += 0.016) {
+      b = L.ballStep(b, 0.016, 1000, 28);
+      each?.(b);
+    }
+    return b;
+  };
+
+  it("falls, bounces a little lower each time, and comes to rest", () => {
+    const peaks: number[] = [];
+    let rising = false;
+    let last = 200;
+    const end = run({ x: 300, y: 200, vx: 0, vy: 0, resting: false }, 6, (b) => {
+      if (b.y > last) rising = true;
+      else if (rising && b.y < last) {
+        peaks.push(last);
+        rising = false;
+      }
+      last = b.y;
+    });
+    expect(peaks.length).toBeGreaterThanOrEqual(1);
+    // Dropped from 200 px: bouncy, about a pet's bounce (owner, 2026-11-17: "bouncy but not light"),
+    // with a few smaller hops after.
+    expect(peaks[0]).toBeGreaterThan(45);
+    expect(peaks[0]).toBeLessThan(80);
+    expect(peaks.length).toBeGreaterThanOrEqual(3);
+    for (let i = 1; i < peaks.length; i++) expect(peaks[i]).toBeLessThan(peaks[i - 1]);
+    expect(end).toMatchObject({ y: 0, resting: true });
+  });
+
+  it("bounces off the side of the screen and stays on it", () => {
+    let minX = Infinity;
+    const end = run({ x: 20, y: 60, vx: -900, vy: 200, resting: false }, 6, (b) => {
+      minX = Math.min(minX, b.x);
+    });
+    expect(minX).toBeGreaterThanOrEqual(0);
+    expect(end.resting).toBe(true);
+    expect(end.x).toBeGreaterThanOrEqual(0);
+    expect(end.x).toBeLessThanOrEqual(972);
+  });
+
+  it("rolls to a stop along the floor", () => {
+    const end = run({ x: 300, y: 0, vx: 400, vy: 0, resting: false }, 6);
+    expect(end.resting).toBe(true);
+    expect(end.x).toBeGreaterThan(300);
+  });
+
+  it("is too heavy to throw far: the hardest throw at any angle stops within 500 px", () => {
+    for (const deg of [0, 20, 45, 70]) {
+      const v = L.ballLaunch({ vx: 3000 * Math.cos((deg * Math.PI) / 180), vy: 3000 * Math.sin((deg * Math.PI) / 180) });
+      expect(Math.hypot(v.vx, v.vy)).toBeLessThanOrEqual(L.BALL.maxThrow + 1e-9);
+      const end = run({ x: 300, y: 50, ...v, resting: false }, 10);
+      expect(end.resting).toBe(true);
+      expect(end.x - 300).toBeLessThan(500);
+    }
+  });
+
+  it("leaves a gentle throw's speed alone", () => {
+    expect(L.ballLaunch({ vx: 300, vy: 200 })).toEqual({ vx: 300, vy: 200 });
+  });
+
+  it("a ball let go without speed on the floor stays put", () => {
+    expect(L.ballStep({ x: 300, y: 0, vx: 0, vy: 0, resting: false }, 0.016, 1000, 28)).toMatchObject({ x: 300, y: 0, resting: true });
   });
 });
 

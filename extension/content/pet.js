@@ -53,6 +53,8 @@
   const AIR_DRAG = 0.4;         // sideways slowdown in the air, per kind
   const THROW_SAMPLE_MS = 80;   // how much recent mouse movement sets the throw speed
   const MAX_THROW_SPEED = 2500; // px/s
+  const FETCH_SPEED = 260;      // px/s: every pet runs to fetch a toy at this speed (a turtle walks at 10)
+  const POUNCE_REACH = 24;      // px: close enough to the Robo Mouse to pounce on it
   const GROUND_FRICTION = 5;    // how quickly a slide along the floor stops
   const MIN_BOUNCE_SPEED = 200; // slower floor hits than this stop bouncing
   const MAX_TILT_DEG = 25;      // lean while flying sideways
@@ -113,6 +115,11 @@
       will-change: transform;
     }
     .pet.dragging { cursor: grabbing; z-index: 1; }
+    .pet-toy {
+      position: absolute; left: 0; bottom: 0; width: 28px; height: 28px;
+      pointer-events: auto; cursor: grab; user-select: none; touch-action: none;
+      -webkit-user-drag: none; will-change: transform;
+    }
     .body, .anim { width: 100%; height: 100%; transform-origin: 50% 100%; }
     .sprite {
       position: absolute; inset: 0; width: 100%; height: 100%;
@@ -315,6 +322,8 @@
       plan: null,         // { activity: 'use' | 'nap', entry: { use, slot } }: what it does at the furniture
       gotoUntil: 0,       // gives up on reaching furniture after this
       useUntil: 0,
+      fetch: null,        // { target, back, phase: 'go' | 'back', onPickUp, onDrop } while fetching a toy
+      pounce: null,       // { toyX, size, onCatch } while running at a toy to pounce on it
     };
     const furniture = status.furniture ?? [];
     // Spread the pets out across the window until they have saved positions.
@@ -456,6 +465,23 @@
     // On Moderate, its "Haven't seen …" reminders go into sticky notes instead (web pages only). Sounds stay bubbles.
     const writesNotes = () => L.writesNotes(env.prefs?.(), Boolean(box));
 
+    // A toy is out (desktop): the pet plays instead of wandering off by itself.
+    let playing = false;
+
+    // Asking you something, or its menu (any pet menu) is open: a toy mustn't make it run off.
+    const busyWithYou = () => talkEl.classList.contains('show') || globalThis.PetMenu?.isOpen() === true;
+
+    // Where a toy sits on the floor under this pet (window px from the left and the bottom).
+    const floorSpotFor = (size) => ({ x: world.left + state.x + w / 2 - size / 2, y: world.bottom });
+
+    // The fetch is over (brought back, or the pet was picked up): the toy goes down under the pet.
+    function dropFetched() {
+      const f = state.fetch;
+      if (!f) return;
+      state.fetch = null;
+      f.onDrop(floorSpotFor(f.size));
+    }
+
     function goIdle(now) {
       state.mode = 'idle';
       state.idleUntil = now + between(kind.idleMs);
@@ -469,8 +495,8 @@
 
     // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind and mood.
     function act(now) {
-      // Minimal, on a web page: stay in place.
-      if (keepsQuiet()) {
+      // Minimal, on a web page: stay in place. With a toy out: the toy decides.
+      if (keepsQuiet() || playing) {
         goIdle(now);
         return;
       }
@@ -528,6 +554,8 @@
       stayAtFurniture();
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       if (carry && state.mode !== 'walk') finishCarry(); // arrived (or was picked up): drop the note
+      if (state.fetch && state.mode !== 'fetch') dropFetched(); // picked up mid-fetch: the toy drops here
+      if (state.pounce && state.mode !== 'pounce') state.pounce = null; // picked up: no pounce
       // A chase ends when its time is up, the cursor leaves the overlay, the pet is picked up, or
       // mischief stops being allowed (a nap starts, a check-in opens, pets are hidden).
       if (chase && (state.mode !== 'chase' || chase.lost || Date.now() > chase.until || !env.mayChase(api))) endChase(now);
@@ -619,6 +647,52 @@
           }
           break;
         }
+        case 'fetch': {
+          const f = state.fetch;
+          if (!f) {
+            goIdle(now);
+            break;
+          }
+          const goal = f.phase === 'go' ? f.target : f.back;
+          const dist = goal - state.x;
+          const move = FETCH_SPEED * dt;
+          if (Math.abs(dist) <= move) {
+            state.x = goal;
+            if (f.phase === 'go') {
+              f.phase = 'back';
+              state.facing = f.back >= state.x ? 1 : -1;
+              f.onPickUp();
+            } else {
+              dropFetched();
+              goIdle(now);
+            }
+          } else {
+            state.x += Math.sign(dist) * move;
+            state.facing = Math.sign(dist);
+          }
+          dirty = true;
+          break;
+        }
+        case 'pounce': {
+          const p = state.pounce;
+          if (!p) {
+            goIdle(now);
+            break;
+          }
+          const goal = clamp(p.toyX() + p.size / 2 - w / 2 - world.left, 0, maxX());
+          const dist = goal - state.x;
+          if (Math.abs(dist) <= POUNCE_REACH) {
+            state.pounce = null;
+            state.facing = Math.sign(dist) || state.facing;
+            hop(1.2);
+            p.onCatch();
+          } else {
+            state.x += Math.sign(dist) * Math.min(Math.abs(dist), FETCH_SPEED * dt);
+            state.facing = Math.sign(dist);
+          }
+          dirty = true;
+          break;
+        }
         case 'walk': {
           const dist = state.targetX - state.x;
           const move = floorSpeed * dt;
@@ -697,7 +771,7 @@
       // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
       const flyingToPerch = state.mode === 'goto' && state.plan?.entry.use === 'perch';
-      petEl.classList.toggle('walking', state.mode === 'walk' || state.mode === 'chase' || (state.mode === 'goto' && !flyingToPerch));
+      petEl.classList.toggle('walking', ['walk', 'chase', 'fetch', 'pounce'].includes(state.mode) || (state.mode === 'goto' && !flyingToPerch));
       const using = state.mode === 'use' ? state.plan?.entry.use : null;
       petEl.classList.toggle('scratching', using === 'scratch');
       petEl.classList.toggle('basking', using === 'bask');
@@ -730,6 +804,7 @@
       press.moved = true;
       wake();
       clearPlan();
+      dropFetched(); // picked up while fetching: the toy drops where the pet was
       state.mode = 'drag';
       refreshWorld();
       const p = L.dragPosition(
@@ -852,6 +927,51 @@
         render();
       },
       isAway: () => state.mode === 'away',
+      setPlaying(value) {
+        playing = Boolean(value);
+        if (!playing && (state.fetch || state.pounce)) {
+          state.fetch = null;
+          state.pounce = null;
+          if (state.mode === 'fetch' || state.mode === 'pounce') goIdle(performance.now());
+        }
+      },
+      // Run at a moving toy (toyX() gives its window x each frame) and pounce on it: onCatch when it lands
+      // on it. Only from idle or walking.
+      pounce(toyX, size, onCatch) {
+        if ((state.mode !== 'idle' && state.mode !== 'walk') || busyWithYou()) return false;
+        wake();
+        clearPlan();
+        state.pounce = { toyX, size, onCatch };
+        state.mode = 'pounce';
+        return true;
+      },
+      // Run to a toy at window x `toyX`, pick it up (onPickUp), bring it back to window x `backX`, and
+      // drop it there (onDrop gets the spot). Only from idle or walking, like walkTo.
+      fetch(toyX, backX, size, { onPickUp, onDrop }) {
+        if (!['idle', 'walk', 'fetch'].includes(state.mode) || busyWithYou()) return false;
+        refreshWorld();
+        const toPet = (x) => clamp(x + size / 2 - w / 2 - world.left, 0, maxX());
+        wake();
+        clearPlan();
+        state.fetch = { target: toPet(toyX), back: toPet(backX), phase: 'go', size, onPickUp, onDrop };
+        state.facing = state.fetch.target >= state.x ? 1 : -1;
+        state.mode = 'fetch';
+        return true;
+      },
+      // Where a carried toy is drawn: in front of the pet, near its mouth (window px).
+      carrySpot(size) {
+        const front = state.facing > 0 ? w - size * 0.6 : -size * 0.4;
+        return { x: world.left + state.x + front, y: world.bottom + state.y + h * 0.25 };
+      },
+      isPlaying: () => playing,
+      isPouncing: () => state.pounce !== null,
+      // Where a toy appears next to this pet: just right of it on the floor, in window pixels from the
+      // left and bottom.
+      toySpot(size) {
+        refreshWorld();
+        const x = clamp(world.left + state.x + w + 6, 0, Math.max(0, window.innerWidth - size));
+        return { x, y: world.bottom };
+      },
       stopChase,
       replanChase() {
         if (!chase) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
@@ -991,7 +1111,7 @@
     // Mischief happens only in the desktop overlay.
     chases: SURFACE === 'overlay',
     mayChase: (pet) =>
-      SURFACE === 'overlay' && pet.isShown() && (chaser === null || chaser === pet) &&
+      SURFACE === 'overlay' && pet.isShown() && !pet.isPlaying() && (chaser === null || chaser === pet) &&
       // Not while it asks something (nap question, check-in) or a pet menu is open: the buttons
       // would run away from the click.
       !pet.isTalking() && globalThis.PetMenu?.isOpen() !== true &&
@@ -1029,6 +1149,23 @@
     statuses = next;
     const list = (next?.pets ?? []).filter((s) => KINDS[s.petKind]);
     pets = list.map((s, i) => createPet(s, i, list.length, env));
+    // A toy stays with its pet across a rebuild; a pet that's gone takes its toy with it.
+    for (const [petId, toy] of [...toysOut]) {
+      const pet = pets.find((p) => p.id === petId);
+      if (pet) {
+        pet.setPlaying(true);
+        // The new pet isn't fetching or pouncing: a carried ball goes down where it is, a hunt starts over.
+        if (toy.carried) {
+          toy.carried = false;
+          toy.y = 0;
+          drawToy(toy);
+        }
+        if (toy.mouse) toy.mouse.hunting = false;
+      } else {
+        toy.el.remove();
+        toysOut.delete(petId);
+      }
+    }
     const now = performance.now();
     for (const pet of pets) {
       pet.restore(positions[pet.id]?.xRatio);
@@ -1074,6 +1211,7 @@
   function setHidden(value) {
     hidden = Boolean(value);
     if (hidden) for (const pet of pets) pet.stopChase(); // hidden pets don't step, so end their chase here
+    if (hidden) putAwayAllToys();
     host.style.display = hidden ? 'none' : '';
     markAttached();
   }
@@ -1083,6 +1221,7 @@
     if (changes.petHidden) setHidden(changes.petHidden.newValue);
     if (changes.petAway) {
       away = L.parseAway(changes.petAway.newValue, Date.now());
+      for (const petId of Object.keys(away)) putAwayToy(petId); // napping or sleeping: no playing
       globalThis.PetMenu?.close(); // its items may be out of date
     }
     if (changes.petCheckIn) checkIn = L.parseCheckIn(changes.petCheckIn.newValue);
@@ -1170,15 +1309,177 @@
   // ---- The pet menu ----
   function openMenu(pet, point) {
     if (stale() || !globalThis.PetMenu) return;
-    globalThis.PetMenu.open(root, point, L.petMenuItems(pet.id, away, statuses), (id) => pick(pet, id));
+    const toys = SURFACE === 'overlay' ? { owned: statuses?.toys ?? [], out: toysOut.get(pet.id)?.id ?? null } : null;
+    globalThis.PetMenu.open(root, point, L.petMenuItems(pet.id, away, statuses, toys), (id) => pick(pet, id));
+  }
+
+  // ---- Toys (desktop overlay): one per pet, summoned from its menu ----
+  const TOY_SIZE = 28;
+  const toysOut = new Map(); // petId -> { id, el }
+
+  function summonToy(pet, toyId) {
+    if (!L.TOY_NAMES[toyId]) return;
+    putAwayToy(pet.id);
+    const el = document.createElement('img');
+    el.className = 'pet-toy';
+    el.alt = '';
+    el.draggable = false;
+    el.dataset.toy = toyId;
+    el.dataset.pet = pet.id;
+    el.src = chrome.runtime.getURL(`assets/toys/${toyId}.svg`);
+    const spot = pet.toySpot(TOY_SIZE);
+    const toy = { id: toyId, el, x: spot.x, y: spot.y, ball: null, carried: false };
+    drawToy(toy);
+    root.appendChild(el);
+    toysOut.set(pet.id, toy);
+    if (toyId === 'focus-ball') makeThrowable(toy, pet.id);
+    if (toyId === 'robo-mouse') {
+      el.style.pointerEvents = 'none'; // it scoots under the cursor: the apps underneath keep their clicks
+      const now = performance.now();
+      toy.mouse = { home: toy.x, dir: 1, last: now, pausedUntil: 0, hunting: false, nextPounceAt: now + between(L.ROBO_MOUSE.pounceEveryMs) };
+    }
+    pet.setPlaying(true);
+  }
+
+  function putAwayToy(petId) {
+    const toy = toysOut.get(petId);
+    if (!toy) return;
+    toy.el.remove();
+    toysOut.delete(petId);
+    pets.find((p) => p.id === petId)?.setPlaying(false);
+  }
+
+  function drawToy(toy) {
+    toy.el.style.transform = `translate(${toy.x}px, ${-toy.y}px)${toy.mouse && toy.mouse.dir < 0 ? ' scaleX(-1)' : ''}`;
+    toy.el.classList.toggle('held', toy.carried); // not .carried: that's the sticky note's style
+  }
+
+  // The Focus Ball: drag it and let go to throw it; its pet fetches it back to where it was let go.
+  function makeThrowable(toy, petId) {
+    let press = null;
+    const onMove = (e) => {
+      if (!press) return;
+      if (!press.moved && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) < 4) return;
+      press.moved = true;
+      toy.ball = null;
+      toy.x = Math.min(Math.max(0, e.clientX - TOY_SIZE / 2), Math.max(0, window.innerWidth - TOY_SIZE));
+      toy.y = Math.max(0, window.innerHeight - e.clientY - TOY_SIZE / 2);
+      const t = performance.now();
+      press.samples.push({ t, x: e.clientX, y: e.clientY });
+      while (press.samples.length > 2 && t - press.samples[0].t > THROW_SAMPLE_MS) press.samples.shift();
+      drawToy(toy);
+    };
+    const stopListening = () => {
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+    };
+    const onCancel = () => {
+      stopListening();
+      press = null; // the system took the pointer: no throw, the ball stays where it is
+    };
+    const onUp = () => {
+      stopListening();
+      if (!press) return;
+      const moved = press.moved;
+      const samples = press.samples;
+      press = null;
+      if (!moved || toysOut.get(petId) !== toy) return; // a click doesn't throw
+      const v = throwVelocity(samples);
+      const launch = L.ballLaunch(v); // heavy: never thrown as fast as a pet
+      toy.ball = { x: toy.x, y: toy.y, vx: launch.vx, vy: launch.vy, resting: false, back: toy.x, last: performance.now() };
+    };
+    toy.el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || toy.carried) return;
+      press = { startX: e.clientX, startY: e.clientY, moved: false, samples: [] };
+      e.preventDefault();
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
+    });
+  }
+
+  // Each frame: a thrown toy flies and lands, then its pet fetches it; a carried toy rides with its pet.
+  // The Robo Mouse scoots back and forth near where it appeared; now and then its pet pounces on it.
+  function stepMouse(toy, pet, now) {
+    const m = toy.mouse;
+    const dt = Math.min(0.05, (now - m.last) / 1000);
+    m.last = now;
+    if (now >= m.pausedUntil) {
+      const lo = Math.max(0, m.home - L.ROBO_MOUSE.rangePx);
+      const hi = Math.min(Math.max(0, window.innerWidth - TOY_SIZE), m.home + L.ROBO_MOUSE.rangePx);
+      toy.x += m.dir * L.ROBO_MOUSE.speed * dt;
+      if (toy.x <= lo) {
+        toy.x = lo;
+        m.dir = 1;
+      } else if (toy.x >= hi) {
+        toy.x = hi;
+        m.dir = -1;
+      }
+      drawToy(toy);
+    }
+    if (m.hunting && !pet?.isPouncing()) m.hunting = false; // that pounce ended without a catch
+    if (!m.hunting && pet && now >= m.nextPounceAt) {
+      m.hunting = pet.pounce(() => toy.x, TOY_SIZE, () => {
+        const at = performance.now();
+        m.hunting = false;
+        m.pausedUntil = at + L.ROBO_MOUSE.pauseMs;
+        m.nextPounceAt = at + L.ROBO_MOUSE.pauseMs + between(L.ROBO_MOUSE.pounceEveryMs);
+        pet.say(L.toyCatchText, L.ROBO_MOUSE.pauseMs);
+      });
+    }
+  }
+
+  function stepToys(now) {
+    for (const [petId, toy] of toysOut) {
+      const pet = pets.find((p) => p.id === petId);
+      if (toy.mouse) {
+        stepMouse(toy, pet, now);
+        continue;
+      }
+      if (toy.ball) {
+        const f = toy.ball;
+        const dt = Math.min(0.05, (now - f.last) / 1000);
+        Object.assign(f, L.ballStep(f, dt, window.innerWidth, TOY_SIZE), { last: now });
+        toy.x = f.x;
+        toy.y = f.y;
+        if (f.resting) {
+          toy.ball = null;
+          pet?.fetch(toy.x, f.back, TOY_SIZE, {
+            onPickUp: () => {
+              toy.carried = true;
+            },
+            onDrop: (spot) => {
+              toy.carried = false;
+              toy.x = Math.min(Math.max(0, spot.x), Math.max(0, window.innerWidth - TOY_SIZE));
+              toy.y = spot.y;
+              drawToy(toy);
+            },
+          });
+        }
+        drawToy(toy);
+      } else if (toy.carried && pet) {
+        const spot = pet.carrySpot(TOY_SIZE);
+        toy.x = spot.x;
+        toy.y = spot.y;
+        drawToy(toy);
+      }
+    }
+  }
+
+  function putAwayAllToys() {
+    for (const petId of [...toysOut.keys()]) putAwayToy(petId);
   }
 
   function pick(pet, id) {
     const petId = pet.id;
     if (id === 'suggest') pet.say(L.suggestionText(statusOf(petId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
     else if (id === 'nap') askNap(pet);
-    else if (id === 'sleep1') send({ type: 'sleep', petId, hours: 1 });
-    else if (id === 'sleep2') send({ type: 'sleep', petId, hours: 2 });
+    else if (id === 'sleep1' || id === 'sleep2') {
+      putAwayToy(petId); // an away pet doesn't play
+      send({ type: 'sleep', petId, hours: id === 'sleep1' ? 1 : 2 });
+    } else if (id === 'toy:away') putAwayToy(petId);
+    else if (id.startsWith('toy:')) summonToy(pet, id.slice('toy:'.length));
     else if (id === 'open') send({ type: 'openProject', petId });
     else if (id === 'wake') send({ type: 'wake', petId });
   }
@@ -1339,6 +1640,7 @@
       if (box && pet.boxEl() !== box) pet.enterBox(box);
       if (!box && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
       pet.setAway(isAway);
+      if (!pet.isShown() || isAway) putAwayToy(pet.id); // hidden ("Pets on screen at once") or away: no toy
     }
     markAttached();
     showCheckIn();
@@ -1377,6 +1679,7 @@
         pet.step(now, dt);
         pet.render();
       }
+      stepToys(now);
     }
     // In habitat mode, draw only inside the boxes (the area around all of them), so pets can't cover
     // the page when it scrolls away. The menu isn't clipped, and a talking pet gets room above.

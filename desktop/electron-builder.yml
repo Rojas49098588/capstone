@@ -19,6 +19,8 @@ extraResources:
     to: extension/assets/sounds
   - from: ../extension/assets/pets
     to: extension/assets/pets
+  - from: ../extension/assets/toys
+    to: extension/assets/toys
   - from: src/overlay
     to: overlay
 win:

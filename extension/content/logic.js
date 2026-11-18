@@ -506,7 +506,81 @@
   const shortNameOf = (statuses, petId) => statusFor(statuses, petId)?.shortName ?? 'your pet';
 
   /** The right-click menu for one pet: [{ id, label, disabled?, hint?, children? }]. */
-  function petMenuItems(petId, petAway, statuses) {
+  // Toy names for the pet menu (Shop names in web/src/store/products.ts).
+  const TOY_NAMES = { 'focus-ball': 'Focus Ball', 'robo-mouse': 'Robo Mouse' };
+
+  /**
+   * The menu's Toys item (desktop pets only): `toys` is { owned: [ids], out: id | null }, or null where
+   * toys don't work. While a toy is out, Put away follows it.
+   */
+  function toyMenuItems(toys) {
+    if (!toys) return [];
+    const owned = toys.owned.filter((id) => TOY_NAMES[id]);
+    const item =
+      owned.length > 0
+        ? { id: 'toys', label: 'Toys', children: owned.map((id) => ({ id: `toy:${id}`, label: TOY_NAMES[id] })) }
+        : { id: 'toys', label: 'Toys', disabled: true, hint: 'Buy toys in the Shop' };
+    return toys.out ? [item, { id: 'toy:away', label: 'Put away' }] : [item];
+  }
+
+  // The Focus Ball (desktop pets): bouncy but heavy (owner, 2026-11-17), so it hops a few times but
+  // can't be thrown far. gravity px/s²; bounce: speed kept off the floor (a pet keeps 0.5, the turtle
+  // 0.08); wallBounce: off the screen's sides; roll: px/s² of slowing along the floor; restSpeed:
+  // slower than this off the floor and it stops bouncing; airDrag: sideways slowing per second in the
+  // air; maxThrow: the fastest it leaves your hand, px/s (a thrown pet can go 2500).
+  const BALL = { gravity: 2600, bounce: 0.55, wallBounce: 0.45, roll: 900, restSpeed: 90, airDrag: 1.2, maxThrow: 1100 };
+
+  /** The speed a ball leaves your hand with: your throw's, but never faster than BALL.maxThrow. */
+  function ballLaunch(v) {
+    const speed = Math.hypot(v.vx, v.vy);
+    if (speed <= BALL.maxThrow) return { vx: v.vx, vy: v.vy };
+    const k = BALL.maxThrow / speed;
+    return { vx: v.vx * k, vy: v.vy * k };
+  }
+
+  /**
+   * One step of a thrown ball: ball is { x, y, vx, vy, resting } with x from the left, y above the
+   * floor (px) and speeds in px/s (vy up). It falls, bounces a little, rolls to a stop and stays on
+   * screen (0 to width - size). A ball that has stopped comes back with resting: true.
+   */
+  function ballStep(ball, dt, width, size) {
+    if (ball.resting) return ball;
+    const maxX = Math.max(0, width - size);
+    let { x, y, vx, vy } = ball;
+    if (y > 0 || vy > 0) {
+      vy -= BALL.gravity * dt;
+      vx *= Math.max(0, 1 - BALL.airDrag * dt);
+    }
+    x += vx * dt;
+    y += vy * dt;
+    if (x < 0) {
+      x = 0;
+      vx = -vx * BALL.wallBounce;
+    } else if (x > maxX) {
+      x = maxX;
+      vx = -vx * BALL.wallBounce;
+    }
+    if (y <= 0) {
+      y = 0;
+      if (vy < -BALL.restSpeed) {
+        vy = -vy * BALL.bounce;
+        vx *= 0.7;
+      } else {
+        vy = 0;
+        const slow = BALL.roll * dt;
+        vx = Math.abs(vx) <= slow ? 0 : vx - Math.sign(vx) * slow;
+      }
+    }
+    return { x, y, vx, vy, resting: y === 0 && vy === 0 && vx === 0 };
+  }
+
+  // The Robo Mouse (desktop pets): it scoots at `speed` px/s within `rangePx` of where it appeared; the
+  // pet pounces every pounceEveryMs (a range), and a caught mouse stays still for pauseMs.
+  const ROBO_MOUSE = { speed: 90, rangePx: 300, pounceEveryMs: [3000, 7000], pauseMs: 1500 };
+  // What a pet says when it catches the Robo Mouse.
+  const toyCatchText = 'Got it!';
+
+  function petMenuItems(petId, petAway, statuses, toys = null) {
     const open = { id: 'open', label: 'Open project' };
     if (petAway[petId]) return [{ id: 'wake', label: 'Wake' }, open];
     const napItem = { id: 'nap', label: `Nap (${NAP_MINUTES} min)` };
@@ -526,6 +600,7 @@
           { id: 'sleep2', label: '2 hours' },
         ],
       },
+      ...toyMenuItems(toys),
       open,
     ];
   }
@@ -1065,6 +1140,12 @@
     applyAwayRequest,
     studiumUrl,
     petMenuItems,
+    TOY_NAMES,
+    BALL,
+    ballLaunch,
+    ballStep,
+    ROBO_MOUSE,
+    toyCatchText,
     wakeMenuEntries,
     formatMinutes,
     suggestionText,
