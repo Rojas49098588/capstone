@@ -1,5 +1,6 @@
 import { taskDueLimit } from "../planner/dueDates";
 import { useState } from "react";
+import { sortListTasks } from "../planner/order";
 import { canBlockByAll, openRequirementBlockers, requirementBlockerOptions } from "../planner/blocking";
 import { estimateMultipliers, multiplierFor } from "../planner/learning";
 import { neglectDays, requirementIdleDays } from "../planner/mood";
@@ -28,9 +29,8 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
 
   const projectTasks = s.data.tasks.filter((t) => t.projectId === project.id);
   const requirements = s.data.requirements.filter((r) => r.projectId === project.id);
-  const tasks = [...tasksOfRequirement(requirement.id, projectTasks)].sort(
-    (a, b) => Number(a.done) - Number(b.done) || Number(b.priority) - Number(a.priority),
-  );
+  const tasks = sortListTasks(tasksOfRequirement(requirement.id, projectTasks));
+  const openCount = tasks.filter((t) => !t.done).length;
   const multiplier = multiplierFor(estimateMultipliers(s.data), project.id);
   const progress = requirementProgress(requirement.id, s.data.tasks, multiplier);
   const planned = plannedProgress(requirement, project, s.now);
@@ -132,11 +132,18 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
         </div>
       )}
 
-      <div>
+      <div data-reorder-list>
         {tasks.length === 0 ? (
           <p className="text-sm italic text-[var(--color-muted-foreground)]">No {words.tasks} yet.</p>
         ) : (
-          tasks.map((t) => <TaskRow key={t.id} taskId={t.id} onRequestComplete={onRequestComplete} />)
+          tasks.map((t, i) => (
+            <TaskRow
+              key={t.id}
+              taskId={t.id}
+              onRequestComplete={onRequestComplete}
+              reorder={t.done ? undefined : { index: i, count: openCount, onMove: (to) => s.moveTask(t.id, to) }}
+            />
+          ))
         )}
       </div>
 

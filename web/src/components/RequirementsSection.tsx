@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { sortListTasks } from "../planner/order";
 import { useStudiumContext } from "../store/useStudium";
 import { capitalize, hatchingMessage, wordsFor } from "../ui/format";
 import { BUTTON_SMALL, CARD, SERIF } from "../ui/styles";
@@ -17,7 +18,8 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
   const [adding, setAdding] = useState(false);
   const requirements = s.data.requirements.filter((r) => r.projectId === projectId);
   const words = wordsFor(s.data.projects.find((p) => p.id === projectId));
-  const unlinked = s.data.tasks.filter((t) => t.projectId === projectId && t.requirementId === null);
+  const unlinked = sortListTasks(s.data.tasks.filter((t) => t.projectId === projectId && t.requirementId === null));
+  const unlinkedOpen = unlinked.filter((t) => !t.done).length;
 
   return (
     <section aria-labelledby="requirements-heading" data-tour="requirements" className="space-y-4">
@@ -65,9 +67,16 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
           <p className="text-xs text-[var(--color-muted-foreground)] mb-2">
             These {words.tasks} earn nothing until you link them to a {words.requirement}.
           </p>
-          {unlinked.map((t) => (
-            <TaskRow key={t.id} taskId={t.id} onRequestComplete={onRequestComplete} />
-          ))}
+          <div data-reorder-list>
+            {unlinked.map((t, i) => (
+              <TaskRow
+                key={t.id}
+                taskId={t.id}
+                onRequestComplete={onRequestComplete}
+                reorder={t.done ? undefined : { index: i, count: unlinkedOpen, onMove: (to) => s.moveTask(t.id, to) }}
+              />
+            ))}
+          </div>
         </section>
       )}
     </section>
