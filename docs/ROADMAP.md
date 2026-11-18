@@ -66,6 +66,11 @@ Found in the whole-branch reviews of the companion app work; none blocks the dem
 - [ ] The snack-rule test checks a fixed 2.5 h instead of the shortest wait in the food catalog.
 - [ ] A browser habitat without the extension shows no ♥ for a favorite food (the desktop is fine).
 
+**Toys (from the 2026-11-17 review)**
+- [ ] Grabbing the pet before it reaches the ball moves the ball under the pet (it should stay where it landed).
+- [ ] A ball that comes to rest while its pet is in the air, asleep or being dragged isn't fetched (throw it again).
+- [ ] After a rebuild that puts pets back at their saved spots, a toy stays where it was (cosmetic).
+
 ## After December 3
 
 Each of these builds on accounts.
