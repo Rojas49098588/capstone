@@ -113,6 +113,11 @@
       will-change: transform;
     }
     .pet.dragging { cursor: grabbing; z-index: 1; }
+    .pet-toy {
+      position: absolute; left: 0; bottom: 0; width: 28px; height: 28px;
+      pointer-events: auto; cursor: grab; user-select: none; touch-action: none;
+      -webkit-user-drag: none; will-change: transform;
+    }
     .body, .anim { width: 100%; height: 100%; transform-origin: 50% 100%; }
     .sprite {
       position: absolute; inset: 0; width: 100%; height: 100%;
@@ -456,6 +461,9 @@
     // On Moderate, its "Haven't seen …" reminders go into sticky notes instead (web pages only). Sounds stay bubbles.
     const writesNotes = () => L.writesNotes(env.prefs?.(), Boolean(box));
 
+    // A toy is out (desktop): the pet plays instead of wandering off by itself.
+    let playing = false;
+
     function goIdle(now) {
       state.mode = 'idle';
       state.idleUntil = now + between(kind.idleMs);
@@ -469,8 +477,8 @@
 
     // Decide what to do after a pause: walk, hop, nap or fly, depending on the kind and mood.
     function act(now) {
-      // Minimal, on a web page: stay in place.
-      if (keepsQuiet()) {
+      // Minimal, on a web page: stay in place. With a toy out: the toy decides.
+      if (keepsQuiet() || playing) {
         goIdle(now);
         return;
       }
@@ -852,6 +860,17 @@
         render();
       },
       isAway: () => state.mode === 'away',
+      setPlaying(value) {
+        playing = Boolean(value);
+      },
+      isPlaying: () => playing,
+      // Where a toy appears next to this pet: just right of it on the floor, in window pixels from the
+      // left and bottom.
+      toySpot(size) {
+        refreshWorld();
+        const x = clamp(world.left + state.x + w + 6, 0, Math.max(0, window.innerWidth - size));
+        return { x, y: world.bottom };
+      },
       stopChase,
       replanChase() {
         if (!chase) state.nextChaseAt = L.nextChaseAt(Date.now(), status.mood, env.timing());
@@ -991,7 +1010,7 @@
     // Mischief happens only in the desktop overlay.
     chases: SURFACE === 'overlay',
     mayChase: (pet) =>
-      SURFACE === 'overlay' && pet.isShown() && (chaser === null || chaser === pet) &&
+      SURFACE === 'overlay' && pet.isShown() && !pet.isPlaying() && (chaser === null || chaser === pet) &&
       // Not while it asks something (nap question, check-in) or a pet menu is open: the buttons
       // would run away from the click.
       !pet.isTalking() && globalThis.PetMenu?.isOpen() !== true &&
@@ -1029,6 +1048,15 @@
     statuses = next;
     const list = (next?.pets ?? []).filter((s) => KINDS[s.petKind]);
     pets = list.map((s, i) => createPet(s, i, list.length, env));
+    // A toy stays with its pet across a rebuild; a pet that's gone takes its toy with it.
+    for (const [petId, toy] of [...toysOut]) {
+      const pet = pets.find((p) => p.id === petId);
+      if (pet) pet.setPlaying(true);
+      else {
+        toy.el.remove();
+        toysOut.delete(petId);
+      }
+    }
     const now = performance.now();
     for (const pet of pets) {
       pet.restore(positions[pet.id]?.xRatio);
@@ -1074,6 +1102,7 @@
   function setHidden(value) {
     hidden = Boolean(value);
     if (hidden) for (const pet of pets) pet.stopChase(); // hidden pets don't step, so end their chase here
+    if (hidden) putAwayAllToys();
     host.style.display = hidden ? 'none' : '';
     markAttached();
   }
@@ -1083,6 +1112,7 @@
     if (changes.petHidden) setHidden(changes.petHidden.newValue);
     if (changes.petAway) {
       away = L.parseAway(changes.petAway.newValue, Date.now());
+      for (const petId of Object.keys(away)) putAwayToy(petId); // napping or sleeping: no playing
       globalThis.PetMenu?.close(); // its items may be out of date
     }
     if (changes.petCheckIn) checkIn = L.parseCheckIn(changes.petCheckIn.newValue);
@@ -1170,15 +1200,52 @@
   // ---- The pet menu ----
   function openMenu(pet, point) {
     if (stale() || !globalThis.PetMenu) return;
-    globalThis.PetMenu.open(root, point, L.petMenuItems(pet.id, away, statuses), (id) => pick(pet, id));
+    const toys = SURFACE === 'overlay' ? { owned: statuses?.toys ?? [], out: toysOut.get(pet.id)?.id ?? null } : null;
+    globalThis.PetMenu.open(root, point, L.petMenuItems(pet.id, away, statuses, toys), (id) => pick(pet, id));
+  }
+
+  // ---- Toys (desktop overlay): one per pet, summoned from its menu ----
+  const TOY_SIZE = 28;
+  const toysOut = new Map(); // petId -> { id, el }
+
+  function summonToy(pet, toyId) {
+    if (!L.TOY_NAMES[toyId]) return;
+    putAwayToy(pet.id);
+    const el = document.createElement('img');
+    el.className = 'pet-toy';
+    el.alt = '';
+    el.draggable = false;
+    el.dataset.toy = toyId;
+    el.dataset.pet = pet.id;
+    el.src = chrome.runtime.getURL(`assets/toys/${toyId}.svg`);
+    const spot = pet.toySpot(TOY_SIZE);
+    el.style.transform = `translate(${spot.x}px, ${-spot.y}px)`;
+    root.appendChild(el);
+    toysOut.set(pet.id, { id: toyId, el });
+    pet.setPlaying(true);
+  }
+
+  function putAwayToy(petId) {
+    const toy = toysOut.get(petId);
+    if (!toy) return;
+    toy.el.remove();
+    toysOut.delete(petId);
+    pets.find((p) => p.id === petId)?.setPlaying(false);
+  }
+
+  function putAwayAllToys() {
+    for (const petId of [...toysOut.keys()]) putAwayToy(petId);
   }
 
   function pick(pet, id) {
     const petId = pet.id;
     if (id === 'suggest') pet.say(L.suggestionText(statusOf(petId)?.suggestion ?? null), L.SUGGESTION_BUBBLE_MS);
     else if (id === 'nap') askNap(pet);
-    else if (id === 'sleep1') send({ type: 'sleep', petId, hours: 1 });
-    else if (id === 'sleep2') send({ type: 'sleep', petId, hours: 2 });
+    else if (id === 'sleep1' || id === 'sleep2') {
+      putAwayToy(petId); // an away pet doesn't play
+      send({ type: 'sleep', petId, hours: id === 'sleep1' ? 1 : 2 });
+    } else if (id === 'toy:away') putAwayToy(petId);
+    else if (id.startsWith('toy:')) summonToy(pet, id.slice('toy:'.length));
     else if (id === 'open') send({ type: 'openProject', petId });
     else if (id === 'wake') send({ type: 'wake', petId });
   }

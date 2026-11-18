@@ -506,7 +506,24 @@
   const shortNameOf = (statuses, petId) => statusFor(statuses, petId)?.shortName ?? 'your pet';
 
   /** The right-click menu for one pet: [{ id, label, disabled?, hint?, children? }]. */
-  function petMenuItems(petId, petAway, statuses) {
+  // Toy names for the pet menu (Shop names in web/src/store/products.ts).
+  const TOY_NAMES = { 'focus-ball': 'Focus Ball', 'robo-mouse': 'Robo Mouse' };
+
+  /**
+   * The menu's Toys item (desktop pets only): `toys` is { owned: [ids], out: id | null }, or null where
+   * toys don't work. While a toy is out, Put away follows it.
+   */
+  function toyMenuItems(toys) {
+    if (!toys) return [];
+    const owned = toys.owned.filter((id) => TOY_NAMES[id]);
+    const item =
+      owned.length > 0
+        ? { id: 'toys', label: 'Toys', children: owned.map((id) => ({ id: `toy:${id}`, label: TOY_NAMES[id] })) }
+        : { id: 'toys', label: 'Toys', disabled: true, hint: 'Buy toys in the Shop' };
+    return toys.out ? [item, { id: 'toy:away', label: 'Put away' }] : [item];
+  }
+
+  function petMenuItems(petId, petAway, statuses, toys = null) {
     const open = { id: 'open', label: 'Open project' };
     if (petAway[petId]) return [{ id: 'wake', label: 'Wake' }, open];
     const napItem = { id: 'nap', label: `Nap (${NAP_MINUTES} min)` };
@@ -526,6 +543,7 @@
           { id: 'sleep2', label: '2 hours' },
         ],
       },
+      ...toyMenuItems(toys),
       open,
     ];
   }
@@ -1065,6 +1083,7 @@
     applyAwayRequest,
     studiumUrl,
     petMenuItems,
+    TOY_NAMES,
     wakeMenuEntries,
     formatMinutes,
     suggestionText,

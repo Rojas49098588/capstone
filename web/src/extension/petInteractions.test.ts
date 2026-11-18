@@ -313,6 +313,38 @@ describe("menus", () => {
     expect(L.petMenuItems("appDev", { webDev: napEntry({ kind: "sleep" }) }, statuses())[1].disabled).toBeFalsy();
   });
 
+  it("has no Toys item where toys don't work", () => {
+    expect(L.petMenuItems("appDev", {}, statuses(), null).some((i: { id: string }) => i.id === "toys")).toBe(false);
+  });
+
+  it("Toys lists the toys you own, before Open project", () => {
+    const items = L.petMenuItems("appDev", {}, statuses(), { owned: ["focus-ball", "robo-mouse"], out: null });
+    expect(items.map((i: { id: string }) => i.id)).toEqual(["suggest", "nap", "sleep", "toys", "open"]);
+    expect(items[3]).toEqual({
+      id: "toys",
+      label: "Toys",
+      children: [
+        { id: "toy:focus-ball", label: "Focus Ball" },
+        { id: "toy:robo-mouse", label: "Robo Mouse" },
+      ],
+    });
+  });
+
+  it("Toys is disabled with a hint when you own none", () => {
+    const items = L.petMenuItems("appDev", {}, statuses(), { owned: [], out: null });
+    expect(items.find((i: { id: string }) => i.id === "toys")).toEqual({ id: "toys", label: "Toys", disabled: true, hint: "Buy toys in the Shop" });
+  });
+
+  it("offers Put away while a toy is out", () => {
+    const ids = L.petMenuItems("appDev", {}, statuses(), { owned: ["focus-ball"], out: "focus-ball" }).map((i: { id: string }) => i.id);
+    expect(ids).toEqual(["suggest", "nap", "sleep", "toys", "toy:away", "open"]);
+  });
+
+  it("an away pet has no Toys item", () => {
+    const ids = L.petMenuItems("webDev", { webDev: napEntry() }, statuses(), { owned: ["focus-ball"], out: null }).map((i: { id: string }) => i.id);
+    expect(ids).toEqual(["wake", "open"]);
+  });
+
   it("an away pet offers only Wake and Open project", () => {
     const items = L.petMenuItems("webDev", { webDev: napEntry() }, statuses());
     expect(items).toEqual([

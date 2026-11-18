@@ -44,6 +44,7 @@ test("the packaged build's pet overlay loads the pet code and art", async () => 
     );
   expect(await artLoads('studium://pets/assets/pets/cat.png')).toBe(true);
   expect(await artLoads('studium://pets/assets/pets/no-such-pet.png')).toBe(false);
+  expect(await artLoads('studium://pets/assets/toys/focus-ball.svg')).toBe(true); // toys (desktop pets' menu)
   // The pets' sounds are packaged too.
   const soundLoads = (src) =>
     overlay.evaluate(
