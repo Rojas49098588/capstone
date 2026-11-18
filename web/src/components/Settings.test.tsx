@@ -3,6 +3,8 @@ import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SETTINGS_KEY } from "../store/settings";
+import { STORAGE_KEY } from "../store/storage";
+import { DEMO_PROJECT_IDS } from "../store/demo";
 import { renderWithStudium } from "../test/render";
 import Settings from "./Settings";
 
@@ -68,6 +70,42 @@ describe("Settings", () => {
   describe("in the desktop app", () => {
     afterEach(() => {
       delete window.studiumDesktop;
+    });
+
+    it("shows Reset demo only in the demo copy, and no Account there", () => {
+      window.studiumDesktop = { desktop: true };
+      const first = renderWithStudium(<Settings />);
+      expect(screen.queryByRole("button", { name: "Reset demo" })).toBeNull();
+      first.unmount();
+      window.studiumDesktop = { desktop: true, demo: true };
+      renderWithStudium(<Settings />);
+      screen.getByRole("button", { name: "Reset demo" });
+      expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
+    });
+
+    it("Reset demo asks first, then puts the demo save back", async () => {
+      const reloadPets = vi.fn();
+      const reload = vi.fn();
+      const realLocation = window.location;
+      Object.defineProperty(window, "location", { value: { ...realLocation, reload }, configurable: true });
+      try {
+        window.studiumDesktop = { desktop: true, demo: true, reloadPets };
+        const { storage } = renderWithStudium(<Settings />);
+        const before = storage?.getItem(STORAGE_KEY);
+        await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
+        screen.getByText("This replaces everything in this demo copy with fresh demo data.");
+        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        expect(storage?.getItem(STORAGE_KEY)).toBe(before);
+        expect(screen.queryByText("This replaces everything in this demo copy with fresh demo data.")).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
+        await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+        const saved = JSON.parse(storage?.getItem(STORAGE_KEY) as string);
+        expect(saved.projects.map((p: { id: string }) => p.id)).toEqual([...DEMO_PROJECT_IDS]);
+        expect(reloadPets).toHaveBeenCalledTimes(1);
+        expect(reload).toHaveBeenCalledTimes(1);
+      } finally {
+        Object.defineProperty(window, "location", { value: realLocation, configurable: true });
+      }
     });
 
     it("can reload the pets when they stop responding to clicks", async () => {

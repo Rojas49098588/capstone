@@ -20,6 +20,8 @@ import {
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
 import type { TourId } from "../ui/tourSteps";
 import AccountSection from "./AccountSection";
+import DemoReset from "./DemoReset";
+import { isDemo } from "../store/demo";
 
 
 /** The User Settings page: account details (once accounts exist) and preferences. */
@@ -29,6 +31,7 @@ export default function Settings({ onReplayTutorial }: Props) {
   const s = useStudiumContext();
   const { settings, settingsSaved: saved } = s;
   const change = (next: Partial<SettingsValues>) => s.updateSettings(next);
+  const demo = isDemo();
 
   // One choice per pet that exists, plus every pet.
   const petCounts = Array.from({ length: Math.max(1, s.data.projects.length) }, (_, i) => i + 1);
@@ -76,9 +79,10 @@ export default function Settings({ onReplayTutorial }: Props) {
 
       <section aria-labelledby="settings-account" className={`${CARD} p-6 space-y-4`}>
         <h2 id="settings-account" style={SERIF} className="text-xl">
-          Account
+          {demo ? "Demo" : "Account"}
         </h2>
-        <AccountSection />
+        {/* The demo copy never signs in, so nothing in it can reach a real account. */}
+        {demo ? <DemoReset /> : <AccountSection />}
         <div>
           <label htmlFor="settings-nickname" className={LABEL}>
             Nickname

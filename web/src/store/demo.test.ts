@@ -1,9 +1,10 @@
+// @vitest-environment jsdom
 // The demo copy's save (demo stand spec): the owner's five classes with made-up work, built from "now",
 // checked on several days and times so Reset looks right whenever it's pressed.
-import { describe, expect, it } from "vitest";
-import { DEMO_PROJECT_IDS, DEMO_SETTINGS, buildDemo } from "./demo";
-import { isValidData, normalizeData } from "./storage";
-import { parseSettings } from "./settings";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { DEMO_PROJECT_IDS, DEMO_SETTINGS, buildDemo, resetDemo, startDemoIfNew } from "./demo";
+import { STORAGE_KEY, isValidData, normalizeData } from "./storage";
+import { SETTINGS_KEY, parseSettings } from "./settings";
 import { petMood, petsOf, settlePets } from "../planner/pets";
 import { viewOf } from "../planner/requirementView";
 import { isReordered, listOf } from "../planner/order";
@@ -102,5 +103,49 @@ describe("the demo settings", () => {
     expect(DEMO_SETTINGS.petCount).toBe("all");
     expect(DEMO_SETTINGS.petInvolvement).toBe("moderate");
     expect(DEMO_SETTINGS.startWithComputer).toBe(false);
+  });
+});
+
+describe("demo mode", () => {
+  const now = new Date("2026-12-03T09:00");
+  const savedDemo = () => JSON.stringify(buildDemo(now));
+  afterEach(() => {
+    delete window.studiumDesktop;
+    localStorage.clear();
+  });
+
+  it("starts a new demo copy with the demo save and settings", () => {
+    window.studiumDesktop = { desktop: true, demo: true };
+    expect(startDemoIfNew(localStorage, now)).toBe(true);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(savedDemo());
+    expect(parseSettings(localStorage.getItem(SETTINGS_KEY))).toEqual(DEMO_SETTINGS);
+  });
+
+  it("leaves a demo copy that already has data alone", () => {
+    window.studiumDesktop = { desktop: true, demo: true };
+    localStorage.setItem(STORAGE_KEY, "{\"mine\":1}");
+    expect(startDemoIfNew(localStorage, now)).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("{\"mine\":1}");
+    expect(localStorage.getItem(SETTINGS_KEY)).toBeNull();
+  });
+
+  it("does nothing outside the demo copy", () => {
+    window.studiumDesktop = { desktop: true };
+    expect(startDemoIfNew(localStorage, now)).toBe(false);
+    expect(startDemoIfNew(null, now)).toBe(false);
+    expect(localStorage.length).toBe(0);
+  });
+
+  it("Reset replaces everything, reloads the pets, then the page", () => {
+    localStorage.setItem(STORAGE_KEY, "{\"mine\":1}");
+    localStorage.setItem(SETTINGS_KEY, "{}");
+    const calls: string[] = [];
+    resetDemo({ storage: localStorage, now, reloadPets: () => calls.push("pets"), reload: () => calls.push("page") });
+    expect(localStorage.getItem(STORAGE_KEY)).toBe(savedDemo());
+    expect(parseSettings(localStorage.getItem(SETTINGS_KEY))).toEqual(DEMO_SETTINGS);
+    expect(calls).toEqual(["pets", "page"]);
+    const reload = vi.fn();
+    resetDemo({ storage: localStorage, now, reload }); // no pets' window to reload: still resets
+    expect(reload).toHaveBeenCalledTimes(1);
   });
 });

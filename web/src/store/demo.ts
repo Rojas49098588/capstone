@@ -19,7 +19,8 @@ import {
 } from "../planner/types";
 import { giveDefaultBeds } from "./decor";
 import { priceOf } from "./products";
-import { DEFAULT_SETTINGS, type Settings } from "./settings";
+import { DEFAULT_SETTINGS, saveSettings, type Settings } from "./settings";
+import { STORAGE_KEY, saveData } from "./storage";
 
 /** What the pets call you in the demo copy. A placeholder: change it here. */
 export const DEMO_NICKNAME = "Mustang";
@@ -483,4 +484,36 @@ export function buildDemo(now: Date): StudiumData {
     decor: { capstone: CAPSTONE_DECOR },
     startingTokens: DEMO_TOKENS - earned + spent,
   });
+}
+
+// ---- The demo copy (desktop app started with --demo and its own --user-data folder) ----
+
+/** True only in the demo copy: the desktop app tells the page (preload's studiumDesktop.demo). */
+export function isDemo(): boolean {
+  return typeof window !== "undefined" && window.studiumDesktop?.demo === true;
+}
+
+/** Writes a fresh demo save and the demo settings, replacing whatever was there. */
+export function installDemo(storage: Storage, now: Date): void {
+  saveData(storage, buildDemo(now));
+  saveSettings(storage, DEMO_SETTINGS);
+}
+
+/** A demo copy's first start: with nothing saved yet, it starts with the demo. True if it did. */
+export function startDemoIfNew(storage: Storage | null, now: Date): boolean {
+  if (!storage || !isDemo()) return false;
+  try {
+    if (storage.getItem(STORAGE_KEY) !== null) return false;
+  } catch {
+    return false; // storage blocked
+  }
+  installDemo(storage, now);
+  return true;
+}
+
+/** Settings → Reset demo: a fresh demo, then the pets and the page start over with it. */
+export function resetDemo(deps: { storage: Storage; now: Date; reloadPets?: () => void; reload: () => void }): void {
+  installDemo(deps.storage, deps.now);
+  deps.reloadPets?.();
+  deps.reload();
 }
