@@ -7,6 +7,7 @@ import { neglectDays, requirementIdleDays } from "../planner/mood";
 import { isRequirementDone, plannedProgress, requirementProgress, tasksOfRequirement } from "../planner/progress";
 import { useStudiumContext } from "../store/useStudium";
 import { formatDate, hatchingMessage, percent, wordsFor } from "../ui/format";
+import type { Task } from "../planner/types";
 import { BUTTON_SECONDARY, BUTTON_SMALL, CARD } from "../ui/styles";
 import RequirementForm from "./RequirementForm";
 import TaskForm from "./TaskForm";
@@ -17,6 +18,10 @@ type Props = {
   requirementId: string;
   onRequestComplete: (taskId: string) => void;
   onHatch?: (message: string) => void; // a duplicate just hatched the project's egg
+  collapsed?: boolean; // one line: title, sublabel, due date, Waiting on (tasks and requirements view spec)
+  onToggleCollapsed?: () => void; // shows the ▾ / ▸ toggle
+  taskFilter?: (t: Task) => boolean; // the ≡ view's tasks; missing = all
+  reorderable?: boolean; // Move up / down and the grip (default true)
 };
 type Mode = "view" | "edit" | "confirmDelete" | "addTask";
 
@@ -29,7 +34,7 @@ export function SublabelTag({ text }: { text: string }) {
   );
 }
 
-export default function RequirementCard({ requirementId, onRequestComplete, onHatch }: Props) {
+export default function RequirementCard({ requirementId, onRequestComplete, onHatch, collapsed = false, onToggleCollapsed, taskFilter, reorderable = true }: Props) {
   const s = useStudiumContext();
   const [mode, setMode] = useState<Mode>("view");
   const requirement = s.data.requirements.find((r) => r.id === requirementId);
@@ -47,7 +52,41 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
   const idle = requirementIdleDays(requirement, s.data, s.now);
   const neglected = !done && planned > 0 && idle >= neglectDays(project);
   const words = wordsFor(project);
-  const dates = `${requirement.startDate ? `${formatDate(requirement.startDate)} – ` : ""}Due ${formatDate(requirement.dueDate ?? project.deadline)}`;
+  const due = `Due ${formatDate(requirement.dueDate ?? project.deadline)}`;
+  const dates = `${requirement.startDate ? `${formatDate(requirement.startDate)} – ` : ""}${due}`;
+  const shown = taskFilter ? tasks.filter(taskFilter) : tasks;
+  const blockerNames = openRequirementBlockers(requirement, s.data).map((r) => r.title);
+  const toggle = onToggleCollapsed && (
+    <button
+      type="button"
+      aria-label={`${collapsed ? "Expand" : "Collapse"} ${requirement.title}`}
+      aria-expanded={!collapsed}
+      disabled={mode === "edit"}
+      onClick={onToggleCollapsed}
+      className="flex-shrink-0 w-5 text-sm leading-6 text-[var(--color-muted-foreground)] hover:text-[var(--color-foreground)] disabled:opacity-30"
+    >
+      {collapsed ? "▸" : "▾"}
+    </button>
+  );
+
+  if (collapsed) {
+    return (
+      <article aria-label={requirement.title} className={`${CARD} px-5 py-3`}>
+        <div className="flex items-start gap-2">
+          {toggle}
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="font-semibold text-[var(--color-foreground)] break-words">{requirement.title}</span>
+              {requirement.sublabel && <SublabelTag text={requirement.sublabel} />}
+              <span className="text-xs font-mono text-[var(--color-muted-foreground)]">{due}</span>
+              {done && <span className="text-xs text-[var(--color-muted-foreground)]">Finished</span>}
+            </p>
+            <WaitingOn names={blockerNames} />
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article aria-label={requirement.title} className={`${CARD} p-5 space-y-3`}>
@@ -66,7 +105,8 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
         />
       ) : (
         <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
+          {toggle}
+          <div className="min-w-0 flex-1">
             <h3 className="font-semibold text-[var(--color-foreground)] break-words">{requirement.title}</h3>
             {requirement.sublabel && (
               <div className="mt-0.5">
@@ -76,7 +116,7 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
             <p className="text-xs font-mono text-[var(--color-muted-foreground)] mt-0.5">
               Weight {requirement.weight} · {dates}
             </p>
-            <WaitingOn names={openRequirementBlockers(requirement, s.data).map((r) => r.title)} />
+            <WaitingOn names={blockerNames} />
           </div>
           <div className="flex gap-1 flex-shrink-0">
             <button type="button" aria-label={`Edit ${requirement.title}`} onClick={() => setMode("edit")} className={BUTTON_SMALL}>
@@ -147,15 +187,15 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
       )}
 
       <div data-reorder-list>
-        {tasks.length === 0 ? (
+        {shown.length === 0 ? (
           <p className="text-sm italic text-[var(--color-muted-foreground)]">No {words.tasks} yet.</p>
         ) : (
-          tasks.map((t, i) => (
+          shown.map((t, i) => (
             <TaskRow
               key={t.id}
               taskId={t.id}
               onRequestComplete={onRequestComplete}
-              reorder={t.done ? undefined : { index: i, count: openCount, onMove: (to) => s.moveTask(t.id, to) }}
+              reorder={t.done || !reorderable ? undefined : { index: i, count: openCount, onMove: (to) => s.moveTask(t.id, to) }}
             />
           ))
         )}
