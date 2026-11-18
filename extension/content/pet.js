@@ -1386,7 +1386,8 @@
       press = null;
       if (!moved || toysOut.get(petId) !== toy) return; // a click doesn't throw
       const v = throwVelocity(samples);
-      toy.ball = { x: toy.x, y: toy.y, vx: v.vx, vy: v.vy, resting: false, back: toy.x, last: performance.now() };
+      const launch = L.ballLaunch(v); // heavy: never thrown as fast as a pet
+      toy.ball = { x: toy.x, y: toy.y, vx: launch.vx, vy: launch.vy, resting: false, back: toy.x, last: performance.now() };
     };
     toy.el.addEventListener('pointerdown', (e) => {
       if (e.button !== 0 || toy.carried) return;

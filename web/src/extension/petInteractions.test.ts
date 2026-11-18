@@ -498,10 +498,11 @@ describe("ballStep", () => {
       last = b.y;
     });
     expect(peaks.length).toBeGreaterThanOrEqual(1);
-    // Dropped from 200 px: a noticeable bounce (owner, 2026-11-17: "a little bouncier"), still lower than
-    // a pet's (a pet keeps half its speed: about 50 px).
-    expect(peaks[0]).toBeGreaterThan(20);
-    expect(peaks[0]).toBeLessThan(45);
+    // Dropped from 200 px: bouncy, about a pet's bounce (owner, 2026-11-17: "bouncy but not light"),
+    // with a few smaller hops after.
+    expect(peaks[0]).toBeGreaterThan(45);
+    expect(peaks[0]).toBeLessThan(80);
+    expect(peaks.length).toBeGreaterThanOrEqual(3);
     for (let i = 1; i < peaks.length; i++) expect(peaks[i]).toBeLessThan(peaks[i - 1]);
     expect(end).toMatchObject({ y: 0, resting: true });
   });
@@ -521,6 +522,20 @@ describe("ballStep", () => {
     const end = run({ x: 300, y: 0, vx: 400, vy: 0, resting: false }, 6);
     expect(end.resting).toBe(true);
     expect(end.x).toBeGreaterThan(300);
+  });
+
+  it("is too heavy to throw far: the hardest throw at any angle stops within 500 px", () => {
+    for (const deg of [0, 20, 45, 70]) {
+      const v = L.ballLaunch({ vx: 3000 * Math.cos((deg * Math.PI) / 180), vy: 3000 * Math.sin((deg * Math.PI) / 180) });
+      expect(Math.hypot(v.vx, v.vy)).toBeLessThanOrEqual(L.BALL.maxThrow + 1e-9);
+      const end = run({ x: 300, y: 50, ...v, resting: false }, 10);
+      expect(end.resting).toBe(true);
+      expect(end.x - 300).toBeLessThan(500);
+    }
+  });
+
+  it("leaves a gentle throw's speed alone", () => {
+    expect(L.ballLaunch({ vx: 300, vy: 200 })).toEqual({ vx: 300, vy: 200 });
   });
 
   it("a ball let go without speed on the floor stays put", () => {

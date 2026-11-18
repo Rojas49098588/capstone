@@ -523,11 +523,20 @@
     return toys.out ? [item, { id: 'toy:away', label: 'Put away' }] : [item];
   }
 
-  // The Focus Ball (desktop pets): heavier than a pet and only a little bouncy, so it settles fast, like
-  // the turtle. gravity px/s²; bounce: speed kept off the floor (a pet keeps 0.5, the turtle 0.08; owner asked for a little bouncier, 2026-11-17);
-  // wallBounce: off the screen's sides; roll: px/s² of slowing along the floor; restSpeed: slower
-  // than this off the floor and it stops bouncing.
-  const BALL = { gravity: 1800, bounce: 0.4, wallBounce: 0.45, roll: 600, restSpeed: 60 };
+  // The Focus Ball (desktop pets): bouncy but heavy (owner, 2026-11-17), so it hops a few times but
+  // can't be thrown far. gravity px/s²; bounce: speed kept off the floor (a pet keeps 0.5, the turtle
+  // 0.08); wallBounce: off the screen's sides; roll: px/s² of slowing along the floor; restSpeed:
+  // slower than this off the floor and it stops bouncing; airDrag: sideways slowing per second in the
+  // air; maxThrow: the fastest it leaves your hand, px/s (a thrown pet can go 2500).
+  const BALL = { gravity: 2600, bounce: 0.55, wallBounce: 0.45, roll: 900, restSpeed: 90, airDrag: 1.2, maxThrow: 1100 };
+
+  /** The speed a ball leaves your hand with: your throw's, but never faster than BALL.maxThrow. */
+  function ballLaunch(v) {
+    const speed = Math.hypot(v.vx, v.vy);
+    if (speed <= BALL.maxThrow) return { vx: v.vx, vy: v.vy };
+    const k = BALL.maxThrow / speed;
+    return { vx: v.vx * k, vy: v.vy * k };
+  }
 
   /**
    * One step of a thrown ball: ball is { x, y, vx, vy, resting } with x from the left, y above the
@@ -538,7 +547,10 @@
     if (ball.resting) return ball;
     const maxX = Math.max(0, width - size);
     let { x, y, vx, vy } = ball;
-    if (y > 0 || vy > 0) vy -= BALL.gravity * dt;
+    if (y > 0 || vy > 0) {
+      vy -= BALL.gravity * dt;
+      vx *= Math.max(0, 1 - BALL.airDrag * dt);
+    }
     x += vx * dt;
     y += vy * dt;
     if (x < 0) {
@@ -1130,6 +1142,7 @@
     petMenuItems,
     TOY_NAMES,
     BALL,
+    ballLaunch,
     ballStep,
     ROBO_MOUSE,
     toyCatchText,
