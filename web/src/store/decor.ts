@@ -55,6 +55,7 @@ export const DECOR_ITEMS: DecorItem[] = [
   item("striped-runner", "Striped Runner", "A long striped rug.", "rug", 60, ["floorMiddle"]),
   item("study-poster", "Study Poster", "Keep going! A little motivation on the wall.", "wallDecor", 40, WALL),
   item("clock", "Clock", "A round wall clock that keeps you on schedule.", "wallDecor", 40, WALL),
+  item("window", "Window", "A view of the sky that follows your clock. The room gets darker at night.", "wallDecor", 80, WALL),
   item("pet-bed", "Pet Bed", "A plush bed any pet will nap in.", "bed", 150, FLOOR, { use: "bed" }),
   item("scratching-post", "Scratching Post", "A sturdy post for claws.", "petFurniture", 200, FLOOR, { use: "scratch", forKind: "cat" }),
   item("heat-lamp", "Heat Lamp", "A warm glow to bask under.", "petFurniture", 200, FLOOR, { use: "bask", forKind: "turtle" }),

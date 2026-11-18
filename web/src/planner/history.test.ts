@@ -6,10 +6,44 @@ import {
   lastCompletionAt,
   lastMedicineGiven,
   paidCompletionsOnDay,
+  retiredRefund,
   tokenBalance,
 } from "./history";
 import { NOW, completed, daysAgo, dayKey } from "./testData";
 import { ZERO_BREAKDOWN, type StudiumEvent } from "./types";
+
+describe("removed products and food tokens", () => {
+  const buy = (productId: string, price: number): StudiumEvent => ({ type: "purchase", at: daysAgo(3), productId, price });
+  const clothes = [buy("scholar-scarf", 120), buy("rainy-day-coat", 180), buy("rainy-day-coat", 180)];
+
+  it("gives back what was paid for clothes and the Puzzle Cube", () => {
+    const rest = [buy("medicine", 80)];
+    expect(tokenBalance({ events: [...rest, ...clothes, buy("puzzle-cube", 150)] })).toBe(tokenBalance({ events: rest }));
+  });
+  it("stops listing them in the inventory", () => {
+    const counts = inventory([...clothes, buy("puzzle-cube", 150), buy("focus-ball", 75)]);
+    expect(counts["scholar-scarf"]).toBeUndefined();
+    expect(counts["rainy-day-coat"]).toBeUndefined();
+    expect(counts["puzzle-cube"]).toBeUndefined();
+    expect(counts["focus-ball"]).toBe(1);
+  });
+  it("says how much came back", () => {
+    expect(retiredRefund(clothes)).toEqual({ tokens: 480, count: 3 });
+    expect(retiredRefund([buy("medicine", 80)])).toEqual({ tokens: 0, count: 0 });
+  });
+  it("pays a feeding's tokens only when a copy was owned, so two offline devices can't both cash one", () => {
+    const fed = (petId: string): StudiumEvent => ({ type: "fed", at: daysAgo(1), projectId: "p1", petId, productId: "sour-gummies", tokens: 23 });
+    const events: StudiumEvent[] = [buy("sour-gummies", 40), fed("p1"), fed("x1")];
+    expect(tokenBalance({ events, startingTokens: 100 })).toBe(100 - 40 + 23);
+  });
+
+  it("adds a feeding's tokens, and nothing for older feedings", () => {
+    const fed = (o: object = {}): StudiumEvent => ({ type: "fed", at: daysAgo(1), projectId: "p1", petId: "p1", productId: "sour-gummies", ...o });
+    const owned = buy("sour-gummies", 0);
+    expect(tokenBalance({ events: [owned, fed({ tokens: 23 })], startingTokens: 100 })).toBe(123);
+    expect(tokenBalance({ events: [owned, fed()], startingTokens: 100 })).toBe(100);
+  });
+});
 
 describe("history", () => {
   it("knows whether a task was ever completed", () => {

@@ -1,6 +1,6 @@
 // What a task is worth, and the tokens paid when it is completed. See spec section 2.
 import { downstreamOpenCount } from "./blocking";
-import { mealBoostUntil } from "./food";
+import { mealMultiplier } from "./food";
 import { basePaidForRequirement, finishBonusPaid, hasBeenCompleted, paidCompletionsOnDay } from "./history";
 import { estimateMultipliers, multiplierFor, type Multipliers } from "./learning";
 import { projectHealth, requirementIdleDays } from "./mood";
@@ -11,7 +11,6 @@ import {
   DAILY_FLOOR,
   DAILY_FULL_PAY_COUNT,
   FINISH_SHARE,
-  MEAL_TOKEN_MULTIPLIER,
   NEGLECT_BONUS_MAX,
   NEGLECT_BONUS_PER_DAY,
   NEGLECT_BONUS_START_DAYS,
@@ -98,7 +97,7 @@ export function computeCompletionPayout(
       : 0;
   const curve = dailyCurve(paidCompletionsOnDay(data.events, localDateKey(now)) + 1);
   const sickMultiplier = health.sick ? SICK_TOKEN_MULTIPLIER : 1;
-  const foodMultiplier = mealBoostUntil(data.events, task.projectId, now) ? MEAL_TOKEN_MULTIPLIER : 1;
+  const foodMultiplier = mealMultiplier(data.events, task.projectId, now);
 
   const raw = Math.round((base * (1 + unblock + neglect) + finish) * curve * sickMultiplier * foodMultiplier * TOKENS_PER_VALUE);
   const tokens = Number.isFinite(raw) ? raw : 0;

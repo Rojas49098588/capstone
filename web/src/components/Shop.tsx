@@ -1,3 +1,4 @@
+import { findFood, flavorLabel } from "../planner/foods";
 import { useEffect, useState } from "react";
 import { inventory, tokenBalance } from "../planner/history";
 import { SHOP_PRODUCTS, type ShopCategory } from "../store/products";
@@ -16,9 +17,14 @@ const TABS: { id: ShopTab; label: string }[] = [
 const CATEGORIES: { category: ShopCategory; blurb: string }[] = [
   { category: "Care", blurb: "Health & recovery" },
   { category: "Food", blurb: "Care & energy" },
-  { category: "Clothes", blurb: "Companion style" },
   { category: "Toys", blurb: "Play & enrichment" },
 ];
+
+/** A food's flavor, e.g. "Sour"; null for anything that isn't food. */
+function flavorOf(productId: string): string | null {
+  const food = findFood(productId);
+  return food ? flavorLabel(food.flavor) : null;
+}
 
 function ProductIcon({ category }: { category: ShopCategory }) {
   const common = { className: "w-16 h-16", viewBox: "0 0 64 64", fill: "none", stroke: "currentColor", "aria-hidden": true } as const;
@@ -35,13 +41,6 @@ function ProductIcon({ category }: { category: ShopCategory }) {
       <svg {...common}>
         <path d="M14 28h36l-4 22H18l-4-22Z" strokeWidth="2" strokeLinejoin="round" />
         <path d="M21 28c1-8 6-13 11-13s10 5 11 13M26 20c-2-5 1-9 6-10" strokeWidth="2" strokeLinecap="round" />
-      </svg>
-    );
-  }
-  if (category === "Clothes") {
-    return (
-      <svg {...common}>
-        <path d="m22 14-12 9 7 10 6-4v22h18V29l6 4 7-10-12-9c-2 4-5 6-10 6s-8-2-10-6Z" strokeWidth="2" strokeLinejoin="round" />
       </svg>
     );
   }
@@ -75,7 +74,7 @@ export default function Shop({ openTab }: Props) {
             Shop
           </h1>
           <p className="text-sm text-[var(--color-muted-foreground)] mt-2 max-w-lg">
-            Spend study tokens on care, treats, outfits, toys and new companions for your projects.
+            Spend study tokens on care, treats, toys and new companions for your projects.
           </p>
         </div>
         <div data-tour="shop-balance" className="bg-[var(--color-inverse)] text-[var(--color-inverse-foreground)] px-5 py-3 min-w-44">
@@ -131,12 +130,19 @@ export default function Shop({ openTab }: Props) {
                   return (
                     <article key={product.id} className={`${CARD} p-5 flex gap-5`}>
                       <div className="w-24 h-24 flex-shrink-0 bg-[var(--color-muted)] text-[var(--color-primary)] flex items-center justify-center">
-                        <ProductIcon category={product.category} />
+                        {product.image ? (
+                          <img src={`${import.meta.env.BASE_URL}${product.image}`} alt="" className="max-w-[80%] max-h-[80%]" />
+                        ) : (
+                          <ProductIcon category={product.category} />
+                        )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <h3 className="font-semibold text-[var(--color-foreground)]">{product.name}</h3>
+                            {flavorOf(product.id) && (
+                              <p className="text-xs font-mono uppercase tracking-widest text-[var(--color-accent)] mt-0.5">{flavorOf(product.id)}</p>
+                            )}
                             <p className="text-xs text-[var(--color-muted-foreground)] leading-relaxed mt-1">{product.description}</p>
                             {product.effect && (
                               <p className="text-xs leading-relaxed mt-2 px-2 py-1.5 bg-[var(--color-muted)] text-[var(--color-foreground)]">

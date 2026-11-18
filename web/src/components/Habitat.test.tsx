@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
@@ -145,6 +145,36 @@ describe("Habitat decor", () => {
     expect(floor.style.backgroundImage).toContain("decor/oak-planks.svg");
     expect(document.querySelector('[data-decor-layer="wallpaper"]')).toBeNull(); // Plain
     expect(screen.queryAllByRole("button", { name: /^Put / })).toHaveLength(0); // not placing
+  });
+
+  it("a placed window shows the sky for the time and dims the room at night", () => {
+    const night = new Date(2026, 9, 14, 22, 0);
+    const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: night });
+    expect(document.querySelector("[data-window]")?.getAttribute("data-period")).toBe("night");
+    const tint = screen.getByTestId("room-tint");
+    expect(tint.closest("[data-pet-habitat]")).not.toBeNull(); // the room, not the status panel
+    expect(screen.getByText("Food").closest("[data-pet-habitat]")).toBeNull();
+  });
+
+  it("doesn't dim the room by day", () => {
+    const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: new Date(2026, 9, 14, 12, 0) });
+    expect(document.querySelector("[data-window]")?.getAttribute("data-period")).toBe("day");
+    expect(screen.queryByTestId("room-tint")).toBeNull();
+  });
+
+  it("never dims a habitat without a window", () => {
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data: owning("window"), now: new Date(2026, 9, 14, 22, 0) });
+    expect(screen.queryByTestId("room-tint")).toBeNull();
+  });
+
+  it("dims once with two windows", () => {
+    let data = placeDecor(owning("window", "window"), "webDev", "wallLeft", "window");
+    data = placeDecor(data, "webDev", "wallRight", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: new Date(2026, 9, 14, 22, 0) });
+    expect(screen.getAllByTestId("room-tint")).toHaveLength(1);
+    expect(document.querySelectorAll("[data-window]")).toHaveLength(2);
   });
 
   it("outlines the free slots while placing", async () => {
@@ -295,7 +325,7 @@ describe("Habitat food", () => {
       tasks: ids.map((id, i) => makeTask({ id, requirementId: "r1", done: i < done })),
       events: [
         ...ids.slice(0, done).map((id) => completed(id, daysAgo(1), { requirementId: "r1" })),
-        ...(o.stocked === false ? [] : [stock("berry-bites"), stock("power-bento")]),
+        ...(o.stocked === false ? [] : [stock("berry-bites"), stock("berry-bites"), stock("power-bento"), stock("power-bento")]),
         ...(o.events ?? []),
       ],
     });
@@ -336,10 +366,36 @@ describe("Habitat food", () => {
     expect(screen.queryByRole("button", { name: /Feed|Not hungry/ })).toBeNull();
   });
 
-  it("sends you to the shop for food you don't have", async () => {
+  it("sends you to the shop when you have no food", async () => {
     const onOpenShop = vi.fn();
     renderWithStudium(<Habitat habitatId="p1" onOpenShop={onOpenShop} />, { data: fed({ stocked: false }) });
-    await userEvent.click(screen.getByRole("button", { name: "Buy Berry Bites in the Shop" }));
+    await userEvent.click(screen.getByRole("button", { name: "Buy food in the Shop" }));
     expect(onOpenShop).toHaveBeenCalled();
+  });
+
+  it("says what the pet loves and marks its favorites", () => {
+    renderWithStudium(<Habitat habitatId="x1" onOpenShop={vi.fn()} />, { data: fed({ events: [stock("sour-gummies")] }) });
+    screen.getByText("Loves sour food");
+    const gummies = screen.getByRole("button", { name: "Feed Sour Gummies" });
+    expect(within(gummies).getByText("♥ Favorite")).toBeTruthy();
+    expect(within(screen.getByRole("button", { name: "Feed Power Bento" })).queryByText("♥ Favorite")).toBeNull();
+  });
+
+  it("offers only the foods you own, as snacks and meals", () => {
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed({ events: [stock("plain-crackers"), stock("garden-salad")] }) });
+    screen.getByText("Snacks");
+    screen.getByText("Meals");
+    screen.getByRole("button", { name: "Feed Plain Crackers" });
+    screen.getByRole("button", { name: "Feed Garden Salad" });
+    expect(screen.queryByRole("button", { name: /Seed Crunch|Meaty Stew/ })).toBeNull();
+  });
+
+  it("shows a salad's boost until midnight and a stew's shorter snack wait", () => {
+    const at = new Date(NOW.getTime() - HOUR).toISOString();
+    const salad: StudiumEvent = { type: "fed", at, projectId: "p1", petId: "x1", productId: "garden-salad" };
+    const stew: StudiumEvent = { type: "fed", at, projectId: "p1", petId: "p1", productId: "meaty-stew" };
+    renderWithStudium(<Habitat habitatId="p1" onOpenShop={vi.fn()} />, { data: fed({ events: [salad, stew] }) });
+    screen.getByText("Meal: × 1.05 tokens until midnight");
+    screen.getByText("Snacks every 2h 30m today");
   });
 });

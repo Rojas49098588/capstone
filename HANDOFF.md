@@ -137,6 +137,18 @@ Plan `docs/superpowers/plans/2026-11-15-companion-plan-2-phone-app.md`. How to r
 - **Tests:** `cd mobile && npx jest` (fakes from `web/src/test`), `npx tsc --noEmit`, `npx expo export --platform ios --output-dir dist`.
 - **Needs the owner:** the by-hand check on a real phone (Expo Go), then tester builds with EAS (Expo account; App Store Connect for TestFlight). The app icon is still Expo's template icon.
 
+## Food, the window, and favorite hearts (built 2026-11-17; toys still to come)
+
+Design `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`; plan `docs/superpowers/plans/2026-11-17-shop-toys-window.md` (Tasks 1–7 done; Tasks 8–10, the toys, wait for the click-bug investigation).
+
+- **Food catalog:** `web/src/planner/foods.ts` (`FOODS`, `FAVORITE_FLAVOR`, `findFood`, `isFavorite`, `flavorLabel`). Every food's kind, flavor, price and effect lives there; Berry Bites' and Power Bento's numbers still come from the old constants in `tuning.ts`. Shop names and "What it does" texts are in `web/src/store/products.ts`, which takes each food's price from the catalog.
+- **Rules:** `web/src/planner/food.ts`. `canFeed` takes a product id. A snack's lift length comes from the pet's last snack; Meaty Stew shortens that pet's snack wait to 2.5 h until midnight (`snackWaitHours`). A project's tokens use the **highest** running meal boost, never the product (`runningBoosts`, `topMealBoost`, `mealMultiplier`); only Power Bento extends its own running boost. Tests pin that every lift ends before the shortest wait and that no food pays back its price.
+- **Food tokens:** a `fed` event may carry `tokens` (Sour Gummies' 15, plus 20% of the price for the pet's favorite flavor, `feedTokens`); `tokenBalance` adds them. Missing means 0 (older saves).
+- **Removed products:** Scholar Scarf, Rainy-Day Coat and Puzzle Cube (`RETIRED_PRODUCT_IDS`). Nothing is saved for the refund: `tokenBalance` and `inventory` skip their purchases, so it can't be paid twice on two devices. `RefundNotice` says so once per device (flag `studium.refundNoticeSeen` in that device's storage).
+- **Window:** a wall decor item (`window`, 80). `web/src/planner/timeOfDay.ts` picks the period from the local clock (sunrise 6–8, day 8–18, sunset 18–20, night otherwise). `HabitatDecor` draws the sky (`decor/window-sky-<period>.svg`) under `decor/window-frame.svg`, with CSS clouds and shooting stars (`index.css`, off under reduced motion), and lays a tint over the room only when a window is placed. `decor/window.svg` is the Shop and inventory picture.
+- **Statuses for the desktop pets:** `PetStatuses.toys` (owned toy ids, `TOY_PRODUCT_IDS`, same list as `TOY_IDS` in `extension/content/logic.js`) and `PetStatus.favoriteFedAt`. The pets show "♥" with one hop for a favorite feeding less than a minute old (`newFavorites`, beside `newCelebrations`). `statusesEqual` ignores `favoriteFedAt`, so a feeding doesn't rebuild the pets.
+- **Placeholder art:** `web/public/food/*.svg` and the window SVGs. Replace a file to change the art.
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):

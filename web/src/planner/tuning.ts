@@ -67,6 +67,11 @@ export const SNACK_HOURS = 2; // how long a snack's lift lasts
 export const SNACK_WAIT_HOURS = 3; // from one snack to the next: longer than the lift, so a pet's real mood always shows for a while
 export const MEAL_HOURS = 4; // how long a meal's boost lasts (a meal while it runs adds this much)
 export const MEAL_TOKEN_MULTIPLIER = 1.1;
+// Products no longer sold (shop, toys and window spec): what was paid for them counts as given back.
+export const RETIRED_PRODUCT_IDS = ["scholar-scarf", "rainy-day-coat", "puzzle-cube"];
+// Toys that work on the desktop pets, in Shop order. Same list as TOY_IDS in extension/content/logic.js.
+export const TOY_PRODUCT_IDS = ["focus-ball", "robo-mouse"];
+export const FAVORITE_BONUS_SHARE = 0.2; // a favorite food gives back this share of its price as tokens (rounded down)
 export const DEFAULT_ESTIMATE_MIN = 60;
 
 // User settings

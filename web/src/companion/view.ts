@@ -3,10 +3,11 @@
 import { isBlocked } from "../planner/blocking";
 import { taskDueDate } from "../planner/dueDates";
 import { canFeed, mealBoostUntil, snackLiftUntil } from "../planner/food";
+import { mealBoostLine } from "../ui/foodText";
 import { projectMood, type ProjectMood } from "../planner/mood";
 import { petMood, petsOf, suggestedPetName, type PetRef } from "../planner/pets";
 import { todayTaskIds } from "../planner/suggest";
-import { MEAL_HOURS, MEAL_TOKEN_MULTIPLIER } from "../planner/tuning";
+import { MEAL_HOURS, MEAL_PRODUCT_ID, MEAL_TOKEN_MULTIPLIER } from "../planner/tuning";
 import type { Mood, PetKind, Project, StudiumData, Task } from "../planner/types";
 import { isPending } from "../store/actions";
 import { durationLabel, formatDate } from "../ui/format";
@@ -50,9 +51,9 @@ function looksAfter(pet: PetRef, project: Project, data: StudiumData): string {
 
 function foodLine(pet: PetRef, mood: ProjectMood | null, data: StudiumData, now: Date): string | null {
   if (pet.stage === "egg") return null;
-  const boost = mealBoostUntil(data.events, pet.projectId, now);
-  if (boost) return `Meal: × ${MEAL_TOKEN_MULTIPLIER} tokens for ${durationLabel(boost.getTime() - now.getTime())} more`;
-  const meal = canFeed(data, pet, mood, "meal", now);
+  const boost = mealBoostLine(data.events, pet.projectId, now);
+  if (boost) return boost;
+  const meal = canFeed(data, pet, mood, MEAL_PRODUCT_ID, now);
   if (!meal.ok && meal.reason === "wait") return "Next meal tomorrow";
   const lift = mood?.liftedFrom ? snackLiftUntil(data.events, pet.petId, now) : null;
   if (lift) return `Snack: lifting mood for ${durationLabel(lift.getTime() - now.getTime())}`;
@@ -99,7 +100,7 @@ export function needsYou(data: StudiumData, now: Date): NeedsYou[] {
       }
       if (!mealOffered) {
         mealOffered = true; // one meal suggestion per project: its first hatched pet decides
-        const check = canFeed(data, pet, mood, "meal", now);
+        const check = canFeed(data, pet, mood, MEAL_PRODUCT_ID, now);
         if (check.ok || check.reason === "none-owned") {
           meals.push({ kind: "meal", petId: pet.petId, text: `${project.shortName} hasn't had a meal today: × ${MEAL_TOKEN_MULTIPLIER} tokens for ${MEAL_HOURS} hours.` });
         }

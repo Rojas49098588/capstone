@@ -1,7 +1,7 @@
 // Facts derived from the event history. The history is the source of truth for
 // tokens, inventory, "last moved" and whether something was already paid.
 import { localDateKey } from "./time";
-import { LEGACY_STARTING_TOKENS, MEDICINE_PRODUCT_ID } from "./tuning";
+import { LEGACY_STARTING_TOKENS, MEDICINE_PRODUCT_ID, RETIRED_PRODUCT_IDS } from "./tuning";
 import type { CompletedEvent, StudiumData, StudiumEvent } from "./types";
 
 const isCompleted = (e: StudiumEvent): e is CompletedEvent => e.type === "task_completed";
@@ -27,11 +27,34 @@ export function lastCompletionAt(events: StudiumEvent[], taskIds: Iterable<strin
   return latest === -Infinity ? null : new Date(latest);
 }
 
+const isRetired = (productId: string) => RETIRED_PRODUCT_IDS.includes(productId);
+
+/** What came back for products no longer sold: everything paid for them, and how many there were. */
+export function retiredRefund(events: StudiumEvent[]): { tokens: number; count: number } {
+  let tokens = 0;
+  let count = 0;
+  for (const e of events) {
+    if (e.type === "purchase" && isRetired(e.productId)) {
+      tokens += e.price;
+      count += 1;
+    }
+  }
+  return { tokens, count };
+}
+
 export function tokenBalance(data: Pick<StudiumData, "events" | "startingTokens">): number {
   let balance = data.startingTokens ?? LEGACY_STARTING_TOKENS;
+  // A feeding pays only if a copy was owned: two devices feeding the same last copy offline get paid once.
+  const stock: Record<string, number> = {};
   for (const e of data.events) {
     if (e.type === "task_completed") balance += e.tokens;
-    else if (e.type === "purchase") balance -= e.price;
+    else if (e.type === "purchase" && !isRetired(e.productId)) {
+      balance -= e.price;
+      stock[e.productId] = (stock[e.productId] ?? 0) + 1;
+    } else if (e.type === "fed" && (stock[e.productId] ?? 0) > 0) {
+      stock[e.productId] -= 1;
+      balance += e.tokens ?? 0;
+    }
   }
   return balance;
 }
@@ -40,6 +63,7 @@ export function inventory(events: StudiumEvent[]): Record<string, number> {
   const counts: Record<string, number> = {};
   for (const e of events) {
     if (e.type === "purchase") {
+      if (isRetired(e.productId)) continue;
       counts[e.productId] = (counts[e.productId] ?? 0) + 1;
     } else if (e.type === "medicine_given") {
       counts[MEDICINE_PRODUCT_ID] = Math.max(0, (counts[MEDICINE_PRODUCT_ID] ?? 0) - 1);

@@ -23,6 +23,15 @@ describe("Shop", () => {
     within(card("Power Bento")).getByText("Tasks on this pet's project earn × 1.1 tokens for 4 hours. One meal a day.");
   });
 
+  it("shows each food's flavor and picture, and no Clothes section", () => {
+    renderWithStudium(<Shop />);
+    const card = (name: string) => screen.getByRole("heading", { name }).closest("article") as HTMLElement;
+    within(card("Sour Gummies")).getByText("Sour");
+    within(card("Plain Rice")).getByText("Bland");
+    expect(card("Seed Crunch").querySelector("img")?.getAttribute("src")).toContain("food/seed-crunch.svg");
+    expect(screen.queryByRole("heading", { name: "Clothes" })).toBeNull();
+  });
+
   it("buys an item", async () => {
     renderWithStudium(<Shop />);
     await userEvent.click(screen.getByRole("button", { name: "Buy · 80 tokens" }));
@@ -32,7 +41,7 @@ describe("Shop", () => {
 
   it("disables what you can't afford", () => {
     const data = buildSeed(NOW);
-    data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "rainy-day-coat", price: 600 });
+    data.events.push({ type: "purchase", at: NOW.toISOString(), productId: "robo-mouse", price: 600 });
     renderWithStudium(<Shop />, { data });
     expect((screen.getByRole("button", { name: "Need 30 more" }) as HTMLButtonElement).disabled).toBe(true);
   });

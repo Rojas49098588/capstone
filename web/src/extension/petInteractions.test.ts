@@ -413,6 +413,35 @@ describe("newCelebrations", () => {
   });
 });
 
+describe("newFavorites", () => {
+  const withFavorite = (at: string | null) => L.parseStatuses({ pets: [pet({ favoriteFedAt: at }), pet({ projectId: "appDev" })] });
+  const now = (ms: number) => T + ms;
+
+  it("shows nothing from the first statuses a tab sees", () => {
+    const r = L.newFavorites(null, withFavorite(iso(T)), now(0));
+    expect(r.celebrate).toEqual([]);
+    expect(r.seen).toEqual({ webDev: iso(T) });
+  });
+  it("shows a heart for a newer favorite feeding, once", () => {
+    const first = L.newFavorites(null, withFavorite(null), now(0));
+    const next = L.newFavorites(first.seen, withFavorite(iso(T)), now(1000));
+    expect(next.celebrate).toEqual([{ petId: "webDev", kind: "favorite" }]);
+    expect(L.newFavorites(next.seen, withFavorite(iso(T)), now(2000)).celebrate).toEqual([]);
+  });
+  it("skips a feeding more than a minute old", () => {
+    const first = L.newFavorites(null, withFavorite(null), now(0));
+    expect(L.newFavorites(first.seen, withFavorite(iso(T)), now(5 * MIN)).celebrate).toEqual([]);
+  });
+  it("is a heart, and a single hop", () => {
+    expect(L.celebrationText("favorite")).toBe(L.favoriteHeartText);
+    expect(L.favoriteHeartText).toBe("♥");
+    expect(L.celebrationHops("favorite")).toBe(1);
+  });
+  it("a new favorite feeding doesn't count as different pets", () => {
+    expect(L.statusesEqual(withFavorite(null), withFavorite(iso(T)))).toBe(true);
+  });
+});
+
 describe("habitat furniture", () => {
   const withFurniture = (furniture: unknown, o: Record<string, unknown> = {}) =>
     L.parseStatuses({ pets: [pet({ furniture, ...o })] }).pets[0].furniture;

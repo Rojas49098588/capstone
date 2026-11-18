@@ -72,6 +72,8 @@ describe("isValidData", () => {
     expect(isValidData({ ...valid(), events: [fed()] })).toBe(true);
     expect(isValidData({ ...valid(), events: [fed({ petId: undefined })] })).toBe(false);
     expect(isValidData({ ...valid(), events: [fed({ productId: 3 })] })).toBe(false);
+    expect(isValidData({ ...valid(), events: [fed({ tokens: 23 })] })).toBe(true);
+    expect(isValidData({ ...valid(), events: [fed({ tokens: "x" })] })).toBe(false);
   });
 
   it("loads completions saved before the meal boost existed", () => {
