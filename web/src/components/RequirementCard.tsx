@@ -20,6 +20,15 @@ type Props = {
 };
 type Mode = "view" | "edit" | "confirmDelete" | "addTask";
 
+/** A requirement's sublabel: a small, muted tag (only a label, no grouping). */
+export function SublabelTag({ text }: { text: string }) {
+  return (
+    <span className="inline-block align-middle text-[10px] font-mono uppercase tracking-widest border border-[var(--color-border)] px-1.5 text-[var(--color-muted-foreground)] break-all">
+      {text}
+    </span>
+  );
+}
+
 export default function RequirementCard({ requirementId, onRequestComplete, onHatch }: Props) {
   const s = useStudiumContext();
   const [mode, setMode] = useState<Mode>("view");
@@ -59,6 +68,11 @@ export default function RequirementCard({ requirementId, onRequestComplete, onHa
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <h3 className="font-semibold text-[var(--color-foreground)] break-words">{requirement.title}</h3>
+            {requirement.sublabel && (
+              <div className="mt-0.5">
+                <SublabelTag text={requirement.sublabel} />
+              </div>
+            )}
             <p className="text-xs font-mono text-[var(--color-muted-foreground)] mt-0.5">
               Weight {requirement.weight} · {dates}
             </p>

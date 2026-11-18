@@ -177,3 +177,23 @@ describe("reordering a requirement's tasks", () => {
     expect(titles()).toEqual(["Git commit", "APK"]);
   });
 });
+
+describe("sublabels", () => {
+  it("sets, shows, edits and clears a sublabel", async () => {
+    const { storage } = renderWithStudium(<RequirementCard requirementId="P11" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 11" }));
+    const field = screen.getByRole("textbox", { name: "Sublabel" }) as HTMLInputElement;
+    expect(field.maxLength).toBe(30);
+    await userEvent.type(field, "Accessibility");
+    await userEvent.click(screen.getByRole("button", { name: "Save requirement" }));
+    screen.getByText("Accessibility");
+    expect(savedData(storage).requirements.find((r) => r.id === "P11")?.sublabel).toBe("Accessibility");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 11" }));
+    expect((screen.getByRole("textbox", { name: "Sublabel" }) as HTMLInputElement).value).toBe("Accessibility");
+    await userEvent.clear(screen.getByRole("textbox", { name: "Sublabel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save requirement" }));
+    expect(screen.queryByText("Accessibility")).toBeNull();
+    expect("sublabel" in (savedData(storage).requirements.find((r) => r.id === "P11") ?? {})).toBe(false);
+  });
+});
