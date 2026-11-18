@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from 'vitest';
 import '../../extension/content/logic.js';
-import { EVENTS, installBridge } from '../src/preload/studium.js';
+import { EVENTS, desktopApi, installBridge } from '../src/preload/studium.js';
 
 const L = globalThis.PetLogic;
 
@@ -18,6 +18,14 @@ describe('EVENTS', () => {
       WAKE_PET_EVENT: L.WAKE_PET_EVENT,
       TASK_DONE_EVENT: L.TASK_DONE_EVENT,
     });
+  });
+});
+
+describe('desktopApi', () => {
+  it('asks the app to reload the pets', () => {
+    const sent = [];
+    desktopApi({ send: (channel, payload) => sent.push([channel, payload]), invoke: () => Promise.resolve() }).reloadPets();
+    expect(sent).toEqual([['studium:reload-pets', undefined]]);
   });
 });
 

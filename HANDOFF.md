@@ -160,6 +160,11 @@ Same design and plan (Tasks 8–10).
 - **Robo Mouse:** scoots back and forth within `ROBO_MOUSE.rangePx` of where it appeared. Every `pounceEveryMs` the pet runs at it and hops (`pounce` mode), then says "Got it!". The mouse stays still for `pauseMs`.
 - **Tests:** `web/src/extension/petToysScript.test.ts`, `petFetchScript.test.ts`, `petRoboMouseScript.test.ts`, and the menu and `ballFlight` tests in `petInteractions.test.ts`.
 
+## Reload pets in Settings (2026-11-17)
+
+- Settings shows **"Pets not responding to clicks?" → Reload pets** in the desktop app only (`window.studiumDesktop.reloadPets`, from `desktopApi` in `desktop/src/preload/studium.js`). It sends `studium:reload-pets`, and `handleStudium` (`desktop/src/main/bridge.js`) calls the same `openOverlay` as the tray's Reload pets and the after-wake rebuild. That's the recovery for the stuck-clicks bug (`bugs.md`).
+- Tests: `desktop/test/bridge.test.js`, `desktop/test/preload.test.js`, `web/src/components/Settings.test.tsx`, and the e2e `Reload pets in Settings replaces the pet window` (`desktop/e2e/overlay.spec.js`).
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):
