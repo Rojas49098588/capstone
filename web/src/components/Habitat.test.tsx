@@ -152,9 +152,32 @@ describe("Habitat decor", () => {
     const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
     renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: night });
     expect(document.querySelector("[data-window]")?.getAttribute("data-period")).toBe("night");
+    // October: fall leaves blow past, no snow on the sill.
+    const win = document.querySelector<HTMLElement>("[data-window]")!;
+    expect(win.getAttribute("data-season")).toBe("fall");
+    expect(win.querySelectorAll(".window-leaf").length).toBeGreaterThan(0);
+    expect(win.querySelector("[data-snow-pile]")).toBeNull();
     const tint = screen.getByTestId("room-tint");
     expect(tint.closest("[data-pet-habitat]")).not.toBeNull(); // the room, not the status panel
     expect(screen.getByText("Food").closest("[data-pet-habitat]")).toBeNull();
+  });
+
+  it("snows in winter and piles snow on the sill", () => {
+    const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: new Date(2026, 11, 3, 12, 0) });
+    const win = document.querySelector<HTMLElement>("[data-window]")!;
+    expect(win.getAttribute("data-season")).toBe("winter");
+    expect(win.getAttribute("data-weather")).toBe("snow");
+    expect(win.querySelectorAll(".window-snow").length).toBeGreaterThan(0);
+    expect(win.querySelector<HTMLElement>("[data-snow-pile]")?.style.height).toMatch(/%$/);
+  });
+
+  it("is a bigger rectangle than the wall spot's other items", () => {
+    const data = placeDecor(owning("window"), "webDev", "wallLeft", "window");
+    renderWithStudium(<Habitat habitatId="webDev" onOpenShop={vi.fn()} />, { data, now: new Date(2026, 9, 14, 12, 0) });
+    const win = document.querySelector<HTMLElement>("[data-window]")!;
+    expect(parseFloat(win.style.width)).toBeCloseTo(14 * 1.25, 5);
+    expect(parseFloat(win.style.height)).toBeCloseTo(28 * 1.25, 5);
   });
 
   it("doesn't dim the room by day", () => {
