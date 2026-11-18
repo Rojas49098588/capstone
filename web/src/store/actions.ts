@@ -1,5 +1,7 @@
 // User actions as pure functions: (data, input, now) → new data (+ result).
 // Every change that matters for history appends an event.
+import { isReordered, listOf, sortListTasks } from "../planner/order";
+import { cleanSublabel } from "../planner/sublabel";
 import { canBlockByAll, isBlocked, requirementBlockerOptions, wouldRequirementChangeLoop, wouldTaskBlockerLoop } from "../planner/blocking";
 import { taskDueLimit } from "../planner/dueDates";
 import { canFeed, feedTokens, foodKind } from "../planner/food";
@@ -168,6 +170,7 @@ export type RequirementInput = {
   dueDate?: string | null;
   blockedBy?: string[];
   blockedByAll?: boolean;
+  sublabel?: string; // optional; trimmed and capped at SUBLABEL_MAX, empty = none
 };
 
 export function createRequirement(
@@ -185,6 +188,8 @@ export function createRequirement(
     dueDate: cleanDate(input.dueDate),
     createdAt: stamp(now),
   };
+  const sublabel = cleanSublabel(input.sublabel);
+  if (sublabel !== undefined) requirement.sublabel = sublabel;
   if ((input.blockedBy?.length ?? 0) > 0 || input.blockedByAll) {
     const withNew = { ...data, requirements: [...data.requirements, requirement] };
     Object.assign(requirement, cleanRequirementBlockers(requirement.id, withNew, input.blockedBy ?? [], input.blockedByAll === true));
@@ -201,18 +206,20 @@ export function createRequirement(
 export function updateRequirement(
   data: StudiumData,
   id: string,
-  changes: Partial<Pick<Requirement, "title" | "weight" | "startDate" | "dueDate" | "blockedBy">> & { blockedByAll?: boolean },
+  changes: Partial<Pick<Requirement, "title" | "weight" | "startDate" | "dueDate" | "blockedBy">> & { blockedByAll?: boolean; sublabel?: string }, // sublabel "" clears it
   now: Date,
 ): StudiumData {
   const current = data.requirements.find((r) => r.id === id);
   if (!current) return data;
-  const { blockedBy, blockedByAll, ...fields } = changes;
+  const { blockedBy, blockedByAll, sublabel, ...fields } = changes;
   const clean: Partial<Requirement> = definedOnly(fields);
+  if (sublabel !== undefined) clean.sublabel = cleanSublabel(sublabel) ?? "";
   if (clean.title !== undefined) clean.title = clean.title.trim();
   if (clean.weight !== undefined) clean.weight = clampWeight(clean.weight);
   if ("startDate" in clean) clean.startDate = cleanDate(clean.startDate);
   if ("dueDate" in clean) clean.dueDate = cleanDate(clean.dueDate);
   let updated: Requirement = { ...current, ...clean };
+  if (updated.sublabel === "") delete updated.sublabel; // cleared (the event keeps "" to say so)
   if (blockedBy !== undefined || blockedByAll !== undefined) {
     const blockers = cleanRequirementBlockers(id, data, blockedBy ?? current.blockedBy ?? [], blockedByAll ?? current.blockedByAll === true);
     updated = withRequirementBlockers(updated, blockers);
@@ -260,14 +267,16 @@ export function nextRequirementTitle(title: string, taken: string[] = []): strin
       if (free(name)) return name;
     }
   }
-  if (free(`${title} (copy)`)) return `${title} (copy)`;
-  for (let n = 2; ; n++) if (free(`${title} (copy ${n})`)) return `${title} (copy ${n})`;
+  // No number at the end: "Final report (1)", "(2)"… A copy of a copy counts on from the same base.
+  const base = title.trim().replace(/ \(\d+\)$/, "");
+  for (let n = 1; ; n++) if (free(`${base} (${n})`)) return `${base} (${n})`;
 }
 
 /**
- * Copies a requirement as the next in its series: right after the original, waiting on it, dates
- * moved forward by its length (7 days when a date is unset), with every task copied fresh (not done,
- * no time). Blockers between its own tasks point at the copies; others stay as they were.
+ * Copies a requirement as the next in its series: right after the original, dates moved forward by
+ * its length (7 days when a date is unset), with every task copied fresh (not done, no time). The copy
+ * waits on nothing (owner's call, 2026-11-18): waits between its own tasks point at the copies, and
+ * waits on anything outside it are dropped.
  */
 export function duplicateRequirement(
   data: StudiumData,
@@ -279,14 +288,13 @@ export function duplicateRequirement(
   const { startDate, dueDate } = original;
   const span = startDate && dueDate ? Math.round((startOfLocalDay(dueDate).getTime() - startOfLocalDay(startDate).getTime()) / DAY_MS) + 1 : 7;
   const shift = (key: string | null) => (key ? localDateKey(addDays(startOfLocalDay(key), span)) : null);
-  const { blockedByAll: _drop, ...rest } = original;
+  const { blockedByAll: _drop, blockedBy: _waits, ...rest } = original;
   const requirement: Requirement = {
     ...rest,
     id: newId(),
     title: nextRequirementTitle(original.title, data.requirements.filter((r) => r.projectId === original.projectId).map((r) => r.title)),
     startDate: shift(startDate),
     dueDate: shift(dueDate),
-    blockedBy: [id],
     createdAt: stamp(now),
   };
   const sources = data.tasks.filter((t) => t.requirementId === id);
@@ -295,7 +303,7 @@ export function duplicateRequirement(
     ...t,
     id: newIds.get(t.id) as string,
     requirementId: requirement.id,
-    blockedBy: t.blockedBy.map((b) => newIds.get(b) ?? b),
+    blockedBy: t.blockedBy.filter((b) => newIds.has(b)).map((b) => newIds.get(b) as string),
     done: false,
     actualMin: null,
     createdAt: stamp(now),
@@ -359,6 +367,8 @@ export function createTask(data: StudiumData, input: TaskInput, now: Date): { da
   };
   const dueDate = cleanTaskDueDate(data, task.projectId, task.requirementId, input.dueDate);
   if (dueDate !== undefined) task.dueDate = dueDate;
+  const order = bottomOrder(task, data.tasks);
+  if (order !== undefined) task.order = order;
   // Check the waits with the new task in place: it makes its requirement wait on it too.
   task.blockedBy = cleanBlockers(id, input.projectId, input.blockedBy ?? [], [...data.tasks, task], data.requirements);
   return {
@@ -390,6 +400,8 @@ export function createPendingTask(data: StudiumData, input: PendingTaskInput, no
     createdAt: stamp(now),
     pending: true,
   };
+  const order = bottomOrder(task, data.tasks);
+  if (order !== undefined) task.order = order;
   const next: StudiumData = { ...data, tasks: [...data.tasks, task], events: withEvent(data, { type: "task_created", at: stamp(now), taskId: task.id }) };
   return { data: input.addToToday ? addToToday(next, task.id, now) : next, task };
 }
@@ -450,8 +462,15 @@ function editTask(
   // with a real estimate if it still has the placeholder 0.
   const linksPending = !finishing && task.pending === true && (clean.requirementId ?? task.requirementId) !== null;
   if (linksPending && task.estimateMin === 0 && clean.estimateMin === undefined) clean.estimateMin = DEFAULT_ESTIMATE_MIN;
+  const movedList = "requirementId" in clean && clean.requirementId !== task.requirementId;
+  const newOrder = movedList ? bottomOrder({ projectId: task.projectId, requirementId: clean.requirementId ?? null }, data.tasks) : undefined;
   const edited = (t: Task): Task => {
     const next = withDueDate({ ...t, ...clean });
+    if (movedList) {
+      // To the bottom of its new list's unfinished tasks (or no order, if nobody reordered that list).
+      if (newOrder === undefined) delete next.order;
+      else next.order = newOrder;
+    }
     if (!finishing && !linksPending) return next;
     const { pending: _, ...rest } = next;
     return rest;
@@ -472,6 +491,45 @@ export function deleteTask(data: StudiumData, id: string, now: Date = new Date()
 
 export function togglePriority(data: StudiumData, id: string): StudiumData {
   return { ...data, tasks: data.tasks.map((t) => (t.id === id ? { ...t, priority: !t.priority } : t)) };
+}
+
+// ---- Order (tasks and requirements view spec): only how lists look, so no events ----
+
+/** The order for a task joining the bottom of a list, or undefined if nobody has reordered that list. */
+function bottomOrder(task: Pick<Task, "projectId" | "requirementId">, tasks: Task[]): number | undefined {
+  const list = listOf(task, tasks);
+  if (!isReordered(list)) return undefined;
+  return Math.max(...list.filter((t) => !t.done && t.order !== undefined).map((t) => t.order as number)) + 1;
+}
+
+/** Moves an unfinished task in its list to `toIndex` among the unfinished tasks; the list is renumbered 0, 1, 2… */
+export function moveTask(data: StudiumData, taskId: string, toIndex: number): StudiumData {
+  const task = data.tasks.find((t) => t.id === taskId);
+  if (!task || task.done) return data;
+  const open = sortListTasks(listOf(task, data.tasks)).filter((t) => !t.done && t.id !== taskId);
+  const at = Math.max(0, Math.min(Math.round(toIndex), open.length));
+  open.splice(at, 0, task);
+  const orders = new Map(open.map((t, i) => [t.id, i]));
+  return {
+    ...data,
+    tasks: data.tasks.map((t) => {
+      const order = orders.get(t.id);
+      return order === undefined || t.order === order ? t : { ...t, order };
+    }),
+  };
+}
+
+/** Moves an unfinished task within today's list; done tasks stay after the unfinished ones. Yesterday's list is empty. */
+export function moveTodayTask(data: StudiumData, taskId: string, toIndex: number, now: Date): StudiumData {
+  if (data.today.date !== localDateKey(now) || !data.today.taskIds.includes(taskId)) return data;
+  const byId = new Map(data.tasks.map((t) => [t.id, t]));
+  const moving = byId.get(taskId);
+  if (!moving || moving.done) return data;
+  const isOpen = (id: string) => byId.get(id)?.done === false;
+  const open = data.today.taskIds.filter((id) => isOpen(id) && id !== taskId);
+  const rest = data.today.taskIds.filter((id) => !isOpen(id));
+  open.splice(Math.max(0, Math.min(Math.round(toIndex), open.length)), 0, taskId);
+  return { ...data, today: { ...data.today, taskIds: [...open, ...rest] } };
 }
 
 export function completeTask(

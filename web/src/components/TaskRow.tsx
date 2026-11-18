@@ -7,13 +7,16 @@ import { blockerName, focusedLabel, formatDate, formatMinutes, wordsFor } from "
 import { taskDueDate, taskDueLimit } from "../planner/dueDates";
 import { isPending } from "../store/actions";
 import { BUTTON_SMALL } from "../ui/styles";
+import ReorderControls from "./ReorderControls";
 import TaskForm from "./TaskForm";
 import WaitingOn from "./WaitingOn";
 import { textOn } from "../ui/color";
 
-type Props = { taskId: string; onRequestComplete: (taskId: string) => void };
+/** Where an unfinished task sits in a reorderable list (tasks and requirements view spec). */
+export type RowReorder = { index: number; count: number; onMove: (toIndex: number) => void };
+type Props = { taskId: string; onRequestComplete: (taskId: string) => void; reorder?: RowReorder };
 
-export default function TaskRow({ taskId, onRequestComplete }: Props) {
+export default function TaskRow({ taskId, onRequestComplete, reorder }: Props) {
   const s = useStudiumContext();
   const [editing, setEditing] = useState(false);
   const task = s.data.tasks.find((t) => t.id === taskId);
@@ -30,6 +33,7 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
 
   if (editing) {
     return (
+      <div data-reorder-row={reorder ? "" : undefined}>
       <TaskForm
         requirements={requirements}
         projectTasks={projectTasks}
@@ -44,11 +48,13 @@ export default function TaskRow({ taskId, onRequestComplete }: Props) {
         }}
         onCancel={() => setEditing(false)}
       />
+      </div>
     );
   }
 
   return (
-    <div className="group flex items-start gap-3 py-1.5">
+    <div className="group flex items-start gap-3 py-1.5" data-reorder-row={reorder ? "" : undefined}>
+      {reorder && <ReorderControls title={task.title} index={reorder.index} count={reorder.count} onMove={reorder.onMove} />}
       <button
         type="button"
         role="checkbox"

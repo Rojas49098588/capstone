@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { SUBLABEL_MAX } from "../planner/tuning";
 import type { Requirement } from "../planner/types";
 import { blockedByAllLabel, capitalize, wordsFor, type ProjectWords } from "../ui/format";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, INPUT, LABEL } from "../ui/styles";
@@ -10,6 +11,7 @@ export type RequirementFormValues = {
   dueDate: string | null;
   blockedBy: string[];
   blockedByAll: boolean;
+  sublabel: string; // trimmed; "" = none
 };
 
 type Props = {
@@ -37,6 +39,7 @@ export default function RequirementForm({
   const [dueDate, setDueDate] = useState(initial?.dueDate ?? "");
   const [blockedBy, setBlockedBy] = useState<string[]>(initial?.blockedBy ?? []);
   const [blockedByAll, setBlockedByAll] = useState(initial?.blockedByAll ?? false);
+  const [sublabel, setSublabel] = useState(initial?.sublabel ?? "");
   const [error, setError] = useState("");
 
   function toggleBlocker(id: string) {
@@ -56,6 +59,7 @@ export default function RequirementForm({
       dueDate: dueDate || null,
       blockedBy: blockedByAll ? [] : blockedBy.filter((id) => blockerChoices.some((r) => r.id === id)),
       blockedByAll,
+      sublabel: sublabel.trim(),
     });
   }
 
@@ -67,6 +71,19 @@ export default function RequirementForm({
           <input aria-label={`${capitalize(words.requirement)} title`} value={title} onChange={(e) => setTitle(e.target.value)} className={`${INPUT} mt-1 normal-case tracking-normal font-sans`} />
         </label>
         {error && <p className="text-xs text-[var(--color-accent)] mt-1">{error}</p>}
+      </div>
+      <div>
+        <label className={LABEL}>
+          Sublabel (optional)
+          <input
+            aria-label="Sublabel"
+            value={sublabel}
+            maxLength={SUBLABEL_MAX}
+            placeholder="e.g. Accessibility"
+            onChange={(e) => setSublabel(e.target.value)}
+            className={`${INPUT} mt-1 normal-case tracking-normal font-sans`}
+          />
+        </label>
       </div>
       <div className="grid grid-cols-3 gap-3">
         <label className={LABEL}>

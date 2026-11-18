@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
-import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, parseFocusSessions, saveData } from "./storage";
+import { BACKUP_PREFIX, DAMAGED_BACKUP_PREFIX, STORAGE_KEY, isValidData, loadData, normalizeData, parseFocusSessions, saveData } from "./storage";
 
 function memoryStorage(failWrites = false): Storage {
   const map = new Map<string, string>();
@@ -250,5 +250,38 @@ describe("bought pets in saved data", () => {
     const loaded = loadData(storage, NOW).data;
     expect(loaded.projects).toEqual(data.projects);
     expect(loaded.events).toEqual(data.events);
+  });
+});
+
+describe("task order and requirement sublabels in saved data", () => {
+  it("drops a bad order or sublabel on load and keeps the rest", () => {
+    const data = makeData({
+      requirements: [makeRequirement({ id: "r1", sublabel: 5 as unknown as string }), makeRequirement({ id: "r2", sublabel: "   " })],
+      tasks: [makeTask({ id: "a", order: "x" as unknown as number }), makeTask({ id: "b", order: Number.NaN })],
+    });
+    expect(isValidData(data)).toBe(true);
+    const clean = normalizeData(data);
+    expect(clean.requirements.map((r) => r.id)).toEqual(["r1", "r2"]);
+    expect(clean.tasks.map((t) => t.id)).toEqual(["a", "b"]);
+    for (const r of clean.requirements) expect("sublabel" in r).toBe(false);
+    for (const t of clean.tasks) expect("order" in t).toBe(false);
+  });
+
+  it("keeps a good order and sublabel, trimmed and capped at 30", () => {
+    const data = makeData({
+      requirements: [makeRequirement({ id: "r1", sublabel: " Accessibility " }), makeRequirement({ id: "r2", sublabel: "x".repeat(40) })],
+      tasks: [makeTask({ id: "a", order: 2 })],
+    });
+    const clean = normalizeData(data);
+    expect(clean.requirements[0].sublabel).toBe("Accessibility");
+    expect(clean.requirements[1].sublabel).toBe("x".repeat(30));
+    expect(clean.tasks[0].order).toBe(2);
+  });
+
+  it("leaves data without either field as it was", () => {
+    const data = makeData({ requirements: [makeRequirement()], tasks: [makeTask()] });
+    const clean = normalizeData(data);
+    expect(clean.tasks).toBe(data.tasks);
+    expect(clean.requirements).toBe(data.requirements);
   });
 });

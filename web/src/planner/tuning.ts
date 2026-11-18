@@ -76,3 +76,10 @@ export const DEFAULT_ESTIMATE_MIN = 60;
 
 // User settings
 export const NICKNAME_MAX = 20; // characters
+
+// ---- The planner's lists (tasks and requirements view spec) ----
+
+/** The longest a requirement's sublabel can be, in characters. */
+export const SUBLABEL_MAX = 30;
+/** The ≡ menu's Soon view: requirements due within this many days from today (overdue ones too). */
+export const SOON_DAYS = 3;

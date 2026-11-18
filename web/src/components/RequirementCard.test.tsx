@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { NOW, completed, dayKey, daysAgo, makeData, makeProject, makeRequirement, makeTask } from "../planner/testData";
@@ -51,7 +51,7 @@ describe("RequirementCard", () => {
     await userEvent.click(screen.getByRole("button", { name: "Duplicate Prototype 10" }));
     // Prototype 11 already exists, so the copy is Prototype 12.
     const copy = savedData(storage).requirements.find((r) => r.title === "Prototype 12");
-    expect(copy).toMatchObject({ blockedBy: ["P10"] });
+    expect(copy).not.toHaveProperty("blockedBy");
     expect(savedData(storage).tasks.filter((t) => t.requirementId === copy!.id).map((t) => t.title)).toEqual(["Git commit", "APK"]);
     expect(onHatch).not.toHaveBeenCalled();
   });
@@ -117,5 +117,91 @@ describe("RequirementCard", () => {
     const saved = savedData(storage);
     expect(saved.requirements.some((r) => r.id === "webDev-r2")).toBe(false);
     expect(saved.tasks.filter((t) => ["webDev-t3", "webDev-t4", "webDev-t5", "webDev-t6"].includes(t.id)).every((t) => t.requirementId === null)).toBe(true);
+  });
+});
+
+describe("reordering a requirement's tasks", () => {
+  const titles = () => screen.getAllByText(/^(Git commit|APK|Slides)$/).map((el) => el.textContent);
+
+  it("Move up reorders the tasks, saves it, and keeps focus", async () => {
+    const { storage } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    expect(titles()).toEqual(["Git commit", "APK"]);
+    await userEvent.click(screen.getByRole("button", { name: "Move APK up" }));
+    expect(titles()).toEqual(["APK", "Git commit"]);
+    const saved = savedData(storage).tasks;
+    expect(saved.find((t) => t.id === "apk")?.order).toBe(0);
+    expect(saved.find((t) => t.id === "c10")?.order).toBe(1);
+    // APK is first now, so Move up is off and focus is on Move down.
+    expect((screen.getByRole("button", { name: "Move APK up" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Move APK down" }));
+    await userEvent.click(screen.getByRole("button", { name: "Move APK down" }));
+    expect(titles()).toEqual(["Git commit", "APK"]);
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: "Move APK up" }));
+  });
+
+  it("done tasks have no move buttons", () => {
+    const data = prototypes();
+    data.tasks.push(makeTask({ id: "s", requirementId: "P10", title: "Slides", done: true }));
+    renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data });
+    expect(screen.queryByRole("button", { name: "Move Slides up" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Move Slides down" })).toBeNull();
+    expect(titles()).toEqual(["Git commit", "APK", "Slides"]);
+  });
+
+  it("dragging the grip drops a task in a new place", () => {
+    const { storage, container } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-reorder-row]")];
+    expect(rows).toHaveLength(2);
+    rows.forEach((row, i) => {
+      row.getBoundingClientRect = () => ({ top: i * 40, bottom: i * 40 + 40, height: 40, left: 0, right: 300, width: 300, x: 0, y: i * 40, toJSON: () => ({}) });
+    });
+    const grip = rows[1].querySelector("[data-grip]") as HTMLElement;
+    grip.dispatchEvent(new MouseEvent("pointerdown", { clientY: 60, button: 0, bubbles: true }));
+    window.dispatchEvent(new MouseEvent("pointermove", { clientY: 5, bubbles: true }));
+    act(() => {
+      window.dispatchEvent(new MouseEvent("pointerup", { clientY: 5, bubbles: true }));
+    });
+    expect(titles()).toEqual(["APK", "Git commit"]);
+    expect(savedData(storage).tasks.find((t) => t.id === "apk")?.order).toBe(0);
+  });
+
+  it("pressing the grip doesn't start a text selection", () => {
+    const { container } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    const grip = container.querySelector("[data-grip]") as HTMLElement;
+    const down = new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true });
+    grip.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+  });
+
+  it("Escape cancels a drag", () => {
+    const { container } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    const rows = [...container.querySelectorAll<HTMLElement>("[data-reorder-row]")];
+    const grip = rows[1].querySelector("[data-grip]") as HTMLElement;
+    grip.dispatchEvent(new MouseEvent("pointerdown", { clientY: 60, button: 0, bubbles: true }));
+    fireEvent.keyDown(window, { key: "Escape" });
+    act(() => {
+      window.dispatchEvent(new MouseEvent("pointerup", { clientY: 5, bubbles: true }));
+    });
+    expect(titles()).toEqual(["Git commit", "APK"]);
+  });
+});
+
+describe("sublabels", () => {
+  it("sets, shows, edits and clears a sublabel", async () => {
+    const { storage } = renderWithStudium(<RequirementCard requirementId="P11" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 11" }));
+    const field = screen.getByRole("textbox", { name: "Sublabel" }) as HTMLInputElement;
+    expect(field.maxLength).toBe(30);
+    await userEvent.type(field, "Accessibility");
+    await userEvent.click(screen.getByRole("button", { name: "Save requirement" }));
+    screen.getByText("Accessibility");
+    expect(savedData(storage).requirements.find((r) => r.id === "P11")?.sublabel).toBe("Accessibility");
+
+    await userEvent.click(screen.getByRole("button", { name: "Edit Prototype 11" }));
+    expect((screen.getByRole("textbox", { name: "Sublabel" }) as HTMLInputElement).value).toBe("Accessibility");
+    await userEvent.clear(screen.getByRole("textbox", { name: "Sublabel" }));
+    await userEvent.click(screen.getByRole("button", { name: "Save requirement" }));
+    expect(screen.queryByText("Accessibility")).toBeNull();
+    expect("sublabel" in (savedData(storage).requirements.find((r) => r.id === "P11") ?? {})).toBe(false);
   });
 });

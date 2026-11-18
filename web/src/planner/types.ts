@@ -53,6 +53,7 @@ export type Requirement = {
   createdAt: string;
   blockedBy?: string[]; // requirements (same project) whose tasks must all be done first; missing = none
   blockedByAll?: true; // waits on every other requirement in the project (then blockedBy is [])
+  sublabel?: string; // a short label under the title, at most SUBLABEL_MAX characters; missing = none. Only a label: no grouping.
 };
 
 export type Task = {
@@ -67,6 +68,7 @@ export type Task = {
   actualMin: number | null;
   createdAt: string;
   dueDate?: string | null; // "YYYY-MM-DD"; missing/null = its requirement's date (planner/dueDates.ts). Reminders only.
+  order?: number; // its place among the unfinished tasks of its list (planner/order.ts); missing = nobody has reordered that list yet
   pending?: true; // added on the phone, still needs its requirement and estimate (store/actions.ts finishTaskDetails). Missing = not pending.
 };
 

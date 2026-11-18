@@ -1,3 +1,4 @@
+import ReorderControls from "./ReorderControls";
 import { isBlocked, waitingOn } from "../planner/blocking";
 import { petStage } from "../planner/lifecycle";
 import { suggestNext, todayTaskIds } from "../planner/suggest";
@@ -38,9 +39,12 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
   const dash = summarizeAll(s.data, s.now);
   const total = percent(dash.total);
   const projectsById = new Map(s.data.projects.map((p) => [p.id, p]));
-  const todayTasks = todayTaskIds(s.data, s.now)
+  const todayListed = todayTaskIds(s.data, s.now)
     .map((id) => s.data.tasks.find((t) => t.id === id))
     .filter((t): t is Task => t !== undefined);
+  // Unfinished in the order you set, then done ones (tasks and requirements view spec).
+  const todayOpen = todayListed.filter((t) => !t.done);
+  const todayTasks = [...todayOpen, ...todayListed.filter((t) => t.done)];
   const suggestions = suggestNext(s.data, s.now);
   const count = dash.summaries.length;
 
@@ -173,11 +177,14 @@ export default function Overview({ onSelect, onRequestComplete, onNewProject }: 
             {todayTasks.length === 0 ? (
               <p className="text-sm text-white/55">Nothing planned yet. Add tasks from Suggested next.</p>
             ) : (
-              <ul className="space-y-3">
-                {todayTasks.map((t) => {
+              <ul className="space-y-3" data-reorder-list>
+                {todayTasks.map((t, i) => {
                   const p = projectsById.get(t.projectId);
                   return (
-                    <li key={t.id} className="flex items-start gap-3">
+                    <li key={t.id} className="group flex items-start gap-3" data-reorder-row={t.done ? undefined : ""}>
+                      {!t.done && (
+                        <ReorderControls tone="dark" title={t.title} index={i} count={todayOpen.length} onMove={(to) => s.moveTodayTask(t.id, to)} />
+                      )}
                       <button
                         type="button"
                         role="checkbox"

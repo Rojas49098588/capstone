@@ -131,3 +131,22 @@ describe("Overview egg cards", () => {
     within(today).getByText("Waiting on Prototype 9");
   });
 });
+
+describe("reordering Today", () => {
+  it("Today can be reordered and done tasks sit at the bottom", async () => {
+    const data = makeData({
+      requirements: [makeRequirement()],
+      tasks: [makeTask({ id: "a", title: "Alpha" }), makeTask({ id: "d", title: "Done one", done: true }), makeTask({ id: "b", title: "Beta" })],
+      today: { date: dayKey(0), taskIds: ["a", "d", "b"] },
+    });
+    const { storage } = renderWithStudium(<Overview onSelect={vi.fn()} onRequestComplete={vi.fn()} />, { data });
+    const today = screen.getByRole("region", { name: "Today" });
+    const order = () => within(today).getAllByText(/^(Alpha|Beta|Done one)$/).map((el) => el.textContent);
+    expect(order()).toEqual(["Alpha", "Beta", "Done one"]);
+    expect(within(today).queryByRole("button", { name: "Move Done one up" })).toBeNull();
+    await userEvent.click(within(today).getByRole("button", { name: "Move Beta up" }));
+    expect(order()).toEqual(["Beta", "Alpha", "Done one"]);
+    expect(savedData(storage).today.taskIds).toEqual(["b", "a", "d"]);
+    expect(document.activeElement).toBe(within(today).getByRole("button", { name: "Move Beta down" }));
+  });
+});
