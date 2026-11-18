@@ -12,6 +12,9 @@ import {
   START_QUIETLY_HINT,
   START_QUIETLY_LABEL,
   START_WITH_COMPUTER_HINT,
+  RELOAD_PETS_BUTTON,
+  RELOAD_PETS_HINT,
+  RELOAD_PETS_LABEL,
   START_WITH_COMPUTER_LABEL,
 } from "../ui/format";
 import { BUTTON_SECONDARY, CARD, INPUT, LABEL, MUTED, SERIF } from "../ui/styles";
@@ -173,6 +176,17 @@ export default function Settings({ onReplayTutorial }: Props) {
                 {settings.startQuietly && <p className={`text-xs mt-2 ${MUTED}`}>{START_QUIETLY_HINT}</p>}
               </fieldset>
             )}
+          </div>
+        )}
+        {window.studiumDesktop?.reloadPets && (
+          <div>
+            <div className="flex flex-wrap items-center gap-3">
+              <p className="text-sm font-semibold">{RELOAD_PETS_LABEL}</p>
+              <button type="button" onClick={() => window.studiumDesktop?.reloadPets?.()} className={BUTTON_SECONDARY}>
+                {RELOAD_PETS_BUTTON}
+              </button>
+            </div>
+            <p className={`text-xs mt-2 ${MUTED}`}>{RELOAD_PETS_HINT}</p>
           </div>
         )}
       </section>

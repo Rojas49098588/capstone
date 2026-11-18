@@ -25,6 +25,12 @@ beforeEach(() => {
 });
 
 describe('handleStudium', () => {
+  it('reloads the pets when Studium asks', () => {
+    const reloadPets = vi.fn();
+    handleStudium('studium:reload-pets', undefined, { ...deps, reloadPets });
+    expect(reloadPets).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the old statuses when Studium sends damaged ones', () => {
     store.set({ petStatuses: { pets: [] } });
     handleStudium('studium:statuses', '{oops', deps);
