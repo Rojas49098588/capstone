@@ -274,3 +274,16 @@ later means swapping the file. The style matches today's placeholder decor SVGs 
 - Tint colors and how strong they are, within "darker at night, still clearly visible".
 - How the refund is made to count once.
 - Placeholder art style details.
+
+## Changed after testing (2026-11-17, owner's decisions)
+
+- **The window follows the seasons.** Fixed hours felt wrong when it was already dark outside. Sunrise and sunset now come from a month table close to the central US (Dallas): in November, sunset glows about 4:40–5:55 pm, then it's night. Glow runs from 30 min before to 1 h after sunrise, and from 45 min before to 30 min after sunset. This replaces the fixed-hours table above.
+- **Bigger and rectangular:** the window is a quarter bigger than the wall spot and fills it as a wide rectangle.
+- **Weather through the window** (simulated, not real weather):
+  - **Winter** (Dec–Feb): it snows all the time for now, and snow piles up on the sill through the day.
+  - **Spring:** cherry petals drift past.
+  - **Fall:** leaves blow sideways.
+  - **Every season but winter:** rain comes about 1 hour in 6, for 20–40 minutes.
+  - The weather is picked from the date and hour, so it's the same in every habitat.
+  - Under reduced motion nothing moves, but snow on the sill stays.
+- **Favorite foods will be hidden later**, once pets have their own personalities. For the demo, every pet of a kind shares one favorite and it's shown. This is noted in the roadmap.

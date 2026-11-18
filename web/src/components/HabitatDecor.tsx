@@ -1,6 +1,6 @@
 import { useState, type CSSProperties } from "react";
 import { findPet } from "../planner/pets";
-import { ROOM_TINT, WINDOW_ID, dayPeriod, hasPlacedWindow, type DayPeriod } from "../planner/timeOfDay";
+import { ROOM_TINT, WINDOW_ID, dayPeriod, hasPlacedWindow, season, snowDepth, weather, type Season } from "../planner/timeOfDay";
 import type { DecorSlot } from "../planner/types";
 import { allowedIn, findDecor } from "../store/decor";
 import { useStudiumContext } from "../store/useStudium";
@@ -20,12 +20,64 @@ const place = (b: SlotBox) => ({
   height: `${b.h * 100}%`,
 });
 
-/** A window: the sky for the time of day, its drifting clouds or stars, and the frame on top. */
-function WindowView({ period, style }: { period: DayPeriod; style: CSSProperties }) {
+// How much bigger a window is than the wall spot's other items (it grows around the spot's centre).
+const WINDOW_SCALE = 1.25;
+const windowBox = (b: SlotBox): SlotBox => {
+  const w = b.w * WINDOW_SCALE;
+  const h = b.h * WINDOW_SCALE;
+  return { x: b.x, y: b.y - (h - b.h) / 2, w, h };
+};
+
+// What drifts past the window in each season, and the rain. Placeholder shapes (index.css), stable
+// positions so nothing jumps between renders.
+const PARTICLES: Record<Season, { className: string; count: number } | null> = {
+  winter: { className: "window-snow", count: 14 },
+  spring: { className: "window-petal", count: 8 },
+  summer: null,
+  fall: { className: "window-leaf", count: 7 },
+};
+const RAIN = { className: "window-rain", count: 18 };
+
+function Particles({ className, count }: { className: string; count: number }) {
   return (
-    <div data-window data-period={period} role="img" aria-label={`Window (${period})`} className="absolute overflow-hidden" style={style}>
-      <img src={url(`decor/window-sky-${period}.svg`)} alt="" className="absolute inset-[8%] w-[84%] h-[84%] object-cover" />
-      <div className={`absolute inset-[8%] overflow-hidden window-motion window-motion-${period}`} aria-hidden="true" />
+    <>
+      {Array.from({ length: count }, (_, i) => (
+        <span
+          key={i}
+          className={`window-particle ${className}`}
+          style={{ left: `${(i * 37) % 100}%`, animationDelay: `${-((i * 1.3) % 9)}s`, animationDuration: `${6 + (i % 4)}s` }}
+        />
+      ))}
+    </>
+  );
+}
+
+/** A window: the sky for the time of day, the season's weather, snow on the sill in winter, and the frame. */
+function WindowView({ now, style }: { now: Date; style: CSSProperties }) {
+  const period = dayPeriod(now);
+  const time = season(now);
+  const sky = weather(now);
+  const drift = PARTICLES[time];
+  const snow = snowDepth(now);
+  return (
+    <div
+      data-window
+      data-period={period}
+      data-season={time}
+      data-weather={sky}
+      role="img"
+      aria-label={`Window (${period}, ${time}${sky === "clear" ? "" : `, ${sky}`})`}
+      className="absolute"
+      style={style}
+    >
+      <div className="absolute left-[6%] top-[9%] w-[88%] h-[72%] overflow-hidden">
+        <img src={url(`decor/window-sky-${period}.svg`)} alt="" className="absolute inset-0 w-full h-full object-cover" />
+        <div className={`absolute inset-0 window-motion window-motion-${period}`} aria-hidden="true">
+          {drift && <Particles {...drift} />}
+          {sky === "rain" && <Particles {...RAIN} />}
+        </div>
+        {snow > 0 && <div data-snow-pile aria-hidden="true" className="window-snow-pile" style={{ height: `${snow * 100}%` }} />}
+      </div>
       <img src={url("decor/window-frame.svg")} alt="" className="absolute inset-0 w-full h-full" />
     </div>
   );
@@ -67,7 +119,7 @@ export default function HabitatDecor({ projectId, placing = null, onPickSlot }: 
       {SPOT_SLOTS.map((slot) => {
         const item = habitat[slot] ? findDecor(habitat[slot] as string) : undefined;
         if (!item || broken.has(item.id)) return null;
-        if (item.id === WINDOW_ID) return <WindowView key={slot} period={period} style={place(itemBox(slot, item.type))} />;
+        if (item.id === WINDOW_ID) return <WindowView key={slot} now={s.now} style={place(windowBox(itemBox(slot, item.type)))} />;
         return (
           <DecorArt
             key={slot}
