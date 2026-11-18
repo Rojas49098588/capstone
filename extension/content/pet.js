@@ -54,6 +54,7 @@
   const THROW_SAMPLE_MS = 80;   // how much recent mouse movement sets the throw speed
   const MAX_THROW_SPEED = 2500; // px/s
   const FETCH_SPEED = 260;      // px/s: every pet runs to fetch a toy at this speed (a turtle walks at 10)
+  const POUNCE_REACH = 24;      // px: close enough to the Robo Mouse to pounce on it
   const GROUND_FRICTION = 5;    // how quickly a slide along the floor stops
   const MIN_BOUNCE_SPEED = 200; // slower floor hits than this stop bouncing
   const MAX_TILT_DEG = 25;      // lean while flying sideways
@@ -322,6 +323,7 @@
       gotoUntil: 0,       // gives up on reaching furniture after this
       useUntil: 0,
       fetch: null,        // { target, back, phase: 'go' | 'back', onPickUp, onDrop } while fetching a toy
+      pounce: null,       // { toyX, size, onCatch } while running at a toy to pounce on it
     };
     const furniture = status.furniture ?? [];
     // Spread the pets out across the window until they have saved positions.
@@ -550,6 +552,7 @@
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       if (carry && state.mode !== 'walk') finishCarry(); // arrived (or was picked up): drop the note
       if (state.fetch && state.mode !== 'fetch') dropFetched(); // picked up mid-fetch: the toy drops here
+      if (state.pounce && state.mode !== 'pounce') state.pounce = null; // picked up: no pounce
       // A chase ends when its time is up, the cursor leaves the overlay, the pet is picked up, or
       // mischief stops being allowed (a nap starts, a check-in opens, pets are hidden).
       if (chase && (state.mode !== 'chase' || chase.lost || Date.now() > chase.until || !env.mayChase(api))) endChase(now);
@@ -667,6 +670,26 @@
           dirty = true;
           break;
         }
+        case 'pounce': {
+          const p = state.pounce;
+          if (!p) {
+            goIdle(now);
+            break;
+          }
+          const goal = clamp(p.toyX() + p.size / 2 - w / 2 - world.left, 0, maxX());
+          const dist = goal - state.x;
+          if (Math.abs(dist) <= POUNCE_REACH) {
+            state.pounce = null;
+            state.facing = Math.sign(dist) || state.facing;
+            hop(1.2);
+            p.onCatch();
+          } else {
+            state.x += Math.sign(dist) * Math.min(Math.abs(dist), FETCH_SPEED * dt);
+            state.facing = Math.sign(dist);
+          }
+          dirty = true;
+          break;
+        }
         case 'walk': {
           const dist = state.targetX - state.x;
           const move = floorSpeed * dt;
@@ -745,7 +768,7 @@
       // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
       const flyingToPerch = state.mode === 'goto' && state.plan?.entry.use === 'perch';
-      petEl.classList.toggle('walking', state.mode === 'walk' || state.mode === 'chase' || state.mode === 'fetch' || (state.mode === 'goto' && !flyingToPerch));
+      petEl.classList.toggle('walking', ['walk', 'chase', 'fetch', 'pounce'].includes(state.mode) || (state.mode === 'goto' && !flyingToPerch));
       const using = state.mode === 'use' ? state.plan?.entry.use : null;
       petEl.classList.toggle('scratching', using === 'scratch');
       petEl.classList.toggle('basking', using === 'bask');
@@ -903,10 +926,21 @@
       isAway: () => state.mode === 'away',
       setPlaying(value) {
         playing = Boolean(value);
-        if (!playing && state.fetch) {
+        if (!playing && (state.fetch || state.pounce)) {
           state.fetch = null;
-          if (state.mode === 'fetch') goIdle(performance.now());
+          state.pounce = null;
+          if (state.mode === 'fetch' || state.mode === 'pounce') goIdle(performance.now());
         }
+      },
+      // Run at a moving toy (toyX() gives its window x each frame) and pounce on it: onCatch when it lands
+      // on it. Only from idle or walking.
+      pounce(toyX, size, onCatch) {
+        if (state.mode !== 'idle' && state.mode !== 'walk') return false;
+        wake();
+        clearPlan();
+        state.pounce = { toyX, size, onCatch };
+        state.mode = 'pounce';
+        return true;
       },
       // Run to a toy at window x `toyX`, pick it up (onPickUp), bring it back to window x `backX`, and
       // drop it there (onDrop gets the spot). Only from idle or walking, like walkTo.
@@ -1287,6 +1321,10 @@
     root.appendChild(el);
     toysOut.set(pet.id, toy);
     if (toyId === 'focus-ball') makeThrowable(toy, pet.id);
+    if (toyId === 'robo-mouse') {
+      const now = performance.now();
+      toy.mouse = { home: toy.x, dir: 1, last: now, pausedUntil: 0, hunting: false, nextPounceAt: now + between(L.ROBO_MOUSE.pounceEveryMs) };
+    }
     pet.setPlaying(true);
   }
 
@@ -1299,7 +1337,7 @@
   }
 
   function drawToy(toy) {
-    toy.el.style.transform = `translate(${toy.x}px, ${-toy.y}px)`;
+    toy.el.style.transform = `translate(${toy.x}px, ${-toy.y}px)${toy.mouse && toy.mouse.dir < 0 ? ' scaleX(-1)' : ''}`;
     toy.el.classList.toggle('carried', toy.carried);
   }
 
@@ -1340,9 +1378,42 @@
   }
 
   // Each frame: a thrown toy flies and lands, then its pet fetches it; a carried toy rides with its pet.
+  // The Robo Mouse scoots back and forth near where it appeared; now and then its pet pounces on it.
+  function stepMouse(toy, pet, now) {
+    const m = toy.mouse;
+    const dt = Math.min(0.05, (now - m.last) / 1000);
+    m.last = now;
+    if (now >= m.pausedUntil) {
+      const lo = Math.max(0, m.home - L.ROBO_MOUSE.rangePx);
+      const hi = Math.min(Math.max(0, window.innerWidth - TOY_SIZE), m.home + L.ROBO_MOUSE.rangePx);
+      toy.x += m.dir * L.ROBO_MOUSE.speed * dt;
+      if (toy.x <= lo) {
+        toy.x = lo;
+        m.dir = 1;
+      } else if (toy.x >= hi) {
+        toy.x = hi;
+        m.dir = -1;
+      }
+      drawToy(toy);
+    }
+    if (!m.hunting && pet && now >= m.nextPounceAt) {
+      m.hunting = pet.pounce(() => toy.x, TOY_SIZE, () => {
+        const at = performance.now();
+        m.hunting = false;
+        m.pausedUntil = at + L.ROBO_MOUSE.pauseMs;
+        m.nextPounceAt = at + L.ROBO_MOUSE.pauseMs + between(L.ROBO_MOUSE.pounceEveryMs);
+        pet.say(L.toyCatchText, L.ROBO_MOUSE.pauseMs);
+      });
+    }
+  }
+
   function stepToys(now) {
     for (const [petId, toy] of toysOut) {
       const pet = pets.find((p) => p.id === petId);
+      if (toy.mouse) {
+        stepMouse(toy, pet, now);
+        continue;
+      }
       if (toy.flight) {
         const f = toy.flight;
         const s = (now - f.t0) / 1000;

@@ -540,6 +540,12 @@
     return { x: Math.min(Math.max(0, width - size), Math.max(0, x)), t };
   }
 
+  // The Robo Mouse (desktop pets): it scoots at `speed` px/s within `rangePx` of where it appeared; the
+  // pet pounces every pounceEveryMs (a range), and a caught mouse stays still for pauseMs.
+  const ROBO_MOUSE = { speed: 90, rangePx: 300, pounceEveryMs: [3000, 7000], pauseMs: 1500 };
+  // What a pet says when it catches the Robo Mouse.
+  const toyCatchText = 'Got it!';
+
   function petMenuItems(petId, petAway, statuses, toys = null) {
     const open = { id: 'open', label: 'Open project' };
     if (petAway[petId]) return [{ id: 'wake', label: 'Wake' }, open];
@@ -1103,6 +1109,8 @@
     TOY_NAMES,
     BALL_GRAVITY,
     ballFlight,
+    ROBO_MOUSE,
+    toyCatchText,
     wakeMenuEntries,
     formatMinutes,
     suggestionText,
