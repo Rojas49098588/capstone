@@ -93,7 +93,8 @@ if (!app.requestSingleInstanceLock() || args.quit) {
       if (process.platform === 'linux') writeAutostart(linuxAutostart(on, process.execPath, quiet));
       else app.setLoginItemSettings(loginItemSettings(on, process.execPath, quiet));
     };
-    const deps = { store, runner, L, sendSessions, applyLoginItem };
+    // reloadPets is filled in once the pets' window exists (below).
+    const deps = { store, runner, L, sendSessions, applyLoginItem, reloadPets: () => {} };
     for (const channel of CHANNELS) {
       ipcMain.on(channel, (event, payload) => {
         // Only Studium itself, in its own window, may talk to the main process.
@@ -197,6 +198,7 @@ if (!app.requestSingleInstanceLock() || args.quit) {
       globalThis.studiumTest.overlay = overlay;
     };
     openOverlay();
+    deps.reloadPets = openOverlay;
     const rebuildAfterWake = createRebuildTimer(openOverlay, REBUILD_AFTER_WAKE_MS);
     powerMonitor.on('resume', () => rebuildAfterWake.request());
     powerMonitor.on('unlock-screen', () => rebuildAfterWake.request());

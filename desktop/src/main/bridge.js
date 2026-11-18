@@ -2,9 +2,9 @@
 // (src/preload/studium.js). Pure apart from the dependencies passed in.
 const { startQuietlyFrom, startWithComputerFrom } = require('./loginItem');
 
-const CHANNELS = ['studium:statuses', 'studium:settings', 'studium:ready', 'studium:delivered', 'studium:wake', 'studium:task-done'];
+const CHANNELS = ['studium:statuses', 'studium:settings', 'studium:ready', 'studium:delivered', 'studium:wake', 'studium:task-done', 'studium:reload-pets'];
 
-function handleStudium(channel, payload, { store, runner, L, sendSessions, applyLoginItem }) {
+function handleStudium(channel, payload, { store, runner, L, sendSessions, applyLoginItem, reloadPets }) {
   switch (channel) {
     case 'studium:statuses': {
       // Damaged statuses don't replace usable ones.
@@ -32,6 +32,10 @@ function handleStudium(channel, payload, { store, runner, L, sendSessions, apply
       if (request) runner.request(request);
       return;
     }
+    case 'studium:reload-pets':
+      // Settings → Pets not responding to clicks? Same as the tray's Reload pets.
+      reloadPets?.();
+      return;
     case 'studium:wake': {
       const request = L.parseRequest({ type: 'wake', petId: payload }); // the habitat's id: its pet's
       if (request) runner.request(request);

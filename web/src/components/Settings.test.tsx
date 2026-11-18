@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { fireEvent, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SETTINGS_KEY } from "../store/settings";
 import { renderWithStudium } from "../test/render";
 import Settings from "./Settings";
@@ -60,9 +60,24 @@ describe("Settings", () => {
     expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string)).toMatchObject({ nickname: "Abby" });
   });
 
+  it("has no Reload pets in a browser", () => {
+    renderWithStudium(<Settings />);
+    expect(screen.queryByRole("button", { name: "Reload pets" })).toBeNull();
+  });
+
   describe("in the desktop app", () => {
     afterEach(() => {
       delete window.studiumDesktop;
+    });
+
+    it("can reload the pets when they stop responding to clicks", async () => {
+      const reloadPets = vi.fn();
+      window.studiumDesktop = { desktop: true, reloadPets };
+      renderWithStudium(<Settings />);
+      screen.getByText("Pets not responding to clicks?");
+      screen.getByText("Studium also does this on its own after your computer wakes up. It's in the tray menu near the clock too.");
+      await userEvent.click(screen.getByRole("button", { name: "Reload pets" }));
+      expect(reloadPets).toHaveBeenCalledTimes(1);
     });
 
     it("has a Sound section: pet sounds on, volume at 30%, sound bubbles on", () => {

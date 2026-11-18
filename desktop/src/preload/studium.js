@@ -76,14 +76,21 @@ function installBridge({ win, storage, ipc, signal }) {
   sendSettings();
 }
 
-if (typeof process !== 'undefined' && process.type === 'renderer') {
-  const { contextBridge, ipcRenderer } = require('electron');
-  contextBridge.exposeInMainWorld('studiumDesktop', {
+/** What the Studium page sees as window.studiumDesktop. */
+function desktopApi(ipc) {
+  return {
     desktop: true,
     // Google sign-in in the system browser: resolves with { idToken, accessToken?, rawNonce? }, rejects if cancelled.
-    signInWithBrowser: (provider) => ipcRenderer.invoke('auth:browser', provider),
-  });
+    signInWithBrowser: (provider) => ipc.invoke('auth:browser', provider),
+    // Settings → Pets not responding to clicks?: rebuilds the pets' window, like the tray's Reload pets.
+    reloadPets: () => ipc.send('studium:reload-pets'),
+  };
+}
+
+if (typeof process !== 'undefined' && process.type === 'renderer') {
+  const { contextBridge, ipcRenderer } = require('electron');
+  contextBridge.exposeInMainWorld('studiumDesktop', desktopApi(ipcRenderer));
   installBridge({ win: window, storage: window.localStorage, ipc: ipcRenderer });
 }
 
-if (typeof module !== 'undefined') module.exports = { EVENTS, installBridge };
+if (typeof module !== 'undefined') module.exports = { EVENTS, desktopApi, installBridge };

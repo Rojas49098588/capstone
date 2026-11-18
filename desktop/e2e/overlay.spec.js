@@ -170,6 +170,16 @@ test('Reload pets and waking the computer replace the pet window', async () => {
   await app.close();
 });
 
+// Settings → "Pets not responding to clicks?" asks for the same rebuild as the tray item.
+test('Reload pets in Settings replaces the pet window', async () => {
+  const { app, studium } = await start();
+  const overlayId = () => app.evaluate(() => globalThis.studiumTest.overlay.id);
+  const first = await overlayId();
+  await studium.evaluate(() => window.studiumDesktop.reloadPets());
+  await expect.poll(overlayId).not.toBe(first);
+  await app.close();
+});
+
 // Settings → Sound: the volume reaches the overlay, and with Sound bubbles off a pet's "Meow!" is
 // heard but not shown.
 test('a clicked pet plays its sound at the chosen volume, with or without the bubble', async () => {

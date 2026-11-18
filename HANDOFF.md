@@ -149,6 +149,11 @@ Design `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`; plan `doc
 - **Statuses for the desktop pets:** `PetStatuses.toys` (owned toy ids, `TOY_PRODUCT_IDS`, same list as `TOY_IDS` in `extension/content/logic.js`) and `PetStatus.favoriteFedAt`. The pets show "♥" with one hop for a favorite feeding less than a minute old (`newFavorites`, beside `newCelebrations`). `statusesEqual` ignores `favoriteFedAt`, so a feeding doesn't rebuild the pets.
 - **Placeholder art:** `web/public/food/*.svg` and the window SVGs. Replace a file to change the art.
 
+## Reload pets in Settings (2026-11-17)
+
+- Settings shows **"Pets not responding to clicks?" → Reload pets** in the desktop app only (`window.studiumDesktop.reloadPets`, from `desktopApi` in `desktop/src/preload/studium.js`). It sends `studium:reload-pets`, and `handleStudium` (`desktop/src/main/bridge.js`) calls the same `openOverlay` as the tray's Reload pets and the after-wake rebuild. That's the recovery for the stuck-clicks bug (`bugs.md`).
+- Tests: `desktop/test/bridge.test.js`, `desktop/test/preload.test.js`, `web/src/components/Settings.test.tsx`, and the e2e `Reload pets in Settings replaces the pet window` (`desktop/e2e/overlay.spec.js`).
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):

@@ -8,7 +8,7 @@ Tracked issues for the Capstone repo (Studium web app, desktop app and browser e
 
 ### Desktop: pets and sticky notes stop responding to clicks
 
-_Opened 2026-11-05. Waiting for the next time it happens (can't reproduce yet)._
+_Opened 2026-11-05. Fix shipped in 0.9.0 (`2c31743`). Waiting for a confirmed sleep and wake on the laptop before moving it to Fixed._
 
 **What happens:** in the Windows desktop app, every pet and sticky note on the overlay stops responding to clicks, sometimes. It lasts until the app restarts. The cause hasn't been found.
 
@@ -72,6 +72,11 @@ _Opened 2026-11-05. Waiting for the next time it happens (can't reproduce yet)._
 - on demand, from a new tray item, **Reload pets**.
 
 Tests: unit tests for the tray item and the rebuild timer, and an e2e test showing that Reload pets and a simulated wake each leave exactly one new overlay that takes clicks on a pet. The stuck state itself can't be reproduced in a test, so this stays open until it's confirmed on the laptop: after a sleep and wake, pets should take clicks. If they ever stop again without a sleep, use **Reload pets** and note what happened here.
+
+**Update (2026-11-17):**
+- The fix has been in every installer since **0.9.0** (`2c31743` is in v0.9.0, v0.10.0 and v0.11.0). The owner's laptop runs 0.9.0 and has been up since 2026-11-09 8:32 AM. Pets took clicks on 11/17. The owner wasn't watching closely in between, so it isn't confirmed after a known sleep yet.
+- **Settings → "Pets not responding to clicks?" → Reload pets** (desktop app only, branch `fix/reload-pets-setting`) does the same as the tray item. The hint says Studium also does this by itself after a wake. People no longer have to know about the tray menu to recover.
+- **To close:** after the laptop sleeps and wakes, click and drag a pet. If it works, move this to Fixed with `2c31743`.
 
 ## Fixed
 
