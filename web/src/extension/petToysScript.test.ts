@@ -88,6 +88,14 @@ it("summons, swaps and puts away toys, one per pet, and clears a toy when its pe
   expect(toys()).toHaveLength(1);
   await set({ petStatuses: { updatedAt: new Date().toISOString(), pets: [status("b")], toys: ["focus-ball"] } });
   expect(toys()).toEqual([]);
+
+  // A pet hidden by "Pets on screen at once" takes its toy away too.
+  await set({ petStatuses: { updatedAt: new Date().toISOString(), pets: [status("a"), status("b")], toys: ["focus-ball"] } });
+  pick(1, "Toys", "Focus Ball");
+  expect(toys().map((t) => t.dataset.pet)).toEqual(["b"]);
+  await set({ petScreen: { limit: 1, order: "project" } });
+  expect(petEls()[1].style.display).toBe("none");
+  expect(toys()).toEqual([]);
 });
 
 it("has no Toys item on a web page", async () => {

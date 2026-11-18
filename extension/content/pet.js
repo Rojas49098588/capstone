@@ -468,6 +468,9 @@
     // A toy is out (desktop): the pet plays instead of wandering off by itself.
     let playing = false;
 
+    // Asking you something, or its menu (any pet menu) is open: a toy mustn't make it run off.
+    const busyWithYou = () => talkEl.classList.contains('show') || globalThis.PetMenu?.isOpen() === true;
+
     // Where a toy sits on the floor under this pet (window px from the left and the bottom).
     const floorSpotFor = (size) => ({ x: world.left + state.x + w / 2 - size / 2, y: world.bottom });
 
@@ -935,7 +938,7 @@
       // Run at a moving toy (toyX() gives its window x each frame) and pounce on it: onCatch when it lands
       // on it. Only from idle or walking.
       pounce(toyX, size, onCatch) {
-        if (state.mode !== 'idle' && state.mode !== 'walk') return false;
+        if ((state.mode !== 'idle' && state.mode !== 'walk') || busyWithYou()) return false;
         wake();
         clearPlan();
         state.pounce = { toyX, size, onCatch };
@@ -945,7 +948,7 @@
       // Run to a toy at window x `toyX`, pick it up (onPickUp), bring it back to window x `backX`, and
       // drop it there (onDrop gets the spot). Only from idle or walking, like walkTo.
       fetch(toyX, backX, size, { onPickUp, onDrop }) {
-        if (!['idle', 'walk', 'fetch'].includes(state.mode)) return false;
+        if (!['idle', 'walk', 'fetch'].includes(state.mode) || busyWithYou()) return false;
         refreshWorld();
         const toPet = (x) => clamp(x + size / 2 - w / 2 - world.left, 0, maxX());
         wake();
@@ -961,6 +964,7 @@
         return { x: world.left + state.x + front, y: world.bottom + state.y + h * 0.25 };
       },
       isPlaying: () => playing,
+      isPouncing: () => state.pounce !== null,
       // Where a toy appears next to this pet: just right of it on the floor, in window pixels from the
       // left and bottom.
       toySpot(size) {
@@ -1148,8 +1152,16 @@
     // A toy stays with its pet across a rebuild; a pet that's gone takes its toy with it.
     for (const [petId, toy] of [...toysOut]) {
       const pet = pets.find((p) => p.id === petId);
-      if (pet) pet.setPlaying(true);
-      else {
+      if (pet) {
+        pet.setPlaying(true);
+        // The new pet isn't fetching or pouncing: a carried ball goes down where it is, a hunt starts over.
+        if (toy.carried) {
+          toy.carried = false;
+          toy.y = 0;
+          drawToy(toy);
+        }
+        if (toy.mouse) toy.mouse.hunting = false;
+      } else {
         toy.el.remove();
         toysOut.delete(petId);
       }
@@ -1322,6 +1334,7 @@
     toysOut.set(pet.id, toy);
     if (toyId === 'focus-ball') makeThrowable(toy, pet.id);
     if (toyId === 'robo-mouse') {
+      el.style.pointerEvents = 'none'; // it scoots under the cursor: the apps underneath keep their clicks
       const now = performance.now();
       toy.mouse = { home: toy.x, dir: 1, last: now, pausedUntil: 0, hunting: false, nextPounceAt: now + between(L.ROBO_MOUSE.pounceEveryMs) };
     }
@@ -1356,9 +1369,17 @@
       while (press.samples.length > 2 && t - press.samples[0].t > THROW_SAMPLE_MS) press.samples.shift();
       drawToy(toy);
     };
-    const onUp = () => {
+    const stopListening = () => {
       window.removeEventListener('pointermove', onMove, true);
       window.removeEventListener('pointerup', onUp, true);
+      window.removeEventListener('pointercancel', onCancel, true);
+    };
+    const onCancel = () => {
+      stopListening();
+      press = null; // the system took the pointer: no throw, the ball stays where it is
+    };
+    const onUp = () => {
+      stopListening();
       if (!press) return;
       const moved = press.moved;
       const samples = press.samples;
@@ -1374,6 +1395,7 @@
       e.preventDefault();
       window.addEventListener('pointermove', onMove, true);
       window.addEventListener('pointerup', onUp, true);
+      window.addEventListener('pointercancel', onCancel, true);
     });
   }
 
@@ -1396,6 +1418,7 @@
       }
       drawToy(toy);
     }
+    if (m.hunting && !pet?.isPouncing()) m.hunting = false; // that pounce ended without a catch
     if (!m.hunting && pet && now >= m.nextPounceAt) {
       m.hunting = pet.pounce(() => toy.x, TOY_SIZE, () => {
         const at = performance.now();
@@ -1619,6 +1642,7 @@
       if (box && pet.boxEl() !== box) pet.enterBox(box);
       if (!box && pet.boxEl()) pet.leaveBox(positions[pet.id]?.xRatio);
       pet.setAway(isAway);
+      if (!pet.isShown() || isAway) putAwayToy(pet.id); // hidden ("Pets on screen at once") or away: no toy
     }
     markAttached();
     showCheckIn();

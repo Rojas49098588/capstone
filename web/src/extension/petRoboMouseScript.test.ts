@@ -65,6 +65,8 @@ it("scoots near its pet, gets pounced on and caught, pauses, and stops when put 
   petEl().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, composed: true }));
   for (const label of ["Toys", "Robo Mouse"]) [...root.querySelectorAll<HTMLButtonElement>(".pet-menu button")].find((b) => b.textContent?.startsWith(label))?.click();
   expect(mouse()).toBeTruthy();
+  // It never takes clicks: the apps underneath get them.
+  expect(mouse()!.style.pointerEvents).toBe("none");
 
   // It scoots on its own, staying near its pet and on screen.
   const start = xOf(mouse()!);
@@ -79,6 +81,15 @@ it("scoots near its pet, gets pounced on and caught, pauses, and stops when put 
     expect(x).toBeLessThanOrEqual(1200 - 28);
     expect(Math.abs(x - petX)).toBeLessThan(L.ROBO_MOUSE.rangePx + 200);
   }
+
+  // Not while the pet's menu is open: the menu would run off with the pet.
+  petEl().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, composed: true }));
+  frames(Math.ceil((L.ROBO_MOUSE.pounceEveryMs[1] + 3000) / 16));
+  expect(petEl().classList.contains("walking")).toBe(false);
+  expect(bubble().textContent === L.toyCatchText && bubble().classList.contains("show")).toBe(false);
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+  root.querySelector(".pet-menu")?.remove();
+  document.body.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
 
   // Within the longest wait (plus time to run over), the pet pounces and catches it.
   let caught = false;
@@ -96,6 +107,22 @@ it("scoots near its pet, gets pounced on and caught, pauses, and stops when put 
   expect(xOf(mouse()!)).toBe(held);
   frames(40);
   expect(xOf(mouse()!)).not.toBe(held);
+
+  // Clicked mid-pounce, it gives up that pounce but pounces again later.
+  let running = false;
+  for (let i = 0; i < limit && !running; i++) {
+    frames(1);
+    running = petEl().classList.contains("walking");
+  }
+  expect(running).toBe(true);
+  petEl().dispatchEvent(new MouseEvent("pointerdown", { clientX: xOf(petEl()) + 10, clientY: 780, button: 0, bubbles: true, composed: true }));
+  petEl().dispatchEvent(new MouseEvent("pointerup", { clientX: xOf(petEl()) + 10, clientY: 780, button: 0, bubbles: true, composed: true }));
+  caught = false;
+  for (let i = 0; i < limit && !caught; i++) {
+    frames(1);
+    caught = bubble().classList.contains("show") && bubble().textContent === L.toyCatchText;
+  }
+  expect(caught).toBe(true);
 
   // Put away: gone, and nothing more happens.
   petEl().dispatchEvent(new MouseEvent("contextmenu", { bubbles: true, composed: true }));

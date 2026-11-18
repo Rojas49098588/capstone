@@ -27,10 +27,16 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
     pets: { a: { xRatio: 0.1 } },
     petPrefs: { involvement: "moderate", nickname: "" },
   };
+  const listeners: Listener[] = [];
+  const set = async (v: Record<string, unknown>) => {
+    Object.assign(store, v);
+    const changes = Object.fromEntries(Object.entries(v).map(([k, newValue]) => [k, { newValue }]));
+    listeners.forEach((f) => f(changes, "local"));
+  };
   const g = globalThis as unknown as { chrome: unknown; PetSurface: string };
   g.chrome = {
     runtime: { id: "test", getURL: (path: string) => path, sendMessage: () => Promise.resolve() },
-    storage: { local: { get: async () => ({ ...store }), set: async () => {} }, onChanged: { addListener: (_f: Listener) => {} } },
+    storage: { local: { get: async () => ({ ...store }), set }, onChanged: { addListener: (f: Listener) => listeners.push(f) } },
   };
   g.PetSurface = "overlay";
   HTMLElement.prototype.setPointerCapture = () => {}; // missing in jsdom
@@ -69,6 +75,15 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
   pointer(ball(), "pointerup", before + 14, 786);
   frames(60);
   expect(xOf(ball())).toBe(before);
+
+  // A cancelled drag (the system took the pointer) doesn't throw, and the ball stops following the cursor.
+  pointer(ball(), "pointerdown", xOf(ball()) + 14, 786);
+  pointer(window as unknown as HTMLElement, "pointermove", 500, 786);
+  const dropped = xOf(ball());
+  pointer(window as unknown as HTMLElement, "pointercancel", 500, 786);
+  pointer(window as unknown as HTMLElement, "pointermove", 700, 786);
+  frames(60);
+  expect(xOf(ball())).toBe(dropped);
 
   // Drag from (300, floor) to (400, floor - 50) and let go: a throw to the right.
   pointer(ball(), "pointerdown", xOf(ball()) + 14, 786);
@@ -110,6 +125,26 @@ it("throws the ball, and the pet fetches it back; a click doesn't throw; draggin
   pointer(window as unknown as HTMLElement, "pointermove", xOf(ball()) + 120, 740);
   pointer(window as unknown as HTMLElement, "pointerup", xOf(ball()) + 120, 740);
   frames(120);
+  carried = false;
+  for (let i = 0; i < 600 && !carried; i++) {
+    frames(1);
+    carried = ball().classList.contains("carried");
+  }
+  expect(carried).toBe(true);
+
+  // Its mood changes while it carries the ball (the pets are rebuilt): the ball is dropped, and can be thrown again.
+  await set({ petStatuses: { updatedAt: new Date().toISOString(), pets: [{ ...status, mood: "Worried" }], toys: ["focus-ball"] } });
+  frames(2);
+  expect(ball().classList.contains("carried")).toBe(false);
+  // Thrown left from where it was dropped (near the right edge), so the fetch is a long one.
+  const from = xOf(ball());
+  pointer(ball(), "pointerdown", from + 14, 786);
+  vi.advanceTimersByTime(16);
+  pointer(window as unknown as HTMLElement, "pointermove", from - 40, 770);
+  vi.advanceTimersByTime(30);
+  pointer(window as unknown as HTMLElement, "pointermove", from - 160, 740);
+  pointer(window as unknown as HTMLElement, "pointerup", from - 160, 740);
+  frames(20);
   carried = false;
   for (let i = 0; i < 600 && !carried; i++) {
     frames(1);
