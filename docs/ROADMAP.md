@@ -9,7 +9,7 @@ _Updated 2026-11-17. The demo is **30 minutes, desktop app only**. New features 
 **Focus: finish these**
 
 1. **Shop: done 11/17** (branch `feature/shop-toys-window`). 6 new foods with flavors, a favorite flavor for each kind of pet, and cheap bland starters. Clothes are removed, and their buyers get their tokens back. Design: `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`.
-2. **Toys and habitat:** the Window is **done 11/17**; the toys wait for the click-bug investigation (item 6). The Focus Ball (throw and fetch) and the Robo Mouse (the pet plays by itself) on the desktop pets. A Window decor item that follows the computer's clock and dims the room at night. Placeholder art for everything new. Same design.
+2. **Toys and habitat: done 11/17.** The Window, and the toys on the desktop pets (branch `feature/toys`). The Focus Ball (throw and fetch) and the Robo Mouse (the pet plays by itself) on the desktop pets. A Window decor item that follows the computer's clock and dims the room at night. Placeholder art for everything new. Same design.
 3. **Assets:** the placeholder decor art (`web/public/decor/*.svg`), and anything else still a placeholder (to list).
 4. **Sounds:** replace the generated stand-in pet sounds (`desktop/scripts/makeSounds.js` → `extension/assets/sounds/*.wav`) with copyright-free recordings.
 

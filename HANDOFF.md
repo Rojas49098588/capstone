@@ -137,9 +137,9 @@ Plan `docs/superpowers/plans/2026-11-15-companion-plan-2-phone-app.md`. How to r
 - **Tests:** `cd mobile && npx jest` (fakes from `web/src/test`), `npx tsc --noEmit`, `npx expo export --platform ios --output-dir dist`.
 - **Needs the owner:** the by-hand check on a real phone (Expo Go), then tester builds with EAS (Expo account; App Store Connect for TestFlight). The app icon is still Expo's template icon.
 
-## Food, the window, and favorite hearts (built 2026-11-17; toys still to come)
+## Food, the window, and favorite hearts (built 2026-11-17)
 
-Design `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`; plan `docs/superpowers/plans/2026-11-17-shop-toys-window.md` (Tasks 1–7 done; Tasks 8–10, the toys, wait for the click-bug investigation).
+Design `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`; plan `docs/superpowers/plans/2026-11-17-shop-toys-window.md` (all tasks done; the toys are in the next section).
 
 - **Food catalog:** `web/src/planner/foods.ts` (`FOODS`, `FAVORITE_FLAVOR`, `findFood`, `isFavorite`, `flavorLabel`). Every food's kind, flavor, price and effect lives there; Berry Bites' and Power Bento's numbers still come from the old constants in `tuning.ts`. Shop names and "What it does" texts are in `web/src/store/products.ts`, which takes each food's price from the catalog.
 - **Rules:** `web/src/planner/food.ts`. `canFeed` takes a product id. A snack's lift length comes from the pet's last snack; Meaty Stew shortens that pet's snack wait to 2.5 h until midnight (`snackWaitHours`). A project's tokens use the **highest** running meal boost, never the product (`runningBoosts`, `topMealBoost`, `mealMultiplier`); only Power Bento extends its own running boost. Tests pin that every lift ends before the shortest wait and that no food pays back its price.
@@ -148,6 +148,17 @@ Design `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`; plan `doc
 - **Window:** a wall decor item (`window`, 80), drawn a quarter bigger than the wall spot and as a wide rectangle. `web/src/planner/timeOfDay.ts` picks the period from the local clock and a month table of sunrise and sunset close to Dallas (`SUN_HOURS`; dark by about 6 pm in November, light until about 8:30 pm in June), the northern-hemisphere `season`, and `weather`: snow all winter, otherwise rain about 1 hour in 6 for 20–40 minutes, chosen from the date and hour so every habitat agrees. In winter snow piles up on the sill through the day (`snowDepth`). Fall leaves, spring cherry petals, snow and rain are CSS shapes (`.window-particle` in `index.css`). `HabitatDecor` draws the sky (`decor/window-sky-<period>.svg`) under `decor/window-frame.svg`, with CSS clouds and shooting stars (`index.css`, off under reduced motion), and lays a tint over the room only when a window is placed. `decor/window.svg` is the Shop and inventory picture.
 - **Statuses for the desktop pets:** `PetStatuses.toys` (owned toy ids, `TOY_PRODUCT_IDS`, same list as `TOY_IDS` in `extension/content/logic.js`) and `PetStatus.favoriteFedAt`. The pets show "♥" with one hop for a favorite feeding less than a minute old (`newFavorites`, beside `newCelebrations`). `statusesEqual` ignores `favoriteFedAt`, so a feeding doesn't rebuild the pets.
 - **Placeholder art:** `web/public/food/*.svg` and the window SVGs. Replace a file to change the art.
+
+## Toys on the desktop pets (built 2026-11-17)
+
+Same design and plan (Tasks 8–10).
+
+- **Where:** only on the desktop overlay (`PetSurface === 'overlay'`) in the shared `extension/content/pet.js`. The browser extension and the habitat get no Toys item. The art is in `extension/assets/toys/*.svg`, packaged by `desktop/electron-builder.yml`.
+- **Menu:** `petMenuItems(petId, petAway, statuses, toys)` in `logic.js`. It lists the toys you own (from `statuses.toys`), is disabled with "Buy toys in the Shop" when you own none, and adds Put away while one is out. Away pets get no Toys item. Names are in `TOY_NAMES`.
+- **One toy per pet:** an `<img class="pet-toy">` inside the pets' shadow root, so `desktop/src/overlay/mouse.js` lets it take clicks. It stays through a status rebuild while its pet still exists. It goes when the pet sleeps or naps, leaves the statuses, or is hidden. While a toy is out the pet doesn't wander or chase (`setPlaying`).
+- **Focus Ball:** drag and let go to throw it (`throwVelocity`, then `L.ballFlight`). The pet runs at `FETCH_SPEED` (260 px/s, the same for every pet), picks the ball up, and brings it back to where it was let go. Grabbing the pet mid-fetch drops the ball where the pet was.
+- **Robo Mouse:** scoots back and forth within `ROBO_MOUSE.rangePx` of where it appeared. Every `pounceEveryMs` the pet runs at it and hops (`pounce` mode), then says "Got it!". The mouse stays still for `pauseMs`.
+- **Tests:** `web/src/extension/petToysScript.test.ts`, `petFetchScript.test.ts`, `petRoboMouseScript.test.ts`, and the menu and `ballFlight` tests in `petInteractions.test.ts`.
 
 ## The project
 
