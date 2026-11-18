@@ -2,7 +2,8 @@
 // The demo copy's save (demo stand spec): the owner's five classes with made-up work, built from "now",
 // checked on several days and times so Reset looks right whenever it's pressed.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEMO_MARKER_KEY, DEMO_PROJECT_IDS, DEMO_SETTINGS, buildDemo, resetDemo, startDemoIfNew } from "./demo";
+import { NICKNAME_MAX } from "../planner/tuning";
+import { DEMO_MARKER_KEY, DEMO_NICKNAME, DEMO_PROJECT_IDS, DEMO_SETTINGS, buildDemo, resetDemo, startDemoIfNew } from "./demo";
 import { STORAGE_KEY, isValidData, normalizeData } from "./storage";
 import { SETTINGS_KEY, parseSettings } from "./settings";
 import { petMood, petsOf, settlePets } from "../planner/pets";
@@ -149,6 +150,20 @@ describe("demo mode", () => {
     const reload = vi.fn();
     resetDemo({ storage: localStorage, now, reload }); // no pets' window to reload: still resets
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("Reset can give the next tester's nickname; blank keeps the default", () => {
+    window.studiumDesktop = { desktop: true, demo: true };
+    startDemoIfNew(localStorage, now);
+    const nickname = () => parseSettings(localStorage.getItem(SETTINGS_KEY)).nickname;
+    resetDemo({ storage: localStorage, now, reload: () => {}, nickname: "  Jo  " });
+    expect(nickname()).toBe("Jo");
+    resetDemo({ storage: localStorage, now, reload: () => {}, nickname: "   " });
+    expect(nickname()).toBe(DEMO_NICKNAME);
+    resetDemo({ storage: localStorage, now, reload: () => {}, nickname: "x".repeat(NICKNAME_MAX + 5) });
+    expect(nickname()).toBe("x".repeat(NICKNAME_MAX));
+    resetDemo({ storage: localStorage, now, reload: () => {} });
+    expect(nickname()).toBe(DEMO_NICKNAME);
   });
 
   it("Reset refuses to replace a save the demo didn't make (the shortcut pointed at real data)", () => {

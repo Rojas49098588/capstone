@@ -19,7 +19,7 @@ import {
 } from "../planner/types";
 import { giveDefaultBeds } from "./decor";
 import { priceOf } from "./products";
-import { DEFAULT_SETTINGS, saveSettings, type Settings } from "./settings";
+import { DEFAULT_SETTINGS, cleanNickname, saveSettings, type Settings } from "./settings";
 import { STORAGE_KEY, saveData } from "./storage";
 
 /** What the pets call you in the demo copy. A placeholder: change it here. */
@@ -498,8 +498,8 @@ export const DEMO_MARKER_KEY = "studium-demo-v1";
 /** Remembered collapsed requirements and filters (ui/viewPrefs.ts), per project: cleared so every visitor starts from the full view. */
 const VIEW_PREFS_PREFIX = "studium.requirementView.";
 
-/** Writes a fresh demo save and the demo settings, replacing whatever was there. */
-export function installDemo(storage: Storage, now: Date): void {
+/** Writes a fresh demo save and the demo settings, replacing whatever was there. A blank nickname keeps DEMO_NICKNAME. */
+export function installDemo(storage: Storage, now: Date, nickname: string = DEMO_NICKNAME): void {
   const viewPrefs: string[] = [];
   for (let i = 0; i < storage.length; i++) {
     const key = storage.key(i);
@@ -507,7 +507,7 @@ export function installDemo(storage: Storage, now: Date): void {
   }
   for (const key of viewPrefs) storage.removeItem(key);
   saveData(storage, buildDemo(now));
-  saveSettings(storage, DEMO_SETTINGS);
+  saveSettings(storage, { ...DEMO_SETTINGS, nickname: cleanNickname(nickname) || DEMO_NICKNAME });
   storage.setItem(DEMO_MARKER_KEY, now.toISOString());
 }
 
@@ -536,9 +536,9 @@ export function startDemoIfNew(storage: Storage | null, now: Date): boolean {
  * Settings → Reset demo: a fresh demo, then the pets and the page start over with it. False, and nothing
  * changes, if the save here wasn't made by the demo (a shortcut pointed at a folder with real data).
  */
-export function resetDemo(deps: { storage: Storage; now: Date; reloadPets?: () => void; reload: () => void }): boolean {
+export function resetDemo(deps: { storage: Storage; now: Date; nickname?: string; reloadPets?: () => void; reload: () => void }): boolean {
   if (!demoMadeThis(deps.storage)) return false;
-  installDemo(deps.storage, deps.now);
+  installDemo(deps.storage, deps.now, deps.nickname);
   deps.reloadPets?.();
   deps.reload();
   return true;

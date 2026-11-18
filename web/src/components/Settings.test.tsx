@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SETTINGS_KEY } from "../store/settings";
@@ -109,12 +109,23 @@ describe("Settings", () => {
         const { storage } = renderWithStudium(<Settings />, { storage: demoStorage, data: JSON.parse(demoStorage.getItem(STORAGE_KEY) as string) });
         const before = storage?.getItem(STORAGE_KEY);
         await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
-        screen.getByText("This replaces everything in this demo copy with fresh demo data.");
-        await userEvent.click(screen.getByRole("button", { name: "Cancel" }));
+        let dialog = screen.getByRole("dialog", { name: "Reset demo" });
+        within(dialog).getByText("This replaces everything in this demo copy with fresh demo data.");
+        expect((within(dialog).getByRole("textbox", { name: "Nickname" }) as HTMLInputElement).value).toBe("Mustang");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
         expect(storage?.getItem(STORAGE_KEY)).toBe(before);
-        expect(screen.queryByText("This replaces everything in this demo copy with fresh demo data.")).toBeNull();
+        expect(screen.queryByRole("dialog")).toBeNull();
         await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
-        await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+        dialog = screen.getByRole("dialog", { name: "Reset demo" });
+        await userEvent.keyboard("{Escape}");
+        expect(screen.queryByRole("dialog")).toBeNull();
+        await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
+        dialog = screen.getByRole("dialog", { name: "Reset demo" });
+        const field = within(dialog).getByRole("textbox", { name: "Nickname" });
+        await userEvent.clear(field);
+        await userEvent.type(field, "Jo");
+        await userEvent.click(within(dialog).getByRole("button", { name: "Reset" }));
+        expect(JSON.parse(storage?.getItem(SETTINGS_KEY) as string).nickname).toBe("Jo");
         const saved = JSON.parse(storage?.getItem(STORAGE_KEY) as string);
         expect(saved.projects.map((p: { id: string }) => p.id)).toEqual([...DEMO_PROJECT_IDS]);
         expect(reloadPets).toHaveBeenCalledTimes(1);

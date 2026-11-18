@@ -5,7 +5,7 @@ December 3. About 30 minutes, visitors one or two at a time. **You drive the pla
 ## Before the stand
 
 1. Quit the real Studium: tray icon by the clock → **Quit Studium**. Otherwise two sets of pets roam.
-2. Open **Studium Demo** (desktop shortcut). Go to **Settings → Reset demo → Reset**. Dates are worked out from the day you press it.
+2. Open **Studium Demo** (desktop shortcut). Go to **Settings → Reset demo**, keep the nickname **Mustang**, then **Reset**. Dates are worked out from the day you press it.
 3. Check the sound plays through the TV (pets meow and chirp).
 4. Put out the QR code (`docs/demo/download-qr.png`): it opens the latest release.
 5. Right-click the Capstone cat → **Toys → Focus Ball**, so a toy is already out.
@@ -51,7 +51,7 @@ Skip the drag and the 🔒. Show **Soon** and one tick, then hand over the pets.
 ## If something goes wrong
 
 - **Pets stop responding to clicks:** Settings → **Reload pets**, or tray → **Reload pets**.
-- **The demo is a mess:** Settings → **Reset demo**.
+- **The demo is a mess, or a new tester sits down:** Settings → **Reset demo**. Type their name in the **Nickname** box so the pets greet them, or leave **Mustang**.
 
 ## Making the shortcut (once, on the demo laptop)
 
