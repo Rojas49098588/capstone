@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { sortListTasks } from "../planner/order";
-import { VIEW_LABELS, viewOf, type RequirementView } from "../planner/requirementView";
+import { filtersLabel, viewOf, type RequirementFilter } from "../planner/requirementView";
 import { loadViewPrefs, saveViewPrefs, type ViewPrefs } from "../ui/viewPrefs";
 import ViewMenu from "./ViewMenu";
 import { useStudiumContext } from "../store/useStudium";
@@ -29,15 +29,17 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
   const requirements = s.data.requirements.filter((r) => r.projectId === projectId);
   const words = wordsFor(s.data.projects.find((p) => p.id === projectId));
   // No requirements: no ≡ menu to get back with, so always Show all (Unlinked tasks must never be hidden then).
-  const view: RequirementView = requirements.length === 0 ? "all" : current.view;
-  const shown = viewOf(projectId, s.data, view, s.now);
+  const filters: RequirementFilter[] = requirements.length === 0 ? [] : current.filters;
+  const filtered = filters.length > 0;
+  const shown = viewOf(projectId, s.data, filters, s.now);
   const collapsed = new Set(current.collapsed);
   const allCollapsed = shown.requirements.length > 0 && shown.requirements.every((r) => collapsed.has(r.id));
   const unlinkedFilter = shown.tasksShown(null);
   const unlinkedAll = sortListTasks(s.data.tasks.filter((t) => t.projectId === projectId && t.requirementId === null));
   const unlinked = shown.showUnlinked ? unlinkedAll.filter(unlinkedFilter) : [];
   const unlinkedOpen = unlinkedAll.filter((t) => !t.done).length;
-  const setView = (v: RequirementView) => setPrefs({ ...current, view: v });
+  const setFilters = (f: RequirementFilter[]) => setPrefs({ ...current, filters: f });
+  const showAll = () => setFilters([]);
   const toggle = (id: string) =>
     setPrefs({ ...current, collapsed: collapsed.has(id) ? current.collapsed.filter((x) => x !== id) : [...current.collapsed, id] });
   const collapseAll = (collapse: boolean) => {
@@ -45,12 +47,12 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
     const rest = current.collapsed.filter((id) => !ids.has(id));
     setPrefs({ ...current, collapsed: collapse ? [...rest, ...ids] : rest });
   };
-  const empty: Record<RequirementView, string> = {
-    all: "",
+  const EMPTY: Record<RequirementFilter, string> = {
     soon: "Nothing due in the next 3 days.",
     today: "Nothing on today's list for this project.",
     hideCompleted: "Everything here is finished.",
   };
+  const empty = filters.length === 1 ? EMPTY[filters[0]] : "Nothing matches these filters.";
 
   return (
     <section aria-labelledby="requirements-heading" data-tour="requirements" className="space-y-4">
@@ -64,7 +66,7 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
               + Add {words.requirement}
             </button>
           )}
-          {requirements.length > 0 && <ViewMenu view={view} onView={setView} allCollapsed={allCollapsed} onCollapseAll={collapseAll} />}
+          {requirements.length > 0 && <ViewMenu filters={filters} onFilters={setFilters} allCollapsed={allCollapsed} onCollapseAll={collapseAll} />}
         </div>
       </div>
       {adding && (
@@ -90,10 +92,10 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
           decides what the {words.tasks} are worth.
         </p>
       )}
-      {requirements.length > 0 && shown.requirements.length === 0 && view !== "all" && (
+      {requirements.length > 0 && shown.requirements.length === 0 && filtered && (
         <p className="text-sm text-[var(--color-muted-foreground)] flex items-center gap-2">
-          <span className="italic">{empty[view]}</span>
-          <button type="button" onClick={() => setView("all")} className={BUTTON_SMALL}>
+          <span className="italic">{empty}</span>
+          <button type="button" onClick={showAll} className={BUTTON_SMALL}>
             Show all
           </button>
         </p>
@@ -107,15 +109,15 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
             onHatch={onHatch}
             collapsed={collapsed.has(r.id)}
             onToggleCollapsed={() => toggle(r.id)}
-            taskFilter={view === "all" ? undefined : shown.tasksShown(r.id)}
-            reorderable={view !== "today"}
+            taskFilter={filtered ? shown.tasksShown(r.id) : undefined}
+            reorderable={!filters.includes("today")}
           />
         ))}
       </div>
-      {view !== "all" && shown.hiddenCount > 0 && shown.requirements.length > 0 && (
+      {filtered && shown.hiddenCount > 0 && shown.requirements.length > 0 && (
         <p className="text-sm text-[var(--color-muted-foreground)] flex items-center gap-2">
-          {shown.hiddenCount} more hidden by {VIEW_LABELS[view]}
-          <button type="button" onClick={() => setView("all")} className={BUTTON_SMALL}>
+          {shown.hiddenCount} more hidden by {filtersLabel(filters)}
+          <button type="button" onClick={showAll} className={BUTTON_SMALL}>
             Show all
           </button>
         </p>
@@ -132,7 +134,7 @@ export default function RequirementsSection({ projectId, onRequestComplete, onHa
                 key={t.id}
                 taskId={t.id}
                 onRequestComplete={onRequestComplete}
-                reorder={t.done || view === "today" ? undefined : { index: i, count: unlinkedOpen, onMove: (to) => s.moveTask(t.id, to) }}
+                reorder={t.done || filters.includes("today") ? undefined : { index: i, count: unlinkedOpen, onMove: (to) => s.moveTask(t.id, to) }}
               />
             ))}
           </div>

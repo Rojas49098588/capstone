@@ -29,9 +29,10 @@ const show = (storage = memoryStorage()) =>
   renderWithStudium(<RequirementsSection projectId="p1" onRequestComplete={vi.fn()} onHatch={vi.fn()} />, { data: data(), storage });
 const card = (title: string) => screen.getByRole("article", { name: title });
 const menuButton = () => screen.getByRole("button", { name: /^Requirements view/ });
+const ROLE = (name: string) => (/^(Collapse|Expand) all$/.test(name) ? "menuitem" : name === "Show all" ? "menuitemradio" : "menuitemcheckbox");
 async function pick(name: string) {
-  await userEvent.click(menuButton());
-  await userEvent.click(screen.getByRole(/^(Collapse|Expand) all$/.test(name) ? "menuitem" : "menuitemradio", { name }));
+  if (menuButton().getAttribute("aria-expanded") !== "true") await userEvent.click(menuButton());
+  await userEvent.click(screen.getByRole(ROLE(name), { name }));
 }
 
 describe("the condensed requirements view", () => {
@@ -59,22 +60,43 @@ describe("the condensed requirements view", () => {
     for (const t of ["Prototype 9", "Prototype 10", "Prototype 11"]) within(card(t)).getByRole("progressbar");
   });
 
-  it("one view at a time; Soon hides later requirements and says how many", async () => {
+  it("filters stack; Soon hides later requirements and says how many", async () => {
     show();
     await pick("Soon");
+    // A filter keeps the menu open, so another can be added.
+    expect(screen.getByRole("menuitemcheckbox", { name: "Soon" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByRole("menuitemradio", { name: "Show all" }).getAttribute("aria-checked")).toBe("false");
     expect(menuButton().textContent).toBe("≡ Soon");
     card("Prototype 9");
     expect(screen.queryByRole("article", { name: "Prototype 10" })).toBeNull();
     screen.getByText("2 more hidden by Soon");
-    await userEvent.click(menuButton());
-    expect(screen.getByRole("menuitemradio", { name: "Soon" }).getAttribute("aria-checked")).toBe("true");
-    expect(screen.getByRole("menuitemradio", { name: "Show all" }).getAttribute("aria-checked")).toBe("false");
-    await userEvent.click(screen.getByRole("menuitemradio", { name: "Hide completed" }));
-    expect(menuButton().textContent).toBe("≡ Hide completed");
+    await pick("Hide completed");
+    expect(screen.getByRole("menuitemcheckbox", { name: "Soon" }).getAttribute("aria-checked")).toBe("true");
+    expect(menuButton().textContent).toBe("≡ Hide completed + Soon");
+    // Unticking one keeps the other.
     await pick("Soon");
+    expect(menuButton().textContent).toBe("≡ Hide completed");
+    card("Prototype 11");
+    await pick("Soon");
+    await userEvent.keyboard("{Escape}");
     await userEvent.click(screen.getByRole("button", { name: "Show all" }));
     expect(menuButton().textContent).toBe("≡");
     card("Prototype 11");
+  });
+
+  it("Today's to-do and Hide completed together show today's unfinished tasks", async () => {
+    const d = data();
+    d.tasks.push(makeTask({ id: "done9", requirementId: "P9", title: "Done 9", done: true }));
+    d.today.taskIds.push("done9");
+    renderWithStudium(<RequirementsSection projectId="p1" onRequestComplete={vi.fn()} onHatch={vi.fn()} />, { data: d, storage: memoryStorage() });
+    await pick("Today's to-do");
+    within(card("Prototype 9")).getByText("Done 9");
+    await pick("Hide completed");
+    expect(screen.queryByRole("article", { name: "Prototype 9" })).toBeNull();
+    within(card("Prototype 10")).getByText("APK");
+    await pick("Show all");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(menuButton().textContent).toBe("≡");
   });
 
   it("Today's to-do shows only today's tasks", async () => {
@@ -118,7 +140,7 @@ describe("the condensed requirements view", () => {
     await userEvent.keyboard("{ArrowDown}");
     expect(document.activeElement).toBe(screen.getByRole("menuitemradio", { name: "Show all" }));
     await userEvent.keyboard("{ArrowUp}{ArrowUp}");
-    expect(document.activeElement).toBe(screen.getByRole("menuitemradio", { name: "Soon" }));
+    expect(document.activeElement).toBe(screen.getByRole("menuitemcheckbox", { name: "Soon" }));
     await userEvent.keyboard("{Escape}");
     expect(screen.queryByRole("menu")).toBeNull();
     expect(document.activeElement).toBe(menuButton());

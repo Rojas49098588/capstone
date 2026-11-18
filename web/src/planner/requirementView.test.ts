@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { NOW, dayKey, makeData, makeProject, makeRequirement, makeTask } from "./testData";
-import { VIEW_LABELS, isSoon, viewOf } from "./requirementView";
+import { FILTER_LABELS, filtersLabel, isSoon, viewOf } from "./requirementView";
 
 const project = makeProject();
 
@@ -47,7 +47,7 @@ describe("viewOf", () => {
   const ids = (v: ReturnType<typeof viewOf>) => v.requirements.map((r) => r.id);
 
   it("Show all shows everything", () => {
-    const v = viewOf("p1", data(), "all", NOW);
+    const v = viewOf("p1", data(), [], NOW);
     expect(ids(v)).toEqual(["soon", "later", "done", "empty"]);
     expect(v.hiddenCount).toBe(0);
     expect(v.showUnlinked).toBe(true);
@@ -55,7 +55,7 @@ describe("viewOf", () => {
   });
 
   it("Today's to-do shows requirements with today's tasks, done ones included", () => {
-    const v = viewOf("p1", data(), "today", NOW);
+    const v = viewOf("p1", data(), ["today"], NOW);
     expect(ids(v)).toEqual(["soon", "later"]);
     expect(v.hiddenCount).toBe(2);
     const d = data();
@@ -67,13 +67,13 @@ describe("viewOf", () => {
 
   it("Today's to-do treats yesterday's list as empty", () => {
     const d = { ...data(), today: { date: dayKey(-1), taskIds: ["l1", "s2"] } };
-    const v = viewOf("p1", d, "today", NOW);
+    const v = viewOf("p1", d, ["today"], NOW);
     expect(ids(v)).toEqual([]);
     expect(v.hiddenCount).toBe(4);
   });
 
   it("Hide completed hides finished requirements and done tasks, but keeps one with no tasks", () => {
-    const v = viewOf("p1", data(), "hideCompleted", NOW);
+    const v = viewOf("p1", data(), ["hideCompleted"], NOW);
     expect(ids(v)).toEqual(["soon", "later", "empty"]);
     expect(v.hiddenCount).toBe(1);
     expect(v.tasksShown("soon")(makeTask({ done: true }))).toBe(false);
@@ -82,7 +82,7 @@ describe("viewOf", () => {
   });
 
   it("Soon shows unfinished requirements due within 3 days and hides Unlinked", () => {
-    const v = viewOf("p1", data(), "soon", NOW);
+    const v = viewOf("p1", data(), ["soon"], NOW);
     expect(ids(v)).toEqual(["soon"]);
     expect(v.hiddenCount).toBe(3);
     expect(v.showUnlinked).toBe(false);
@@ -92,10 +92,27 @@ describe("viewOf", () => {
     const d = data();
     d.projects.push(makeProject({ id: "p2" }));
     d.requirements.push(makeRequirement({ id: "elsewhere", projectId: "p2" }));
-    expect(viewOf("p1", d, "soon", NOW).hiddenCount).toBe(3);
+    expect(viewOf("p1", d, ["soon"], NOW).hiddenCount).toBe(3);
   });
 
-  it("has the menu's labels", () => {
-    expect(VIEW_LABELS).toEqual({ all: "Show all", today: "Today's to-do", hideCompleted: "Hide completed", soon: "Soon" });
+  it("stacks filters: each one narrows what the others show", () => {
+    const d = data();
+    // Today's to-do + Hide completed: today's unfinished tasks only, so "soon" (only done s2 today) goes.
+    const v = viewOf("p1", d, ["today", "hideCompleted"], NOW);
+    expect(ids(v)).toEqual(["later"]);
+    expect(v.hiddenCount).toBe(3);
+    expect(v.tasksShown("later")(makeTask({ id: "l1" }))).toBe(true);
+    expect(v.tasksShown("later")(makeTask({ id: "l1", done: true }))).toBe(false);
+    expect(v.tasksShown("later")(makeTask({ id: "other" }))).toBe(false);
+    // Soon + Today's to-do: due soon and with a task on today's list.
+    expect(ids(viewOf("p1", d, ["soon", "today"], NOW))).toEqual(["soon"]);
+    expect(viewOf("p1", d, ["soon", "hideCompleted"], NOW).showUnlinked).toBe(false);
+  });
+
+  it("has the menu's labels, and names a stack in the menu's order", () => {
+    expect(FILTER_LABELS).toEqual({ today: "Today's to-do", hideCompleted: "Hide completed", soon: "Soon" });
+    expect(filtersLabel([])).toBe("Show all");
+    expect(filtersLabel(["soon"])).toBe("Soon");
+    expect(filtersLabel(["soon", "today"])).toBe("Today's to-do + Soon");
   });
 });

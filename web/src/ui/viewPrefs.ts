@@ -1,12 +1,12 @@
 // How each project's requirements list looks on this device: the ≡ menu's view and the collapsed
 // requirements (tasks and requirements view spec). Kept apart from the synced data on purpose.
-import { REQUIREMENT_VIEWS, type RequirementView } from "../planner/requirementView";
+import { REQUIREMENT_FILTERS, type RequirementFilter } from "../planner/requirementView";
 
-export type ViewPrefs = { view: RequirementView; collapsed: string[] };
+export type ViewPrefs = { filters: RequirementFilter[]; collapsed: string[] };
 
 export const viewPrefsKey = (projectId: string) => `studium.requirementView.${projectId}`;
 
-const defaults = (): ViewPrefs => ({ view: "all", collapsed: [] });
+const defaults = (): ViewPrefs => ({ filters: [], collapsed: [] });
 
 export function loadViewPrefs(storage: Storage | null, projectId: string): ViewPrefs {
   let parsed: unknown;
@@ -16,9 +16,11 @@ export function loadViewPrefs(storage: Storage | null, projectId: string): ViewP
     return defaults();
   }
   if (typeof parsed !== "object" || parsed === null) return defaults();
-  const { view, collapsed } = parsed as Record<string, unknown>;
+  const { filters, view, collapsed } = parsed as Record<string, unknown>;
+  // Saved before filters stacked: one view ("all" or a filter).
+  const wanted = Array.isArray(filters) ? filters : typeof view === "string" ? [view] : [];
   return {
-    view: REQUIREMENT_VIEWS.includes(view as RequirementView) ? (view as RequirementView) : "all",
+    filters: REQUIREMENT_FILTERS.filter((f) => wanted.includes(f)),
     collapsed: Array.isArray(collapsed) ? collapsed.filter((id): id is string => typeof id === "string") : [],
   };
 }

@@ -1,16 +1,19 @@
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { REQUIREMENT_VIEWS, VIEW_LABELS, type RequirementView } from "../planner/requirementView";
+import { FILTER_LABELS, REQUIREMENT_FILTERS, SHOW_ALL_LABEL, filtersLabel, type RequirementFilter } from "../planner/requirementView";
 import { BUTTON_SMALL } from "../ui/styles";
 
 type Props = {
-  view: RequirementView;
-  onView: (view: RequirementView) => void;
+  filters: RequirementFilter[];
+  onFilters: (filters: RequirementFilter[]) => void;
   allCollapsed: boolean; // every shown requirement is collapsed: offer Expand all
   onCollapseAll: (collapse: boolean) => void;
 };
 
-/** The ≡ menu on a project's requirements: Collapse all / Expand all, then one view at a time. */
-export default function ViewMenu({ view, onView, allCollapsed, onCollapseAll }: Props) {
+/**
+ * The ≡ menu on a project's requirements: Collapse all / Expand all, Show all, then filters that stack
+ * (owner's call, 2026-11-18). Ticking a filter keeps the menu open so another can be added.
+ */
+export default function ViewMenu({ filters, onFilters, allCollapsed, onCollapseAll }: Props) {
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -49,21 +52,22 @@ export default function ViewMenu({ view, onView, allCollapsed, onCollapseAll }: 
     }
   }
 
-  const label = VIEW_LABELS[view];
+  const label = filtersLabel(filters);
+  const all = filters.length === 0;
   const item = "block w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--color-muted)] focus:bg-[var(--color-muted)] focus:outline-none";
   return (
     <div ref={wrapRef} className="relative">
       <button
         ref={buttonRef}
         type="button"
-        aria-label={view === "all" ? "Requirements view" : `Requirements view: ${label}`}
+        aria-label={all ? "Requirements view" : `Requirements view: ${label}`}
         aria-haspopup="menu"
         aria-expanded={open}
         title="Collapse and view options"
         onClick={() => setOpen((o) => !o)}
         className={BUTTON_SMALL}
       >
-        {view === "all" ? "≡" : `≡ ${label}`}
+        {all ? "≡" : `≡ ${label}`}
       </button>
       {open && (
         <div
@@ -86,25 +90,41 @@ export default function ViewMenu({ view, onView, allCollapsed, onCollapseAll }: 
             {allCollapsed ? "Expand all" : "Collapse all"}
           </button>
           <div role="separator" className="my-1 border-t border-[var(--color-border)]" />
-          {REQUIREMENT_VIEWS.map((v) => (
-            <button
-              key={v}
-              type="button"
-              role="menuitemradio"
-              aria-checked={v === view}
-              tabIndex={-1}
-              onClick={() => {
-                onView(v);
-                close();
-              }}
-              className={item}
-            >
-              <span aria-hidden="true" className="inline-block w-4">
-                {v === view ? "•" : ""}
-              </span>
-              {VIEW_LABELS[v]}
-            </button>
-          ))}
+          <button
+            type="button"
+            role="menuitemradio"
+            aria-checked={all}
+            tabIndex={-1}
+            onClick={() => {
+              onFilters([]);
+              close();
+            }}
+            className={item}
+          >
+            <span aria-hidden="true" className="inline-block w-4">
+              {all ? "•" : ""}
+            </span>
+            {SHOW_ALL_LABEL}
+          </button>
+          {REQUIREMENT_FILTERS.map((f) => {
+            const checked = filters.includes(f);
+            return (
+              <button
+                key={f}
+                type="button"
+                role="menuitemcheckbox"
+                aria-checked={checked}
+                tabIndex={-1}
+                onClick={() => onFilters(checked ? filters.filter((x) => x !== f) : [...filters, f])}
+                className={item}
+              >
+                <span aria-hidden="true" className="inline-block w-4">
+                  {checked ? "✓" : ""}
+                </span>
+                {FILTER_LABELS[f]}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

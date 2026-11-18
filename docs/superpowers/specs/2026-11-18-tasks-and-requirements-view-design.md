@@ -171,3 +171,8 @@ these are display choices, and syncing them would add records for no benefit.
 ## Settled after the final review (Claude's call, 2026-11-18; the owner can reverse it)
 
 - **Today's order does reach the pets.** Pets have always offered Today's tasks in the order of `today.taskIds`, so after a reorder "What should I work on?" names the task you put first. That's the order you chose, so it stays. This narrows the anti-goal "order never changes planning" to: suggestions from Suggested next, tokens, mood and progress never read the order. Pinned by `petStatus.test.ts` "follows the order you set for Today". Undoing it would mean saving the order tasks were added in separately.
+
+## Changed after testing (owner, 2026-11-18)
+
+- **The filters stack.** This replaces "exactly one at a time". Today's to-do, Hide completed and Soon are checkboxes in the ≡ menu, and each one narrows what the others show. Show all clears them. Ticking a filter keeps the menu open so another can be added. The button and the "more hidden" line name every filter that's on, in menu order, for example "≡ Hide completed + Soon". With two or more filters on and nothing left, the empty line reads "Nothing matches these filters." Prefs saved with one view still load.
+- **Duplicating a requirement** names the copy "Title (1)", "(2)"… instead of "(copy)". A title ending in a number still counts on ("Prototype 9" → "Prototype 10"). The copy **no longer waits on the original** or on anything else. Its tasks keep waits on each other only.
