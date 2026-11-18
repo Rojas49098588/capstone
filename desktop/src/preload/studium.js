@@ -78,8 +78,15 @@ function installBridge({ win, storage, ipc, signal }) {
 
 /** What the Studium page sees as window.studiumDesktop. */
 function desktopApi(ipc) {
+  let demo = false;
+  try {
+    demo = ipc.sendSync('studium:is-demo') === true; // the demo copy (--demo with its own --user-data)
+  } catch {
+    // no answer: not the demo
+  }
   return {
     desktop: true,
+    demo,
     // Google sign-in in the system browser: resolves with { idToken, accessToken?, rawNonce? }, rejects if cancelled.
     signInWithBrowser: (provider) => ipc.invoke('auth:browser', provider),
     // Settings → Pets not responding to clicks?: rebuilds the pets' window, like the tray's Reload pets.

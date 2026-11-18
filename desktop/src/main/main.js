@@ -101,6 +101,10 @@ if (!app.requestSingleInstanceLock() || args.quit) {
         if (win && event.sender === win.webContents && isStudiumPage(event.senderFrame?.url, args.dev)) handleStudium(channel, payload, deps);
       });
     }
+    // The Studium window's preload asks once whether this is the demo copy. Always answer: it waits.
+    ipcMain.on('studium:is-demo', (event) => {
+      event.returnValue = Boolean(win && event.sender === win.webContents && isStudiumPage(event.senderFrame?.url, args.dev) && args.demo);
+    });
     // A nap that ends while Studium is open reaches it at once; otherwise Studium asks on studium:ready.
     store.onChange((keys, state) => {
       if (keys.includes('focusOutbox') && win && !win.isDestroyed() && !win.webContents.isLoading()) {

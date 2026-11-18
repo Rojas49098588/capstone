@@ -39,6 +39,8 @@ function resolvePaths({ packaged, resourcesPath, desktopDir }) {
 /**
  * --dev: load the Vite dev server. --hidden: start in the tray without showing the window.
  * --quit: quit a running Studium (the taskbar menu's Quit Studium). --user-data=<dir>: for tests.
+ * --demo: the demo copy for the stand (Settings → Reset demo, no account). Only together with
+ * --user-data, so a Reset can never replace the real save.
  */
 function parseArgs(argv) {
   const userDataArg = argv.find((a) => a.startsWith('--user-data='));
@@ -48,6 +50,7 @@ function parseArgs(argv) {
     hidden: argv.includes('--hidden'),
     quit: argv.includes('--quit'),
     userData: userData || null,
+    demo: argv.includes('--demo') && userData !== '',
   };
 }
 

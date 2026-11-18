@@ -24,11 +24,18 @@ describe('resolvePaths', () => {
 
 describe('parseArgs', () => {
   it('reads --hidden and --user-data', () => {
-    expect(parseArgs(['electron.exe', '.', '--hidden', '--user-data=C:\\tmp\\u'])).toEqual({ dev: false, hidden: true, quit: false, userData: 'C:\\tmp\\u' });
+    expect(parseArgs(['electron.exe', '.', '--hidden', '--user-data=C:\\tmp\\u'])).toEqual({ dev: false, hidden: true, quit: false, userData: 'C:\\tmp\\u', demo: false });
   });
 
   it('has defaults for a plain launch', () => {
-    expect(parseArgs(['Studium.exe'])).toEqual({ dev: false, hidden: false, quit: false, userData: null });
+    expect(parseArgs(['Studium.exe'])).toEqual({ dev: false, hidden: false, quit: false, userData: null, demo: false });
+  });
+
+  it('reads --demo only with a data folder of its own, so Reset can never replace the real save', () => {
+    expect(parseArgs(['Studium.exe', '--demo', '--user-data=C:/d']).demo).toBe(true);
+    expect(parseArgs(['Studium.exe', '--demo']).demo).toBe(false);
+    expect(parseArgs(['Studium.exe', '--demo', '--user-data=']).demo).toBe(false);
+    expect(parseArgs(['Studium.exe', '--user-data=C:/d']).demo).toBe(false);
   });
 
   it("reads --quit (the taskbar menu's Quit Studium)", () => {

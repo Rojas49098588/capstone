@@ -27,6 +27,16 @@ describe('desktopApi', () => {
     desktopApi({ send: (channel, payload) => sent.push([channel, payload]), invoke: () => Promise.resolve() }).reloadPets();
     expect(sent).toEqual([['studium:reload-pets', undefined]]);
   });
+
+  it('says whether this is the demo copy, asking the app once', () => {
+    const asked = [];
+    const ipc = (answer) => ({ send: () => {}, invoke: () => Promise.resolve(), sendSync: (channel) => (asked.push(channel), answer()) });
+    expect(desktopApi(ipc(() => true)).demo).toBe(true);
+    expect(asked).toEqual(['studium:is-demo']);
+    expect(desktopApi(ipc(() => undefined)).demo).toBe(false);
+    expect(desktopApi(ipc(() => 'yes')).demo).toBe(false);
+    expect(desktopApi(ipc(() => { throw new Error('no answer'); })).demo).toBe(false);
+  });
 });
 
 describe('installBridge', () => {
