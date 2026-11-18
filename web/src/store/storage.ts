@@ -1,6 +1,7 @@
 // Loading and saving Studium's data in localStorage, with validation and backups.
+import { cleanSublabel } from "../planner/sublabel";
 import { isDateKey } from "../planner/time";
-import { DIFFICULTY_LEVELS, PET_KINDS, PET_STAGES, PROJECT_TYPES, type FocusSession, type StudiumData } from "../planner/types";
+import { DIFFICULTY_LEVELS, PET_KINDS, PET_STAGES, PROJECT_TYPES, type FocusSession, type Requirement, type StudiumData, type Task } from "../planner/types";
 import { cleanDecor, giveDefaultBeds } from "./decor";
 import { buildSeed, emptyData } from "./seed";
 
@@ -59,8 +60,35 @@ export function parseFocusSessions(json: string): FocusSession[] {
  * and each habitat given its built-in bed if older data never had one.
  */
 export function normalizeData(data: StudiumData): StudiumData {
-  const withBeds = giveDefaultBeds(data);
+  const withBeds = giveDefaultBeds(cleanListFields(data));
   return withBeds.decor === undefined ? withBeds : { ...withBeds, decor: cleanDecor(withBeds) };
+}
+
+/**
+ * Drops a damaged task order (not a finite number) or requirement sublabel (not text, or empty), and
+ * trims and caps a good sublabel. Neither is ever a reason to reject the data. Unchanged lists stay the
+ * same arrays.
+ */
+function cleanListFields(data: StudiumData): StudiumData {
+  let tasks: Task[] = data.tasks;
+  if (data.tasks.some((t) => "order" in t && !Number.isFinite(t.order))) {
+    tasks = data.tasks.map((t) => {
+      if (!("order" in t) || Number.isFinite(t.order)) return t;
+      const { order: _drop, ...rest } = t;
+      return rest;
+    });
+  }
+  let requirements: Requirement[] = data.requirements;
+  if (data.requirements.some((r) => "sublabel" in r && cleanSublabel(r.sublabel) !== r.sublabel)) {
+    requirements = data.requirements.map((r) => {
+      if (!("sublabel" in r)) return r;
+      const sublabel = cleanSublabel(r.sublabel);
+      if (sublabel === r.sublabel) return r;
+      const { sublabel: _drop, ...rest } = r;
+      return sublabel === undefined ? rest : { ...rest, sublabel };
+    });
+  }
+  return tasks === data.tasks && requirements === data.requirements ? data : { ...data, tasks, requirements };
 }
 
 export function isValidData(value: unknown): value is StudiumData {
