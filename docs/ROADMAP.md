@@ -34,6 +34,13 @@ _Updated 2026-11-17. The demo is **30 minutes, desktop app only**. New features 
 | **Wed 12/2** | Rehearse twice with a timer, on the computer used for the demo. |
 | **Thu 12/3** | Final demo. |
 
+## Tester feedback (11/18): done on branch `feature/planner-reorder-view`
+
+- **Reorder tasks:** drag the ⋮⋮ grip, or use ↑ and ↓, in a requirement, in Unlinked and in Today. ★ no longer moves a task once its list has been reordered.
+- **Condensed requirements:** ▾ / ▸ collapses a requirement to one line (title, sublabel, due date, Waiting on). The ≡ menu has Collapse all, and one view at a time: Show all, Today's to-do, Hide completed, Soon (due in the next 3 days).
+- **Sublabels:** an optional short label under a requirement's title (30 characters), with no grouping.
+- Design: `docs/superpowers/specs/2026-11-18-tasks-and-requirements-view-design.md`. Follow-ups for later: a setting for how many days count as Soon (fixed at 3, `SOON_DAYS`); the ≡ menu opening on hover.
+
 ## Small follow-ups (from the companion app reviews, 2026-11-15)
 
 Found in the whole-branch reviews of the companion app work; none blocks the demo. The phone items wait until after December 3. Tick them off here as they're done.

@@ -96,6 +96,7 @@ export default function ReorderControls({ title, index, count, onMove, tone = "l
         aria-hidden="true"
         title="Drag to reorder"
         onPointerDown={startDrag}
+        onMouseDown={(e) => e.preventDefault() /* no text selection while dragging */}
         className={`cursor-grab select-none touch-none text-sm leading-none px-0.5 ${muted}`}
       >
         ⋮⋮

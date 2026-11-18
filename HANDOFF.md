@@ -154,6 +154,14 @@ Design `docs/superpowers/specs/2026-11-17-shop-toys-window-design.md`; plan `doc
 - Settings shows **"Pets not responding to clicks?" → Reload pets** in the desktop app only (`window.studiumDesktop.reloadPets`, from `desktopApi` in `desktop/src/preload/studium.js`). It sends `studium:reload-pets`, and `handleStudium` (`desktop/src/main/bridge.js`) calls the same `openOverlay` as the tray's Reload pets and the after-wake rebuild. That's the recovery for the stuck-clicks bug (`bugs.md`).
 - Tests: `desktop/test/bridge.test.js`, `desktop/test/preload.test.js`, `web/src/components/Settings.test.tsx`, and the e2e `Reload pets in Settings replaces the pet window` (`desktop/e2e/overlay.spec.js`).
 
+## Reordering, the requirements view, and sublabels (2026-11-18)
+
+- **Order is lazy and per list.** `Task.order` is missing until someone reorders that list (a requirement's tasks, or a project's Unlinked tasks). Until then the list keeps the old sort, with ★ first. The first move numbers every unfinished task in that list 0, 1, 2… (`moveTask` in `store/actions.ts`, sorting in `planner/order.ts`). New tasks, and tasks moved to another requirement, go to the bottom of a reordered list, and otherwise get no order. Moves record **no event**; planning never reads `order`.
+- **Today's order** is `today.taskIds` (`moveTodayTask`). Done tasks show after the unfinished ones. Today's list is still one synced record, so two devices reordering at once: the last one wins.
+- **Sublabel:** `Requirement.sublabel`, trimmed, at most 30 characters (`planner/sublabel.ts`). `updateRequirement` with `""` clears it. Duplicate copies it. A damaged order or sublabel is dropped in `normalizeData`, never a reason to reject the save.
+- **Views and collapsed requirements are per device and per project**, in localStorage `studium.requirementView.<projectId>` (`ui/viewPrefs.ts`), and are not synced. View rules are in `planner/requirementView.ts` (`viewOf`, `isSoon`, `SOON_DAYS = 3`). The ≡ menu is `components/ViewMenu.tsx`. In Today's to-do the cards can't be reordered (reorder on the Overview).
+- The drag is hand-written pointer events in `components/ReorderControls.tsx`. Rows carry `data-reorder-row` and lists `data-reorder-list`. The drop spot comes from `dropIndex` (`ui/reorder.ts`).
+
 ## The project
 
 Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):

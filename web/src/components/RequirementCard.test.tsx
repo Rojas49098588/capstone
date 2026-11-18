@@ -165,6 +165,14 @@ describe("reordering a requirement's tasks", () => {
     expect(savedData(storage).tasks.find((t) => t.id === "apk")?.order).toBe(0);
   });
 
+  it("pressing the grip doesn't start a text selection", () => {
+    const { container } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
+    const grip = container.querySelector("[data-grip]") as HTMLElement;
+    const down = new MouseEvent("mousedown", { button: 0, bubbles: true, cancelable: true });
+    grip.dispatchEvent(down);
+    expect(down.defaultPrevented).toBe(true);
+  });
+
   it("Escape cancels a drag", () => {
     const { container } = renderWithStudium(<RequirementCard requirementId="P10" onRequestComplete={vi.fn()} />, { data: prototypes() });
     const rows = [...container.querySelectorAll<HTMLElement>("[data-reorder-row]")];
