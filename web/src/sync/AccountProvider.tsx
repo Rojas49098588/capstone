@@ -1,5 +1,6 @@
 // Accounts for the React tree: who is signed in, the sync engine that keeps this device and the
 // account in step, and the two dialogs (sign in, and the two-saves picker).
+import { isDemo } from "../store/demo";
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import SavePicker from "../components/SavePicker";
 import SignInDialog, { type SignInMode } from "../components/SignInDialog";
@@ -121,6 +122,7 @@ export function AccountProvider({ children, auth: authProp, remote: remoteProp, 
   const [status, setStatus] = useState<Loaded | null | "idle" | "loading">(() => {
     if (authProp !== undefined || remoteProp !== undefined) return authProp && remoteProp ? withEngine({ auth: authProp, remote: remoteProp }) : null;
     if (!load && FIREBASE_CONFIG === null) return null;
+    if (isDemo()) return null; // the demo copy never signs in or syncs, whatever its folder remembers
     const sync = loadSyncState(studium.storage);
     return sync.uid !== null || sync.owner !== null ? "loading" : "idle";
   });

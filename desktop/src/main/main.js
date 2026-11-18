@@ -3,7 +3,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { app, ipcMain, powerMonitor, screen, session, shell } = require('electron');
-const { HOSTED_URL, parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
+const { HOSTED_URL, demoFolderOk, parseArgs, resolvePaths, startUrl, isStudiumPage } = require('./paths');
 const { startBrowserSignIn } = require('./browserSignIn');
 const { registerStudiumScheme, handleStudiumScheme } = require('./protocol');
 const { createStudiumWindow, showStudium, showStudiumQuietly } = require('./studiumWindow');
@@ -22,6 +22,8 @@ const { habitatFiles, habitatScript } = require('./petScripts');
 const OVERLAY_URL = 'studium://overlay/index.html';
 
 const args = parseArgs(process.argv);
+// --demo only in a folder of its own: never Studium's real data folder (read before it's replaced).
+if (args.demo && !demoFolderOk(args.userData, app.getPath('userData'))) args.demo = false;
 if (args.userData) app.setPath('userData', args.userData);
 
 // Hooks for the end-to-end tests (e2e/), which can't click the tray.
@@ -101,6 +103,10 @@ if (!app.requestSingleInstanceLock() || args.quit) {
         if (win && event.sender === win.webContents && isStudiumPage(event.senderFrame?.url, args.dev)) handleStudium(channel, payload, deps);
       });
     }
+    // The Studium window's preload asks once whether this is the demo copy. Always answer: it waits.
+    ipcMain.on('studium:is-demo', (event) => {
+      event.returnValue = Boolean(win && event.sender === win.webContents && isStudiumPage(event.senderFrame?.url, args.dev) && args.demo);
+    });
     // A nap that ends while Studium is open reaches it at once; otherwise Studium asks on studium:ready.
     store.onChange((keys, state) => {
       if (keys.includes('focusOutbox') && win && !win.isDestroyed() && !win.webContents.isLoading()) {

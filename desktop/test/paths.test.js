@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { isStudiumPage, parseArgs, resolvePaths, startUrl } from '../src/main/paths.js';
+import { demoFolderOk, isStudiumPage, parseArgs, resolvePaths, startUrl } from '../src/main/paths.js';
 
 describe('resolvePaths', () => {
   it('resolves dev paths next to the repo', () => {
@@ -24,11 +24,18 @@ describe('resolvePaths', () => {
 
 describe('parseArgs', () => {
   it('reads --hidden and --user-data', () => {
-    expect(parseArgs(['electron.exe', '.', '--hidden', '--user-data=C:\\tmp\\u'])).toEqual({ dev: false, hidden: true, quit: false, userData: 'C:\\tmp\\u' });
+    expect(parseArgs(['electron.exe', '.', '--hidden', '--user-data=C:\\tmp\\u'])).toEqual({ dev: false, hidden: true, quit: false, userData: 'C:\\tmp\\u', demo: false });
   });
 
   it('has defaults for a plain launch', () => {
-    expect(parseArgs(['Studium.exe'])).toEqual({ dev: false, hidden: false, quit: false, userData: null });
+    expect(parseArgs(['Studium.exe'])).toEqual({ dev: false, hidden: false, quit: false, userData: null, demo: false });
+  });
+
+  it('reads --demo only with a data folder of its own, so Reset can never replace the real save', () => {
+    expect(parseArgs(['Studium.exe', '--demo', '--user-data=C:/d']).demo).toBe(true);
+    expect(parseArgs(['Studium.exe', '--demo']).demo).toBe(false);
+    expect(parseArgs(['Studium.exe', '--demo', '--user-data=']).demo).toBe(false);
+    expect(parseArgs(['Studium.exe', '--user-data=C:/d']).demo).toBe(false);
   });
 
   it("reads --quit (the taskbar menu's Quit Studium)", () => {
@@ -65,5 +72,22 @@ describe('isStudiumPage', () => {
   it('accepts the Vite dev server in dev', () => {
     expect(isStudiumPage('http://localhost:5173/#project=a', true)).toBe(true);
     expect(isStudiumPage('studium://app/', true)).toBe(false);
+  });
+});
+
+describe('demoFolderOk', () => {
+  const real = 'C:/Users/a/AppData/Roaming/Studium';
+  it('allows a folder of its own', () => {
+    expect(demoFolderOk('C:/Users/a/AppData/Roaming/Studium Demo', real)).toBe(true);
+  });
+  it('refuses the real folder, however it is spelled, and folders inside or around it', () => {
+    expect(demoFolderOk(real, real)).toBe(false);
+    expect(demoFolderOk('c:/users/a/appdata/roaming/studium/', real)).toBe(false);
+    expect(demoFolderOk('C:/Users/a/AppData/Roaming/Studium/demo', real)).toBe(false);
+    expect(demoFolderOk('C:/Users/a/AppData/Roaming', real)).toBe(false);
+  });
+  it('refuses an empty folder', () => {
+    expect(demoFolderOk('', real)).toBe(false);
+    expect(demoFolderOk(null, real)).toBe(false);
   });
 });

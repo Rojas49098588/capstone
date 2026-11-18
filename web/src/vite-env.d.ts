@@ -4,6 +4,7 @@
 interface Window {
   studiumDesktop?: {
     desktop: true;
+    demo?: boolean; // the demo copy (started with --demo and its own data folder): Settings shows Reset demo, no account
     signInWithBrowser?: (provider: "google" | "apple") => Promise<{ idToken: string; accessToken?: string; rawNonce?: string }>;
     reloadPets?: () => void; // rebuilds the pets' window (Settings → Pets not responding to clicks?)
   };
