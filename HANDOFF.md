@@ -187,6 +187,15 @@ Two parts, one repo (`https://github.com/Rojas49098588/capstone`, private):
 
 The user is a student building this as their capstone. They make the product decisions and approve designs and plans before code is written. Explain choices in plain language. They chose test-first development, small commits, and a final independent review.
 
+## The demo copy for the December 3 stand (2026-11-18)
+
+Spec `docs/superpowers/specs/2026-11-18-demo-stand-design.md`, plan `docs/superpowers/plans/2026-11-18-demo-stand.md`, branch `feature/demo-stand`. The owner's notes for the day: `docs/demo/cheat-sheet.md`.
+
+- **Start it:** `Studium.exe --demo "--user-data=%APPDATA%\Studium Demo"` (the cheat sheet makes a desktop shortcut). `parseArgs` only honors `--demo` together with `--user-data`, so a Reset can never replace the real save. Dev: `env -u ELECTRON_RUN_AS_NODE npx electron . --demo "--user-data=<dir>"` from `desktop/`.
+- **How the page knows:** the Studium window's preload asks main once (`ipcRenderer.sendSync('studium:is-demo')`, always answered) and exposes `window.studiumDesktop.demo`.
+- **The data:** `web/src/store/demo.ts` `buildDemo(now)` (the owner's five classes, made-up work, every date relative to now, stable ids) and `DEMO_SETTINGS` (nickname `DEMO_NICKNAME`, a placeholder). `startDemoIfNew` in `main.tsx` fills an empty demo copy before Studium loads. `demo.test.ts` checks the must-shows (Today, Soon, moods, no eggs, tokens, toys, the Window) on several dates; keep it passing when changing planner rules, or the demo changes under you.
+- **Settings in the demo copy:** the Account card becomes "Demo" with **Reset demo** (`components/DemoReset.tsx`, with a confirm step); no sign-in, so nothing syncs.
+
 ## Status
 
 | Piece | State | Where |
