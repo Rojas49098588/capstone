@@ -474,6 +474,26 @@ describe("newFavorites", () => {
   });
 });
 
+describe("ballFlight", () => {
+  it("a throw to the right lands further right", () => {
+    expect(L.ballFlight({ x: 300, y: 50 }, { vx: 600, vy: 300 }, 1000, 28).x).toBeGreaterThan(300);
+  });
+  it("can't land past the left edge", () => {
+    expect(L.ballFlight({ x: 10, y: 0 }, { vx: -800, vy: 400 }, 1000, 28).x).toBe(0);
+  });
+  it("can't land past the right edge", () => {
+    expect(L.ballFlight({ x: 900, y: 0 }, { vx: 2000, vy: 400 }, 1000, 28).x).toBe(972);
+  });
+  it("a ball let go without speed lands where it was", () => {
+    expect(L.ballFlight({ x: 300, y: 0 }, { vx: 0, vy: 0 }, 1000, 28)).toEqual({ x: 300, t: 0 });
+  });
+  it("takes longer to land when thrown higher", () => {
+    const low = L.ballFlight({ x: 300, y: 0 }, { vx: 100, vy: 200 }, 1000, 28).t;
+    const high = L.ballFlight({ x: 300, y: 0 }, { vx: 100, vy: 800 }, 1000, 28).t;
+    expect(high).toBeGreaterThan(low);
+  });
+});
+
 describe("habitat furniture", () => {
   const withFurniture = (furniture: unknown, o: Record<string, unknown> = {}) =>
     L.parseStatuses({ pets: [pet({ furniture, ...o })] }).pets[0].furniture;

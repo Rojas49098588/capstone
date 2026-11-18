@@ -523,6 +523,23 @@
     return toys.out ? [item, { id: 'toy:away', label: 'Put away' }] : [item];
   }
 
+  // The Focus Ball's flight (desktop pets): px/s² downward, and how far a landing bounce carries it on.
+  const BALL_GRAVITY = 1800;
+  const BALL_BOUNCE = 0.15;
+
+  /**
+   * Where a thrown ball comes to rest. start: { x, y } with x from the left and y above the floor (px);
+   * velocity: { vx, vy } in px/s (vy up). Returns { x, t }: the resting x, kept on screen
+   * (0 to width - size), and the seconds until it lands.
+   */
+  function ballFlight(start, velocity, width, size) {
+    const y = Math.max(0, start.y);
+    const vy = velocity.vy;
+    const t = (vy + Math.sqrt(vy * vy + 2 * BALL_GRAVITY * y)) / BALL_GRAVITY;
+    const x = start.x + velocity.vx * t * (1 + BALL_BOUNCE);
+    return { x: Math.min(Math.max(0, width - size), Math.max(0, x)), t };
+  }
+
   function petMenuItems(petId, petAway, statuses, toys = null) {
     const open = { id: 'open', label: 'Open project' };
     if (petAway[petId]) return [{ id: 'wake', label: 'Wake' }, open];
@@ -1084,6 +1101,8 @@
     studiumUrl,
     petMenuItems,
     TOY_NAMES,
+    BALL_GRAVITY,
+    ballFlight,
     wakeMenuEntries,
     formatMinutes,
     suggestionText,

@@ -53,6 +53,7 @@
   const AIR_DRAG = 0.4;         // sideways slowdown in the air, per kind
   const THROW_SAMPLE_MS = 80;   // how much recent mouse movement sets the throw speed
   const MAX_THROW_SPEED = 2500; // px/s
+  const FETCH_SPEED = 260;      // px/s: every pet runs to fetch a toy at this speed (a turtle walks at 10)
   const GROUND_FRICTION = 5;    // how quickly a slide along the floor stops
   const MIN_BOUNCE_SPEED = 200; // slower floor hits than this stop bouncing
   const MAX_TILT_DEG = 25;      // lean while flying sideways
@@ -320,6 +321,7 @@
       plan: null,         // { activity: 'use' | 'nap', entry: { use, slot } }: what it does at the furniture
       gotoUntil: 0,       // gives up on reaching furniture after this
       useUntil: 0,
+      fetch: null,        // { target, back, phase: 'go' | 'back', onPickUp, onDrop } while fetching a toy
     };
     const furniture = status.furniture ?? [];
     // Spread the pets out across the window until they have saved positions.
@@ -464,6 +466,17 @@
     // A toy is out (desktop): the pet plays instead of wandering off by itself.
     let playing = false;
 
+    // Where a toy sits on the floor under this pet (window px from the left and the bottom).
+    const floorSpotFor = (size) => ({ x: world.left + state.x + w / 2 - size / 2, y: world.bottom });
+
+    // The fetch is over (brought back, or the pet was picked up): the toy goes down under the pet.
+    function dropFetched() {
+      const f = state.fetch;
+      if (!f) return;
+      state.fetch = null;
+      f.onDrop(floorSpotFor(f.size));
+    }
+
     function goIdle(now) {
       state.mode = 'idle';
       state.idleUntil = now + between(kind.idleMs);
@@ -536,6 +549,7 @@
       stayAtFurniture();
       if (state.mode === 'away') return; // asleep in its habitat: no physics, sounds or timers
       if (carry && state.mode !== 'walk') finishCarry(); // arrived (or was picked up): drop the note
+      if (state.fetch && state.mode !== 'fetch') dropFetched(); // picked up mid-fetch: the toy drops here
       // A chase ends when its time is up, the cursor leaves the overlay, the pet is picked up, or
       // mischief stops being allowed (a nap starts, a check-in opens, pets are hidden).
       if (chase && (state.mode !== 'chase' || chase.lost || Date.now() > chase.until || !env.mayChase(api))) endChase(now);
@@ -627,6 +641,32 @@
           }
           break;
         }
+        case 'fetch': {
+          const f = state.fetch;
+          if (!f) {
+            goIdle(now);
+            break;
+          }
+          const goal = f.phase === 'go' ? f.target : f.back;
+          const dist = goal - state.x;
+          const move = FETCH_SPEED * dt;
+          if (Math.abs(dist) <= move) {
+            state.x = goal;
+            if (f.phase === 'go') {
+              f.phase = 'back';
+              state.facing = f.back >= state.x ? 1 : -1;
+              f.onPickUp();
+            } else {
+              dropFetched();
+              goIdle(now);
+            }
+          } else {
+            state.x += Math.sign(dist) * move;
+            state.facing = Math.sign(dist);
+          }
+          dirty = true;
+          break;
+        }
         case 'walk': {
           const dist = state.targetX - state.x;
           const move = floorSpeed * dt;
@@ -705,7 +745,7 @@
       // The ring stays on the floor like a shadow and shrinks as the pet goes higher.
       ringEl.style.transform = `translateY(${state.y}px) scale(${1 / (1 + state.y / 250)})`;
       const flyingToPerch = state.mode === 'goto' && state.plan?.entry.use === 'perch';
-      petEl.classList.toggle('walking', state.mode === 'walk' || state.mode === 'chase' || (state.mode === 'goto' && !flyingToPerch));
+      petEl.classList.toggle('walking', state.mode === 'walk' || state.mode === 'chase' || state.mode === 'fetch' || (state.mode === 'goto' && !flyingToPerch));
       const using = state.mode === 'use' ? state.plan?.entry.use : null;
       petEl.classList.toggle('scratching', using === 'scratch');
       petEl.classList.toggle('basking', using === 'bask');
@@ -738,6 +778,7 @@
       press.moved = true;
       wake();
       clearPlan();
+      dropFetched(); // picked up while fetching: the toy drops where the pet was
       state.mode = 'drag';
       refreshWorld();
       const p = L.dragPosition(
@@ -862,6 +903,28 @@
       isAway: () => state.mode === 'away',
       setPlaying(value) {
         playing = Boolean(value);
+        if (!playing && state.fetch) {
+          state.fetch = null;
+          if (state.mode === 'fetch') goIdle(performance.now());
+        }
+      },
+      // Run to a toy at window x `toyX`, pick it up (onPickUp), bring it back to window x `backX`, and
+      // drop it there (onDrop gets the spot). Only from idle or walking, like walkTo.
+      fetch(toyX, backX, size, { onPickUp, onDrop }) {
+        if (!['idle', 'walk', 'fetch'].includes(state.mode)) return false;
+        refreshWorld();
+        const toPet = (x) => clamp(x + size / 2 - w / 2 - world.left, 0, maxX());
+        wake();
+        clearPlan();
+        state.fetch = { target: toPet(toyX), back: toPet(backX), phase: 'go', size, onPickUp, onDrop };
+        state.facing = state.fetch.target >= state.x ? 1 : -1;
+        state.mode = 'fetch';
+        return true;
+      },
+      // Where a carried toy is drawn: in front of the pet, near its mouth (window px).
+      carrySpot(size) {
+        const front = state.facing > 0 ? w - size * 0.6 : -size * 0.4;
+        return { x: world.left + state.x + front, y: world.bottom + state.y + h * 0.25 };
       },
       isPlaying: () => playing,
       // Where a toy appears next to this pet: just right of it on the floor, in window pixels from the
@@ -1219,9 +1282,11 @@
     el.dataset.pet = pet.id;
     el.src = chrome.runtime.getURL(`assets/toys/${toyId}.svg`);
     const spot = pet.toySpot(TOY_SIZE);
-    el.style.transform = `translate(${spot.x}px, ${-spot.y}px)`;
+    const toy = { id: toyId, el, x: spot.x, y: spot.y, flight: null, carried: false };
+    drawToy(toy);
     root.appendChild(el);
-    toysOut.set(pet.id, { id: toyId, el });
+    toysOut.set(pet.id, toy);
+    if (toyId === 'focus-ball') makeThrowable(toy, pet.id);
     pet.setPlaying(true);
   }
 
@@ -1231,6 +1296,83 @@
     toy.el.remove();
     toysOut.delete(petId);
     pets.find((p) => p.id === petId)?.setPlaying(false);
+  }
+
+  function drawToy(toy) {
+    toy.el.style.transform = `translate(${toy.x}px, ${-toy.y}px)`;
+    toy.el.classList.toggle('carried', toy.carried);
+  }
+
+  // The Focus Ball: drag it and let go to throw it; its pet fetches it back to where it was let go.
+  function makeThrowable(toy, petId) {
+    let press = null;
+    const onMove = (e) => {
+      if (!press) return;
+      if (!press.moved && Math.hypot(e.clientX - press.startX, e.clientY - press.startY) < 4) return;
+      press.moved = true;
+      toy.flight = null;
+      toy.x = Math.min(Math.max(0, e.clientX - TOY_SIZE / 2), Math.max(0, window.innerWidth - TOY_SIZE));
+      toy.y = Math.max(0, window.innerHeight - e.clientY - TOY_SIZE / 2);
+      const t = performance.now();
+      press.samples.push({ t, x: e.clientX, y: e.clientY });
+      while (press.samples.length > 2 && t - press.samples[0].t > THROW_SAMPLE_MS) press.samples.shift();
+      drawToy(toy);
+    };
+    const onUp = () => {
+      window.removeEventListener('pointermove', onMove, true);
+      window.removeEventListener('pointerup', onUp, true);
+      if (!press) return;
+      const moved = press.moved;
+      const samples = press.samples;
+      press = null;
+      if (!moved || toysOut.get(petId) !== toy) return; // a click doesn't throw
+      const v = throwVelocity(samples);
+      const landing = L.ballFlight({ x: toy.x, y: toy.y }, v, window.innerWidth, TOY_SIZE);
+      toy.flight = { x0: toy.x, y0: toy.y, vy: v.vy, t0: performance.now(), t: landing.t, x1: landing.x, back: toy.x };
+    };
+    toy.el.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0 || toy.carried) return;
+      press = { startX: e.clientX, startY: e.clientY, moved: false, samples: [] };
+      e.preventDefault();
+      window.addEventListener('pointermove', onMove, true);
+      window.addEventListener('pointerup', onUp, true);
+    });
+  }
+
+  // Each frame: a thrown toy flies and lands, then its pet fetches it; a carried toy rides with its pet.
+  function stepToys(now) {
+    for (const [petId, toy] of toysOut) {
+      const pet = pets.find((p) => p.id === petId);
+      if (toy.flight) {
+        const f = toy.flight;
+        const s = (now - f.t0) / 1000;
+        if (s >= f.t) {
+          toy.flight = null;
+          toy.x = f.x1;
+          toy.y = 0;
+          pet?.fetch(toy.x, f.back, TOY_SIZE, {
+            onPickUp: () => {
+              toy.carried = true;
+            },
+            onDrop: (spot) => {
+              toy.carried = false;
+              toy.x = Math.min(Math.max(0, spot.x), Math.max(0, window.innerWidth - TOY_SIZE));
+              toy.y = spot.y;
+              drawToy(toy);
+            },
+          });
+        } else {
+          toy.x = f.x0 + (f.x1 - f.x0) * (s / f.t);
+          toy.y = Math.max(0, f.y0 + f.vy * s - (L.BALL_GRAVITY * s * s) / 2);
+        }
+        drawToy(toy);
+      } else if (toy.carried && pet) {
+        const spot = pet.carrySpot(TOY_SIZE);
+        toy.x = spot.x;
+        toy.y = spot.y;
+        drawToy(toy);
+      }
+    }
   }
 
   function putAwayAllToys() {
@@ -1444,6 +1586,7 @@
         pet.step(now, dt);
         pet.render();
       }
+      stepToys(now);
     }
     // In habitat mode, draw only inside the boxes (the area around all of them), so pets can't cover
     // the page when it scrolls away. The menu isn't clipped, and a talking pet gets room above.
