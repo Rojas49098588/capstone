@@ -197,6 +197,8 @@ export function useStudium(options: StudiumOptions = {}) {
       finishTaskDetails: (id: string, details: A.TaskDetails) => change((d, at) => A.finishTaskDetails(d, id, details, at)),
       deleteTask: (id: string) => change((d, at) => A.deleteTask(d, id, at)),
       togglePriority: (id: string) => change((d) => A.togglePriority(d, id)),
+      moveTask: (id: string, toIndex: number) => change((d) => A.moveTask(d, id, toIndex)),
+      moveTodayTask: (id: string, toIndex: number) => change((d, at) => A.moveTodayTask(d, id, toIndex, at)),
       completeTask: (id: string, actualMin: number | null) => {
         const result = apply((d, at) => {
           const r = A.completeTask(d, id, actualMin, at);

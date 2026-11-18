@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { paidCompletionsOnDay, tokenBalance, inventory } from "../planner/history";
 import { NOW, completed, dayKey, daysAgo, makeData, makePet, makeProject, makeRequirement, makeTask } from "../planner/testData";
-import { addDays } from "../planner/time";
+import { sortListTasks } from "../planner/order";
+import { addDays, localDateKey } from "../planner/time";
 import {
   addToToday,
   clampWeight,
@@ -16,6 +17,8 @@ import {
   feedPet,
   finishTaskDetails,
   isPending,
+  moveTask,
+  moveTodayTask,
   nextRequirementTitle,
   giveMedicine,
   purchase,
@@ -687,5 +690,112 @@ describe("review fixes: pending tasks linked another way", () => {
   it("a task an older version linked but left marked pending isn't pending", () => {
     expect(isPending(makeTask({ requirementId: "r1", pending: true }))).toBe(false);
     expect(isPending(makeTask({ requirementId: null, pending: true }))).toBe(true);
+  });
+});
+
+describe("reordering tasks", () => {
+  const ids = (tasks: { id: string }[]) => tasks.map((t) => t.id);
+  const list = (data: ReturnType<typeof makeData>, requirementId: string | null = "r1") =>
+    ids(sortListTasks(data.tasks.filter((t) => t.requirementId === requirementId)));
+
+  it("moveTask numbers the whole list once, starred tasks keep their place on screen", () => {
+    const data = makeData({
+      requirements: [makeRequirement()],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "b", priority: true }), makeTask({ id: "c" })],
+    });
+    expect(list(data)).toEqual(["b", "a", "c"]);
+    const next = moveTask(data, "c", 0);
+    expect(list(next)).toEqual(["c", "b", "a"]);
+    expect(Object.fromEntries(next.tasks.map((t) => [t.id, t.order]))).toEqual({ c: 0, b: 1, a: 2 });
+    expect(next.events).toEqual(data.events);
+    // ★ no longer moves anything in this list.
+    expect(list({ ...next, tasks: next.tasks.map((t) => (t.id === "a" ? { ...t, priority: true } : t)) })).toEqual(["c", "b", "a"]);
+  });
+
+  it("moveTask ignores done tasks and other lists, and clamps the index", () => {
+    const data = makeData({
+      requirements: [makeRequirement(), makeRequirement({ id: "r2" })],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "d", done: true }), makeTask({ id: "b" }), makeTask({ id: "x", requirementId: "r2" })],
+    });
+    expect(moveTask(data, "d", 0)).toBe(data);
+    expect(moveTask(data, "nope", 0)).toBe(data);
+    const next = moveTask(data, "a", 99);
+    expect(list(next)).toEqual(["b", "a", "d"]);
+    expect(next.tasks.find((t) => t.id === "x")?.order).toBeUndefined();
+    expect(next.tasks.find((t) => t.id === "d")?.order).toBeUndefined();
+  });
+
+  it("reorders Unlinked tasks the same way", () => {
+    const data = makeData({ tasks: [makeTask({ id: "u1", requirementId: null }), makeTask({ id: "u2", requirementId: null })] });
+    expect(list(moveTask(data, "u2", 0), null)).toEqual(["u2", "u1"]);
+  });
+
+  it("a new task goes to the bottom of a reordered list", () => {
+    const data = moveTask(
+      makeData({ requirements: [makeRequirement()], tasks: [makeTask({ id: "a" }), makeTask({ id: "b" })] }),
+      "b",
+      0,
+    );
+    const { data: next, task } = createTask(data, { projectId: "p1", requirementId: "r1", title: "New", estimateMin: 30 }, NOW);
+    expect(task.order).toBe(2);
+    expect(list(next)).toEqual(["b", "a", task.id]);
+    // A list nobody reordered stays without orders.
+    const plain = createTask(makeData({ requirements: [makeRequirement()] }), { projectId: "p1", requirementId: "r1", title: "New", estimateMin: 30 }, NOW);
+    expect(plain.task.order).toBeUndefined();
+  });
+
+  it("a task moved to another requirement goes to the bottom of that list", () => {
+    let data = makeData({
+      requirements: [makeRequirement(), makeRequirement({ id: "r2" })],
+      tasks: [makeTask({ id: "m", order: 0 }), makeTask({ id: "x", requirementId: "r2" }), makeTask({ id: "y", requirementId: "r2" })],
+    });
+    data = moveTask(data, "y", 0);
+    const moved = updateTask(data, "m", { requirementId: "r2" }, NOW);
+    expect(list(moved, "r2")).toEqual(["y", "x", "m"]);
+    expect(moved.tasks.find((t) => t.id === "m")?.order).toBe(2);
+    const edit = moved.events[moved.events.length - 1];
+    expect(edit?.type === "task_edited" && "order" in edit.changes).toBe(false);
+    // To a list nobody reordered: it loses its order.
+    const back = updateTask(moved, "m", { requirementId: "r1" }, NOW);
+    expect(back.tasks.find((t) => t.id === "m")?.order).toBeUndefined();
+    // Saving the form without changing the requirement leaves the order alone.
+    expect(updateTask(moved, "m", { requirementId: "r2", title: "Renamed" }, NOW).tasks.find((t) => t.id === "m")?.order).toBe(2);
+  });
+
+  it("moveTodayTask reorders today and keeps done tasks after", () => {
+    const data = makeData({
+      requirements: [makeRequirement()],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "d", done: true }), makeTask({ id: "b" }), makeTask({ id: "c" })],
+      today: { date: localDateKey(NOW), taskIds: ["a", "d", "b", "c"] },
+    });
+    expect(moveTodayTask(data, "c", 0, NOW).today.taskIds).toEqual(["c", "a", "b", "d"]);
+    expect(moveTodayTask(data, "a", 5, NOW).today.taskIds).toEqual(["b", "c", "a", "d"]);
+    expect(moveTodayTask(data, "d", 0, NOW)).toBe(data);
+  });
+
+  it("moveTodayTask changes nothing on yesterday's list", () => {
+    const data = makeData({
+      requirements: [makeRequirement()],
+      tasks: [makeTask({ id: "a" }), makeTask({ id: "b" })],
+      today: { date: dayKey(-1), taskIds: ["a", "b"] },
+    });
+    expect(moveTodayTask(data, "b", 0, NOW)).toBe(data);
+  });
+});
+
+describe("requirement sublabels", () => {
+  it("sublabel is trimmed, capped at 30, cleared by empty, and copied by Duplicate", () => {
+    const { data, requirement } = createRequirement(makeData(), { projectId: "p1", title: "Prototype 10", weight: 5, sublabel: "  Accessibility  " }, NOW);
+    expect(requirement.sublabel).toBe("Accessibility");
+    const blank = createRequirement(makeData(), { projectId: "p1", title: "P", weight: 5, sublabel: "   " }, NOW).requirement;
+    expect("sublabel" in blank).toBe(false);
+    const long = updateRequirement(data, requirement.id, { sublabel: "y".repeat(45) }, NOW);
+    expect(long.requirements[0].sublabel).toBe("y".repeat(30));
+    const copy = duplicateRequirement(data, requirement.id, NOW).requirement;
+    expect(copy?.sublabel).toBe("Accessibility");
+    const cleared = updateRequirement(data, requirement.id, { sublabel: "" }, NOW);
+    expect("sublabel" in cleared.requirements[0]).toBe(false);
+    // Editing something else keeps it.
+    expect(updateRequirement(data, requirement.id, { title: "Proto" }, NOW).requirements[0].sublabel).toBe("Accessibility");
   });
 });
