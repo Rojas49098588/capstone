@@ -498,7 +498,10 @@ describe("ballStep", () => {
       last = b.y;
     });
     expect(peaks.length).toBeGreaterThanOrEqual(1);
-    expect(peaks[0]).toBeLessThan(30); // a small bounce, not a pet's
+    // Dropped from 200 px: a noticeable bounce (owner, 2026-11-17: "a little bouncier"), still lower than
+    // a pet's (a pet keeps half its speed: about 50 px).
+    expect(peaks[0]).toBeGreaterThan(20);
+    expect(peaks[0]).toBeLessThan(45);
     for (let i = 1; i < peaks.length; i++) expect(peaks[i]).toBeLessThan(peaks[i - 1]);
     expect(end).toMatchObject({ y: 0, resting: true });
   });

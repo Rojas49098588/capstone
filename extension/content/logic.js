@@ -524,10 +524,10 @@
   }
 
   // The Focus Ball (desktop pets): heavier than a pet and only a little bouncy, so it settles fast, like
-  // the turtle. gravity px/s²; bounce: speed kept off the floor (a pet keeps 0.5, the turtle 0.08);
+  // the turtle. gravity px/s²; bounce: speed kept off the floor (a pet keeps 0.5, the turtle 0.08; owner asked for a little bouncier, 2026-11-17);
   // wallBounce: off the screen's sides; roll: px/s² of slowing along the floor; restSpeed: slower
   // than this off the floor and it stops bouncing.
-  const BALL = { gravity: 1800, bounce: 0.25, wallBounce: 0.4, roll: 600, restSpeed: 60 };
+  const BALL = { gravity: 1800, bounce: 0.4, wallBounce: 0.45, roll: 600, restSpeed: 60 };
 
   /**
    * One step of a thrown ball: ball is { x, y, vx, vy, resting } with x from the left, y above the
