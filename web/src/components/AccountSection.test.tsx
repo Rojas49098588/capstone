@@ -160,6 +160,28 @@ describe("Settings → Account", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  it("the demo copy never loads Firebase, even with a signed-in sync state left in its folder", async () => {
+    const signedIn = () => {
+      const storage = memoryStorage();
+      storage.setItem(SYNC_KEY, JSON.stringify({ ...EMPTY_SYNC_STATE, uid: "u1", owner: "u1" }));
+      return storage;
+    };
+    const load = vi.fn(() => new Promise<{ auth: FakeAuth; remote: FakeRemote }>(() => {}));
+    const control = renderWithStudium(<AccountProvider load={load}><Settings /></AccountProvider>, { storage: signedIn() });
+    await act(async () => {});
+    expect(load).toHaveBeenCalledTimes(1); // outside the demo, a signed-in device reconnects on its own
+    control.unmount();
+    load.mockClear();
+    window.studiumDesktop = { desktop: true, demo: true };
+    try {
+      renderWithStudium(<AccountProvider load={load}><Settings /></AccountProvider>, { storage: signedIn() });
+      await act(async () => {});
+      expect(load).not.toHaveBeenCalled();
+    } finally {
+      delete window.studiumDesktop;
+    }
+  });
+
   it("if Firebase can't load when Link account is pressed, says so and tries again on the next press", async () => {
     const user = userEvent.setup();
     const load = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue({ auth: new FakeAuth(), remote: new FakeRemote() });

@@ -54,6 +54,23 @@ function parseArgs(argv) {
   };
 }
 
+/**
+ * Whether --demo may use this folder: it must be a folder of its own, not Studium's real data folder
+ * (realUserData, read before --user-data is applied) nor one inside or around it. Otherwise a mistyped
+ * shortcut (say, missing quotes around "Studium Demo") would let Reset demo replace the real save.
+ */
+function demoFolderOk(userData, realUserData) {
+  if (!userData) return false;
+  const norm = (p) => {
+    const r = path.resolve(p).replace(/[\\/]+$/, '');
+    return process.platform === 'win32' || process.platform === 'darwin' ? r.toLowerCase() : r;
+  };
+  const a = norm(userData);
+  const b = norm(realUserData);
+  const inside = (x, y) => x === y || x.startsWith(y + path.sep);
+  return !inside(a, b) && !inside(b, a);
+}
+
 function startUrl(dev) {
   return dev ? DEV_URL : STUDIUM_URL;
 }
@@ -63,4 +80,4 @@ function isStudiumPage(url, dev) {
   return typeof url === 'string' && url.startsWith(startUrl(dev));
 }
 
-module.exports = { HOSTED_URL, STUDIUM_URL, DEV_URL, resolvePaths, parseArgs, startUrl, isStudiumPage };
+module.exports = { HOSTED_URL, STUDIUM_URL, DEV_URL, resolvePaths, parseArgs, startUrl, isStudiumPage, demoFolderOk };

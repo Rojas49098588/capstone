@@ -22,7 +22,7 @@ December 3. About 30 minutes, visitors one or two at a time. **You drive the pla
    - **Front end** (sublabel *Accessibility*), **Back end**, **Middle layer** (*API*), **Deployment**.
    - Deployment shows 🔒 **Waiting on** the other three.
 4. **≡ menu → Collapse all,** then **Soon:** only Front end is left (due in 2 days), with "3 more hidden by Soon".
-5. Back to **Show all**. In Front end, **drag** "Keyboard and screen reader check" to the top, by the ⋮⋮ grip.
+5. Back to **Show all**, then **≡ → Expand all**. In Front end, **drag** "Keyboard and screen reader check" to the top, by the ⋮⋮ grip.
 6. **Tick off "Enrollment form":** tokens are earned and the pigeon reacts.
 
 ## "Try it yourself" (hand over the mouse)

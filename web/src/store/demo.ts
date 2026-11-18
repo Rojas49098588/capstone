@@ -493,10 +493,31 @@ export function isDemo(): boolean {
   return typeof window !== "undefined" && window.studiumDesktop?.demo === true;
 }
 
+/** Set by installDemo: Reset only replaces a save the demo made itself. */
+export const DEMO_MARKER_KEY = "studium-demo-v1";
+/** Remembered collapsed requirements and filters (ui/viewPrefs.ts), per project: cleared so every visitor starts from the full view. */
+const VIEW_PREFS_PREFIX = "studium.requirementView.";
+
 /** Writes a fresh demo save and the demo settings, replacing whatever was there. */
 export function installDemo(storage: Storage, now: Date): void {
+  const viewPrefs: string[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (key?.startsWith(VIEW_PREFS_PREFIX)) viewPrefs.push(key);
+  }
+  for (const key of viewPrefs) storage.removeItem(key);
   saveData(storage, buildDemo(now));
   saveSettings(storage, DEMO_SETTINGS);
+  storage.setItem(DEMO_MARKER_KEY, now.toISOString());
+}
+
+/** Whether the saved data is the demo's (or there is none): only then may Reset replace it. */
+function demoMadeThis(storage: Storage): boolean {
+  try {
+    return storage.getItem(STORAGE_KEY) === null || storage.getItem(DEMO_MARKER_KEY) !== null;
+  } catch {
+    return false;
+  }
 }
 
 /** A demo copy's first start: with nothing saved yet, it starts with the demo. True if it did. */
@@ -511,9 +532,14 @@ export function startDemoIfNew(storage: Storage | null, now: Date): boolean {
   return true;
 }
 
-/** Settings → Reset demo: a fresh demo, then the pets and the page start over with it. */
-export function resetDemo(deps: { storage: Storage; now: Date; reloadPets?: () => void; reload: () => void }): void {
+/**
+ * Settings → Reset demo: a fresh demo, then the pets and the page start over with it. False, and nothing
+ * changes, if the save here wasn't made by the demo (a shortcut pointed at a folder with real data).
+ */
+export function resetDemo(deps: { storage: Storage; now: Date; reloadPets?: () => void; reload: () => void }): boolean {
+  if (!demoMadeThis(deps.storage)) return false;
   installDemo(deps.storage, deps.now);
   deps.reloadPets?.();
   deps.reload();
+  return true;
 }

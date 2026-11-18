@@ -5,14 +5,22 @@ import { useStudiumContext } from "../store/useStudium";
 import { BUTTON_PRIMARY, BUTTON_SECONDARY, MUTED } from "../ui/styles";
 
 export const RESET_DEMO_CONFIRM = "This replaces everything in this demo copy with fresh demo data.";
+export const RESET_DEMO_REFUSED =
+  "This folder holds data the demo didn't make, so Reset won't replace it. Check the shortcut's --user-data folder.";
 
 export default function DemoReset() {
   const { storage } = useStudiumContext();
   const [asking, setAsking] = useState(false);
+  const [refused, setRefused] = useState(false);
   if (!storage) return null; // nothing saved here to replace
 
-  const reset = () =>
-    resetDemo({ storage, now: new Date(), reloadPets: window.studiumDesktop?.reloadPets, reload: () => window.location.reload() });
+  const reset = () => {
+    const done = resetDemo({ storage, now: new Date(), reloadPets: window.studiumDesktop?.reloadPets, reload: () => window.location.reload() });
+    if (!done) {
+      setRefused(true);
+      setAsking(false);
+    }
+  };
 
   if (!asking) {
     return (
@@ -21,6 +29,11 @@ export default function DemoReset() {
           Reset demo
         </button>
         <p className={`text-xs mt-2 ${MUTED}`}>Starts the demo over: the five classes, their pets and today's plan, dated from today.</p>
+        {refused && (
+          <p role="alert" className="text-sm mt-2 text-[var(--color-accent)]">
+            {RESET_DEMO_REFUSED}
+          </p>
+        )}
       </div>
     );
   }

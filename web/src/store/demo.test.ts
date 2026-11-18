@@ -2,7 +2,7 @@
 // The demo copy's save (demo stand spec): the owner's five classes with made-up work, built from "now",
 // checked on several days and times so Reset looks right whenever it's pressed.
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { DEMO_PROJECT_IDS, DEMO_SETTINGS, buildDemo, resetDemo, startDemoIfNew } from "./demo";
+import { DEMO_MARKER_KEY, DEMO_PROJECT_IDS, DEMO_SETTINGS, buildDemo, resetDemo, startDemoIfNew } from "./demo";
 import { STORAGE_KEY, isValidData, normalizeData } from "./storage";
 import { SETTINGS_KEY, parseSettings } from "./settings";
 import { petMood, petsOf, settlePets } from "../planner/pets";
@@ -137,15 +137,36 @@ describe("demo mode", () => {
   });
 
   it("Reset replaces everything, reloads the pets, then the page", () => {
-    localStorage.setItem(STORAGE_KEY, "{\"mine\":1}");
+    window.studiumDesktop = { desktop: true, demo: true };
+    startDemoIfNew(localStorage, now);
+    localStorage.setItem(STORAGE_KEY, "{\"mine\":1}"); // a visitor's changes
     localStorage.setItem(SETTINGS_KEY, "{}");
     const calls: string[] = [];
-    resetDemo({ storage: localStorage, now, reloadPets: () => calls.push("pets"), reload: () => calls.push("page") });
+    expect(resetDemo({ storage: localStorage, now, reloadPets: () => calls.push("pets"), reload: () => calls.push("page") })).toBe(true);
     expect(localStorage.getItem(STORAGE_KEY)).toBe(savedDemo());
     expect(parseSettings(localStorage.getItem(SETTINGS_KEY))).toEqual(DEMO_SETTINGS);
     expect(calls).toEqual(["pets", "page"]);
     const reload = vi.fn();
     resetDemo({ storage: localStorage, now, reload }); // no pets' window to reload: still resets
     expect(reload).toHaveBeenCalledTimes(1);
+  });
+
+  it("Reset refuses to replace a save the demo didn't make (the shortcut pointed at real data)", () => {
+    localStorage.setItem(STORAGE_KEY, "{\"mine\":1}");
+    const reload = vi.fn();
+    expect(resetDemo({ storage: localStorage, now, reload })).toBe(false);
+    expect(localStorage.getItem(STORAGE_KEY)).toBe("{\"mine\":1}");
+    expect(localStorage.getItem(DEMO_MARKER_KEY)).toBeNull();
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("Reset clears the remembered collapsed requirements and filters, so every visitor starts from the full view", () => {
+    window.studiumDesktop = { desktop: true, demo: true };
+    startDemoIfNew(localStorage, now);
+    localStorage.setItem("studium.requirementView.webDev", JSON.stringify({ filters: ["soon"], collapsed: ["webDev-r1"] }));
+    localStorage.setItem("studium-other", "kept");
+    resetDemo({ storage: localStorage, now, reload: () => {} });
+    expect(localStorage.getItem("studium.requirementView.webDev")).toBeNull();
+    expect(localStorage.getItem("studium-other")).toBe("kept");
   });
 });

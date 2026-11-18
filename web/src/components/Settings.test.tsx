@@ -4,8 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SETTINGS_KEY } from "../store/settings";
 import { STORAGE_KEY } from "../store/storage";
-import { DEMO_PROJECT_IDS } from "../store/demo";
-import { renderWithStudium } from "../test/render";
+import { DEMO_PROJECT_IDS, startDemoIfNew } from "../store/demo";
+import { memoryStorage, renderWithStudium } from "../test/render";
 import Settings from "./Settings";
 
 describe("Settings", () => {
@@ -67,6 +67,20 @@ describe("Settings", () => {
     expect(screen.queryByRole("button", { name: "Reload pets" })).toBeNull();
   });
 
+  it("in a demo copy whose save the demo didn't make, Reset says so and changes nothing", async () => {
+    window.studiumDesktop = { desktop: true, demo: true };
+    try {
+      const { storage } = renderWithStudium(<Settings />);
+      const before = storage?.getItem(STORAGE_KEY);
+      await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
+      await userEvent.click(screen.getByRole("button", { name: "Reset" }));
+      screen.getByText("This folder holds data the demo didn't make, so Reset won't replace it. Check the shortcut's --user-data folder.");
+      expect(storage?.getItem(STORAGE_KEY)).toBe(before);
+    } finally {
+      delete window.studiumDesktop;
+    }
+  });
+
   describe("in the desktop app", () => {
     afterEach(() => {
       delete window.studiumDesktop;
@@ -90,7 +104,9 @@ describe("Settings", () => {
       Object.defineProperty(window, "location", { value: { ...realLocation, reload }, configurable: true });
       try {
         window.studiumDesktop = { desktop: true, demo: true, reloadPets };
-        const { storage } = renderWithStudium(<Settings />);
+        const demoStorage = memoryStorage();
+        startDemoIfNew(demoStorage, new Date());
+        const { storage } = renderWithStudium(<Settings />, { storage: demoStorage, data: JSON.parse(demoStorage.getItem(STORAGE_KEY) as string) });
         const before = storage?.getItem(STORAGE_KEY);
         await userEvent.click(screen.getByRole("button", { name: "Reset demo" }));
         screen.getByText("This replaces everything in this demo copy with fresh demo data.");
