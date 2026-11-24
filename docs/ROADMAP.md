@@ -4,7 +4,7 @@ What's planned, in order. Each big item gets its own design (`docs/superpowers/s
 
 ## Before the final due date (December 3, 2026)
 
-_Updated 2026-11-17. The demo is **30 minutes, desktop app only**. New features are done; the time left goes to making it presentation-ready. People in the room scan a QR code (`docs/demo/download-qr.png`) that opens <https://github.com/Rojas49098588/capstone/releases/latest>, so they can download it later._
+_Updated 2026-11-24. The demo is **30 minutes, desktop app only**. New features are done; the time left goes to making it presentation-ready. People in the room scan a QR code (`docs/demo/download-qr.png`) that opens <https://github.com/Rojas49098588/capstone/releases/latest>, so they can download it later._
 
 **Focus: finish these**
 
@@ -15,11 +15,12 @@ _Updated 2026-11-17. The demo is **30 minutes, desktop app only**. New features 
 
 **Still needed for the demo**
 
-5. **The final installer must be published as the latest release** (not a pre-release). The QR code opens `/releases/latest`, which today still points to 0.10.0. Bump the version before building.
+5. **The final installer must be published as the latest release** (not a pre-release). **Since 11/24, 0.13.0 is the latest release**, and the QR code opens it. 0.13.0 was built before the demo stand (PR #36) was merged, so it has no `--demo` flag or Reset demo. The final installer still has to be built from `main`, as a new version (a published release can't be rebuilt), then published as the latest release.
 6. **Overdue bug:** "Desktop: pets and sticky notes stop responding to clicks" (`bugs.md`, opened 11/05). It can't be reproduced yet. Worth a look, since it would show in a live demo.
 7. **A demo account with good example data,** and a 30-minute script. **Built 11/18** (branch `feature/demo-stand`): a "Studium Demo" copy with its own save of the owner's five classes and a Reset demo button, plus a one-page cheat sheet for the stand (`docs/demo/cheat-sheet.md`). The demo is an informal stand: visitors watch the planner, then play with the pets. Still to do: make the shortcut on the demo laptop once the final installer is in.
+8. **Show the version in the app,** so people know which one they're on (for example in Settings, and in the tray menu). Today nothing shows it. Do it before the final installer, so that installer is the first to show its version.
 
-**Done:** signed Mac installer (0.11.0, PR #24); Linux `.deb` (PR #25); accounts and sync (PR #23); pending tasks and due dates (0.12.0 draft); the companion phone app (PRs #26 to #28, working on the owner's iPhone). The phone app is **not in the demo**; its remaining work moves to "After December 3".
+**Done:** signed Mac installer (0.11.0, PR #24); Linux `.deb` (PR #25); accounts and sync (PR #23); pending tasks and due dates (0.12.0, never published; first released in 0.13.0); the companion phone app (PRs #26 to #28, working on the owner's iPhone). The phone app is **not in the demo**; its remaining work moves to "After December 3".
 
 ## Schedule to December 3
 
